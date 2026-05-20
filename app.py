@@ -217,16 +217,21 @@ def _render_report_tab(
         st.session_state.generation_record,
     )
 
-    with st.expander("Template help (Excel + Jinja2)"):
+    with st.expander("Documentation & template help"):
         st.markdown(
             """
-**Production tagging** — add `{{ placeholders }}` per PRODUCTION_TEMPLATE_GUIDE.txt.
+**Full documentation:** [docs/README.md](docs/README.md) — user guide, Excel, Word templates, API, security, testing.
+
+| Quick topic | Doc |
+|-------------|-----|
+| Streamlit workflow | [docs/02-user-guide.md](docs/02-user-guide.md) |
+| Excel sheets | [docs/03-excel-data-guide.md](docs/03-excel-data-guide.md) |
+| Word / Jinja2 | [docs/04-template-authoring.md](docs/04-template-authoring.md) |
+| FAQ | [docs/10-glossary-faq.md](docs/10-glossary-faq.md) |
 
 **Excel** — `ProjectData` row 1 headers, row 2 values; `LabResults` for Phase 2.
 
 **Table loop** — static header row, then `{%tr for item in lab_results %}`, data row, `{%tr endfor %}`.
-
-**Best practices** — pre-flight, dry-run preview, manifest JSON: see BEST_PRACTICES.md.
 """
         )
 

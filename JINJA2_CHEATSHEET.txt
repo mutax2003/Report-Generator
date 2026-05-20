@@ -1,6 +1,8 @@
 docxtpl / Jinja2 in Word templates — short cheat sheet
 ======================================================
 
+Full guide: docs/04-template-authoring.md
+
 Variables (replace text in document)
 ------------------------------------
   {{ site_name }}

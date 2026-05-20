@@ -1,6 +1,8 @@
 ESA Report Generator — Excel workbook layout
 ============================================
 
+Full guide: docs/03-excel-data-guide.md
+
 Sheet 1: ProjectData (required name)
 --------------------------------------
 - Row 1: column headers (each header becomes a Jinja2 context key).

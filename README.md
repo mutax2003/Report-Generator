@@ -1,6 +1,25 @@
 # ESA Report Generator
 
-Web app for generating Phase 1 / Phase 2 Environmental Site Assessment reports from an Excel data file and a Word template (Jinja2 via [docxtpl](https://docxtpl.readthedocs.io/)).
+Web application for generating **Phase 1** and **Phase 2 Environmental Site Assessment (ESA)** reports from an Excel data file and a Word template ([docxtpl](https://docxtpl.readthedocs.io/) / Jinja2).
+
+## Documentation
+
+**Full documentation:** **[docs/README.md](docs/README.md)** — start here.
+
+| Guide | Audience |
+|-------|----------|
+| [docs/01-overview.md](docs/01-overview.md) | Architecture and data flow |
+| [docs/02-user-guide.md](docs/02-user-guide.md) | Streamlit workflow (upload → pre-flight → generate) |
+| [docs/03-excel-data-guide.md](docs/03-excel-data-guide.md) | Excel sheets, columns, exceedances |
+| [docs/04-template-authoring.md](docs/04-template-authoring.md) | Word Jinja2 tags and lab tables |
+| [docs/05-developer-guide.md](docs/05-developer-guide.md) | Codebase modules and extension |
+| [docs/06-api-reference.md](docs/06-api-reference.md) | CLI, HTTP, `ReportEngine`, automation |
+| [docs/07-security-and-deployment.md](docs/07-security-and-deployment.md) | Limits, deployment, hardening |
+| [docs/08-testing.md](docs/08-testing.md) | Tests and E2E scripts |
+| [docs/09-ai-assistant.md](docs/09-ai-assistant.md) | Optional AI tab |
+| [docs/10-glossary-faq.md](docs/10-glossary-faq.md) | Terms and FAQ |
+
+Quick references: [EXCEL_LAYOUT.txt](EXCEL_LAYOUT.txt) · [JINJA2_CHEATSHEET.txt](JINJA2_CHEATSHEET.txt) · [BEST_PRACTICES.md](BEST_PRACTICES.md)
 
 ## Requirements
 
@@ -23,13 +42,13 @@ streamlit run app.py
 ```
 
 1. Upload **Excel** (`.xlsx`) and **Word template** (`.docx`).
-2. Review **Pre-flight checks** (matched/missing tags, sheet names).
-3. Fill **sidebar** fields; download sample/production templates from the sidebar if needed.
+2. Review **Pre-flight checks**.
+3. Fill **sidebar** fields; download samples from the sidebar if needed.
 4. Click **Generate Report**, then **Download Report**.
 
-## Sample files
+See [docs/02-user-guide.md](docs/02-user-guide.md) for the complete workflow.
 
-Generate or refresh samples:
+## Sample files
 
 ```powershell
 python scripts\create_samples.py
@@ -39,119 +58,60 @@ python scripts\create_samples.py
 |------|---------|
 | `samples/sample_data.xlsx` | Minimal demo data |
 | `samples/sample_template.docx` | Tagged demo template with lab table |
-| `samples/production_data.xlsx` | Fields aligned with production ESA layout |
-| `samples/production_template.docx` | Tagged production template (field guide) |
-| `samples/production_starter_template.docx` | Minimal tagged starter |
-| `samples/rendered_output.docx` | CLI output from sample render |
+| `samples/production_data.xlsx` | Production-aligned fields |
+| `samples/production_template.docx` | Tagged production reference |
+| `samples/production_starter_template.docx` | Minimal production starter |
 
-**Try the demo:** upload `samples/sample_data.xlsx` + `samples/sample_template.docx`.
+**Demo:** `samples/sample_data.xlsx` + `samples/sample_template.docx`
 
-## Production template
+## Scripts
 
-`22xxxxR Phase 2 ESA Full_merge.docx` is a full report without Jinja tags yet. See [PRODUCTION_TEMPLATE_GUIDE.txt](PRODUCTION_TEMPLATE_GUIDE.txt) for how to add `{{ placeholders }}` and use `samples/production_data.xlsx`.
+| Command | Purpose |
+|---------|---------|
+| `python scripts\render_cli.py` | Headless demo render |
+| `python scripts\production_e2e.py` | Production preflight + render |
+| `python scripts\tag_production_template.py` | Tag merge doc or generate reference template |
+| `python scripts\inventory_template.py template.docx` | List Jinja tags |
+| `python -m unittest discover -s tests -v` | Full test suite |
 
-List tags in any template:
+## Automation
+
+[docs/06-api-reference.md](docs/06-api-reference.md) · [AUTOMATE.md](AUTOMATE.md)
 
 ```powershell
-python scripts\inventory_template.py path\to\template.docx
+python -m automate.http_server --port 8765
 ```
 
-## CLI smoke test (no UI)
+## AI assistant
 
-```powershell
-python scripts\render_cli.py
-python scripts\render_cli.py --excel samples\production_data.xlsx --template "22xxxxR Phase 2 ESA Full_merge.docx" --out samples\production_rendered.docx
-```
-
-## AI assistant (Tier 1 & 2)
-
-See **[AI_FEATURES.md](AI_FEATURES.md)** for template tagging, lab PDF import, narrative drafts, pre-flight copilot, consistency checks, and exceedance notes. Works offline without an API key; set `OPENAI_API_KEY` for enhanced LLM parsing.
-
-## Best practices
-
-See **[BEST_PRACTICES.md](BEST_PRACTICES.md)** for patterns from document-automation and mail-merge tools: field contract, pre-flight, dry-run preview, template versioning, and generation manifests (audit trail).
-
-- **Field contract:** `schemas/field_contract.json`
-- **Dry run:** **Preview data (dry run)** in the app (no Word render)
-- **Manifest:** download JSON after generate or from CLI (`*_manifest.json`)
-
-## Excel layout
-
-See [EXCEL_LAYOUT.txt](EXCEL_LAYOUT.txt):
-
-- Sheet **`ProjectData`** — headers row 1, first data row → template variables.
-- Sheet **`LabResults`** — required for Phase 2; optional for Phase 1.
-
-## Word templates
-
-See [JINJA2_CHEATSHEET.txt](JINJA2_CHEATSHEET.txt) for `{{ variables }}` and `{%tr for item in lab_results %}` table loops.
+[docs/09-ai-assistant.md](docs/09-ai-assistant.md) · [AI_FEATURES.md](AI_FEATURES.md) — optional; works offline without API key.
 
 ## Project layout
 
 ```
 app.py              Streamlit UI
 engine.py           ReportEngine (Excel → docxtpl → .docx)
-provenance.py       Generation manifest / SHA-256 audit fields
-field_validation.py Recommended-field warnings vs field contract
+security.py         Upload validation
+template_tools.py   Pre-flight and template scan
+provenance.py       Generation manifest
+ui/                 Streamlit components
+ai/                 Optional AI helpers
+automate/           Headless render API
+scripts/            CLI utilities
 schemas/            field_contract.json
-security.py         Upload validation, zip safety, limits
-ui/                 sidebar, preflight, preview, results, workflow
-scripts/
-  create_samples.py
-  tag_production_template.py
-  production_e2e.py
-  render_cli.py
-  inventory_template.py
-automate/           Power Automate / HTTP ingress around ReportEngine
-samples/            Test data and templates (binaries committed)
+samples/            Demo and production fixtures
+docs/               Full documentation
+tests/              Unit and integration tests
 ```
 
-## Security and limits
+## Security
 
-Untrusted uploads are validated before rendering:
-
-| Control | Limit / behavior |
-|---------|------------------|
-| Excel size | 15 MB max; must be real OOXML (ZIP + spreadsheet parts) |
-| Template size | 30 MB max; must contain `word/document.xml` |
-| Zip bombs | Actual bytes read capped; rejects encrypted entries; compression ratio limits |
-| Zip paths | Rejects `..` and absolute paths inside archives |
-| Jinja2 | `SandboxedEnvironment` + `StrictUndefined` — templates are trusted code |
-| Lab rows | 10,000 max (truncated with warning) |
-| Cell / meta text | Length caps on context and sidebar fields |
-| Download filename | Sanitized (no path separators) |
-| Errors | Internal/library errors redacted in UI; details logged server-side |
-| Output | Generated `.docx` re-validated before download |
-
-**Deployment:** Run on `localhost` for internal use. Do not expose Streamlit on `0.0.0.0` without VPN or an authenticated reverse proxy. Word templates should come from trusted authors only.
-
-See [`security.py`](security.py) to adjust limits. Run checks:
-
-```powershell
-python -m unittest discover -s tests -v
-python scripts\render_cli.py
-.\scripts\run_security_checks.ps1
-```
-
-Edge-case coverage lives in `tests/test_edge_cases.py` (Excel sheets, Phase 1/2, exceedances, zip validation, warnings).
-
-Dependency audit: `pip install pip-audit` then `pip-audit -r requirements.txt`.
+Run on **localhost** for internal use. See [docs/07-security-and-deployment.md](docs/07-security-and-deployment.md) for limits (15 MB Excel, 30 MB template, zip-bomb guards, sandboxed Jinja).
 
 ## Troubleshooting
 
 | Issue | Fix |
 |-------|-----|
-| Missing sheet errors | Add `ProjectData` / `LabResults` tabs per [EXCEL_LAYOUT.txt](EXCEL_LAYOUT.txt) |
-| Lab table repeats headers | Use static header row *before* `{%tr for item in lab_results %}` |
-| Template render failed | Check Jinja tags are not split across Word formatting runs |
-| Streamlit won't start | `pip install -r requirements.txt` in `.venv` |
-| Regenerate demo files | `python scripts\create_samples.py` |
-
-## Automation (Power Automate / HTTP)
-
-See **[AUTOMATE.md](AUTOMATE.md)** for `automate.render`, local HTTP service, and production E2E:
-
-```powershell
-python scripts\production_e2e.py
-python -m automate.http_server --port 8765
-```
+| Missing sheet errors | [docs/03-excel-data-guide.md](docs/03-excel-data-guide.md) |
+| Template render failed | [docs/04-template-authoring.md](docs/04-template-authoring.md) — split tags |
+| More questions | [docs/10-glossary-faq.md](docs/10-glossary-faq.md) |

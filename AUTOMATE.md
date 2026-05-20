@@ -1,5 +1,7 @@
 # Automation ingress (Power Automate & scripts)
 
+Full reference: [docs/06-api-reference.md](docs/06-api-reference.md)
+
 The Streamlit app is for interactive use. For M365 automation, call the same **`ReportEngine`** via the `automate` package.
 
 ## Python API

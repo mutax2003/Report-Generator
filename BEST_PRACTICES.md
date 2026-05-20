@@ -1,5 +1,7 @@
 # Best practices (ESA Report Generator)
 
+Full documentation: [docs/README.md](docs/README.md) · User workflow: [docs/02-user-guide.md](docs/02-user-guide.md)
+
 Patterns adopted from **mail merge**, **legal/document automation**, and **docxtpl**-based tools (HotDocs-style separation of template vs data, Docassemble-style interviews + manifests, enterprise merge audit trails).
 
 ## 1. Separate template, data, and engine

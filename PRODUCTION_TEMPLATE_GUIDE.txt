@@ -1,6 +1,8 @@
 Production template — Jinja2 mapping guide
 ==========================================
 
+Full guide: docs/04-template-authoring.md
+
 Files
 -----
 - Full merge (local, gitignored): 22xxxxR Phase 2 ESA Full_merge.docx (project root)

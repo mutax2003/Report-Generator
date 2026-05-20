@@ -1,0 +1,70 @@
+# ESA Report Generator — Documentation
+
+Complete documentation for the Environmental Site Assessment (ESA) report generation system. This tool merges Excel project data and laboratory results into Word templates using Jinja2 ([docxtpl](https://docxtpl.readthedocs.io/)), delivered through a Streamlit web interface and headless automation APIs.
+
+## Audience
+
+| Document | Who it is for |
+|----------|----------------|
+| [01-overview.md](01-overview.md) | Everyone — purpose, architecture, data flow |
+| [02-user-guide.md](02-user-guide.md) | Consultants, report authors, QA reviewers |
+| [03-excel-data-guide.md](03-excel-data-guide.md) | Data preparers — workbook structure and field contract |
+| [04-template-authoring.md](04-template-authoring.md) | Word template authors — Jinja2, tables, production merge |
+| [05-developer-guide.md](05-developer-guide.md) | Developers — modules, extension points, conventions |
+| [06-api-reference.md](06-api-reference.md) | Integrators — `ReportEngine`, CLI, HTTP, automation |
+| [07-security-and-deployment.md](07-security-and-deployment.md) | IT / admins — limits, deployment, hardening |
+| [08-testing.md](08-testing.md) | QA / developers — unit tests, E2E, CI |
+| [09-ai-assistant.md](09-ai-assistant.md) | Power users — optional AI tab features |
+| [10-glossary-faq.md](10-glossary-faq.md) | Quick lookup — terms and common questions |
+
+## Quick start
+
+```powershell
+cd "c:\Users\Andrew Liu\Report Generator"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Demo files: `samples/sample_data.xlsx` + `samples/sample_template.docx`.
+
+## Legacy quick-reference files (root)
+
+These remain as one-page references; full detail is in the docs above.
+
+| File | Topic |
+|------|--------|
+| [../EXCEL_LAYOUT.txt](../EXCEL_LAYOUT.txt) | Excel sheet names and columns |
+| [../JINJA2_CHEATSHEET.txt](../JINJA2_CHEATSHEET.txt) | Word `{{ tags }}` and table loops |
+| [../PRODUCTION_TEMPLATE_GUIDE.txt](../PRODUCTION_TEMPLATE_GUIDE.txt) | Production merge document tagging |
+| [../BEST_PRACTICES.md](../BEST_PRACTICES.md) | Mail-merge / audit patterns |
+| [../AI_FEATURES.md](../AI_FEATURES.md) | AI tab summary (see also [09-ai-assistant.md](09-ai-assistant.md)) |
+| [../AUTOMATE.md](../AUTOMATE.md) | Automation summary (see also [06-api-reference.md](06-api-reference.md)) |
+
+## Document map
+
+```mermaid
+flowchart TB
+  subgraph inputs [Inputs]
+    Excel[Excel .xlsx]
+    Word[Word template .docx]
+    Sidebar[Sidebar metadata]
+  end
+  subgraph app [Application]
+    UI[Streamlit app.py]
+    Preflight[Pre-flight / preview]
+    Engine[ReportEngine engine.py]
+  end
+  subgraph outputs [Outputs]
+    Docx[Rendered .docx]
+    Manifest[Generation manifest JSON]
+  end
+  Excel --> Engine
+  Word --> Engine
+  Sidebar --> Engine
+  UI --> Preflight
+  Preflight --> Engine
+  Engine --> Docx
+  Engine --> Manifest
+```

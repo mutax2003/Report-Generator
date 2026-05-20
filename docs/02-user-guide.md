@@ -1,0 +1,181 @@
+# 02 — User guide (Streamlit application)
+
+This guide walks report authors and QA staff through the web application from first launch to downloaded deliverable.
+
+## Prerequisites
+
+- Python 3.10+ with dependencies installed ([README](../README.md#setup)).
+- A prepared **Excel** workbook and **Word template** (or use sidebar sample downloads).
+
+## Launching the application
+
+```powershell
+streamlit run app.py
+```
+
+The app opens in your browser (default `http://localhost:8501`). Use **localhost** on office machines; do not expose the server broadly without IT approval (see [07-security-and-deployment.md](07-security-and-deployment.md)).
+
+## Screen layout
+
+### Header and upload zones
+
+Two columns:
+
+| Column | Control | Accepts |
+|--------|---------|---------|
+| Left | **Excel Data Source (.xlsx)** | One `.xlsx` file |
+| Right | **Word Template (.docx)** | One `.docx` file |
+
+After selection, a caption shows file name and size.
+
+### Sidebar — Project meta-data
+
+| Field | Purpose | Recorded in manifest |
+|-------|---------|----------------------|
+| **Prepared by** | Author name on cover / signature block | Yes |
+| **Date of issue** | Report issue date (ISO format internally) | Yes |
+| **Report phase** | `Phase 1` or `Phase 2` | Yes — controls `LabResults` requirement |
+| **Template version** | Optional semver, e.g. `2.1.0` | Yes — tracks which template revision was used |
+
+**Phase 1:** `LabResults` sheet is optional; lab table may be empty.
+
+**Phase 2:** `LabResults` sheet is required; pre-flight errors if missing.
+
+Sidebar also provides **download buttons** for sample Excel and Word files when `samples/` exists (auto-created on first use if missing).
+
+### AI settings (sidebar, bottom)
+
+- Toggle **Use cloud LLM** — requires `OPENAI_API_KEY` in environment or `.streamlit/secrets.toml`.
+- When off, AI tab uses offline rule-based fallbacks only.
+
+### Tabs
+
+#### Report generation (primary workflow)
+
+1. **Analyze uploaded Word template** (expander) — Lists root `{{ variables }}` and block tags; warns about possible split tags.
+2. **Pre-flight checks** — Sheet names, errors, warnings, matched/missing template variables, split-tag lint.
+3. **Workflow step indicator** — Visual checklist: Excel → Template → Pre-flight OK → Output.
+4. **Preview data (dry run)** — Builds merge context and manifest **without** rendering Word (fast QA).
+5. **Generate Report** — Primary action; disabled until uploads valid and pre-flight has no **errors**.
+6. **Download section** — Report `.docx`, warnings, context preview, manifest JSON.
+
+#### AI assistant
+
+Optional tools: template tagger, lab PDF → Excel, narrative drafts, pre-flight copilot, consistency checker, exceedance notes. See [09-ai-assistant.md](09-ai-assistant.md). **All AI output is draft** — review before client use.
+
+## Standard workflow (recommended)
+
+```mermaid
+flowchart TD
+  A[Upload Excel + Word template] --> B[Set sidebar meta-data]
+  B --> C[Review Pre-flight checks]
+  C --> D{Errors?}
+  D -->|Yes| E[Fix Excel sheets or template tags]
+  E --> A
+  D -->|No| F[Optional: Preview dry run]
+  F --> G[Generate Report]
+  G --> H[Review warnings]
+  H --> I[Download Report + manifest]
+```
+
+### Step 1 — Upload files
+
+- Excel must contain sheet **`ProjectData`** (exact name).
+- Phase 2 Excel must also contain **`LabResults`**.
+- Template must be `.docx` with valid Jinja2 tags (see [04-template-authoring.md](04-template-authoring.md)).
+
+### Step 2 — Pre-flight
+
+| Pre-flight result | Meaning | Action |
+|-------------------|---------|--------|
+| **Errors** (red) | Cannot generate — missing sheet, invalid file, security rejection | Fix before continuing |
+| **Warnings** (yellow) | Can generate — missing optional tags, empty recommended fields, split-tag hints | Fix for production quality |
+| **Matched / missing vars** | Template `{{ tags }}` vs Excel + sidebar keys | Add Excel columns or sidebar values for missing tags |
+
+Download **missing-fields checklist** from pre-flight when offered — paste into Excel planning.
+
+### Step 3 — Dry-run preview (optional)
+
+Expander **Preview data (dry run)**:
+
+- Shows merged context keys and lab row count.
+- Download manifest JSON without producing Word.
+- Use before a long render or when validating a new template.
+
+### Step 4 — Generate Report
+
+- Spinner shows while `ReportEngine` renders.
+- Success message includes warning count and suggested filename.
+- Hard failures show a user-safe error and **Common fixes** expander.
+
+### Step 5 — Download and archive
+
+| Download | Use |
+|----------|-----|
+| **Download Report** | Client-ready `.docx` |
+| **Download generation manifest (JSON)** | Audit: SHA-256 hashes, timestamps, missing variables, AI audit entries |
+
+Store manifest alongside issued reports for reproducibility ([BEST_PRACTICES.md](../BEST_PRACTICES.md)).
+
+## Session state behavior
+
+The app remembers during your browser session:
+
+- Last generated `.docx` (for download after navigation)
+- Warnings and context preview
+- Generation record for manifest export
+- AI audit log (included in manifest after generate)
+
+Refreshing the browser clears session state unless Streamlit persistence is configured.
+
+## Filename convention
+
+Download names are derived automatically:
+
+```
+{site_name}_{Phase_1|Phase_2}_{date}.docx
+```
+
+Special characters sanitized; falls back to `ESA` if site name empty.
+
+## Using sample files (first-time demo)
+
+1. Sidebar → **Download sample Excel** and **Download sample Word template**.
+2. Re-upload those files in the main uploaders (or use copies from `samples/` folder).
+3. Generate — expect lab table with one exceedance row in red bold.
+
+Production-aligned samples: `production_data.xlsx`, `production_template.docx`.
+
+## When Generate is disabled
+
+| Condition | Fix |
+|-----------|-----|
+| No Excel or template uploaded | Upload both files |
+| Pre-flight errors | Resolve sheet/tag/file issues |
+| Another render in progress | Wait for spinner to finish |
+| Wrong file extension | Use `.xlsx` and `.docx` only |
+
+## Template help expander
+
+Bottom of Report tab links to:
+
+- `PRODUCTION_TEMPLATE_GUIDE.txt`
+- `EXCEL_LAYOUT.txt`
+- `JINJA2_CHEATSHEET.txt`
+- `BEST_PRACTICES.md`
+
+Full detail: [03-excel-data-guide.md](03-excel-data-guide.md), [04-template-authoring.md](04-template-authoring.md).
+
+## Troubleshooting (user-facing)
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| Missing sheet `ProjectData` | Wrong tab name | Rename sheet exactly `ProjectData` |
+| Missing sheet `LabResults` | Phase 2 without lab tab | Add `LabResults` or switch to Phase 1 |
+| Template rendering failed | Broken Jinja or split `{{ tag }}` | Re-type tags in one Word run; see pre-flight split lint |
+| Empty fields in output | Tag name mismatch | Align Excel headers with `{{ snake_case }}` names |
+| Lab table shows header twice | Loop includes header row | Static header row **above** `{%tr for item in lab_results %}` |
+| Excel too large | Over 15 MB | Reduce file size or split data |
+| Red exceedance missing | Used `result_plain` | Use `{{ item.result_display }}` in table |
+
+More: [10-glossary-faq.md](10-glossary-faq.md).

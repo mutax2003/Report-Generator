@@ -1,5 +1,7 @@
 # AI features (Tier 1 & 2)
 
+Full guide: [docs/09-ai-assistant.md](docs/09-ai-assistant.md)
+
 All AI output is **draft or advisory** — review before client delivery. The deterministic `ReportEngine` merge is unchanged.
 
 ## Setup
