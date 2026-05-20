@@ -12,6 +12,8 @@ __pycache__/
 samples/rendered_output.docx
 samples/e2e_output.docx
 samples/production_rendered.docx
+samples/*_manifest.json
+samples/e2e_*.docx
 
 # Client templates (optional — remove line to version-control)
 22xxxxR Phase 2 ESA Full_merge.docx
