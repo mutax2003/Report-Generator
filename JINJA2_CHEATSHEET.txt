@@ -1,0 +1,46 @@
+docxtpl / Jinja2 in Word templates — short cheat sheet
+======================================================
+
+Variables (replace text in document)
+------------------------------------
+  {{ site_name }}
+  {{ prepared_by }}
+
+  Use the same names as Excel ProjectData headers or sidebar fields.
+
+Filters (examples)
+------------------
+  {{ value | default("N/A") }}
+  {{ text | upper }}
+
+Tables — repeating rows (docxtpl)
+---------------------------------
+  Use a dedicated table. Put the HEADER ROW first (static), then:
+
+  Row 1: Analyte | Result | Unit | Exceedance   (static headers)
+  Row 2 (merge): {%tr for item in lab_results %}
+  Row 3: {{ item.analyte }} | {{ item.result_display }} | ...
+  Row 4 (merge): {%tr endfor %}
+
+  Use {{ item.result_plain }} if you do not need red/bold exceedances.
+
+  Note: {%tr ... %} is docxtpl’s table-row tag (see docxtpl docs).
+
+Conditionals
+------------
+  {% if show_section %}
+  Optional paragraph text.
+  {% endif %}
+
+Loops (paragraph / non-table)
+-----------------------------
+  {% for x in items %}
+  {{ x.name }}
+  {% endfor %}
+
+Tips
+----
+- Avoid splitting {{ }} across Word formatting runs; keep each tag in one run if Word breaks rendering.
+- RichText objects (e.g. result_display for exceedances) must be inserted as {{ item.result_display }} without extra text inside the same placeholder if possible.
+
+Further reading: https://docxtpl.readthedocs.io/

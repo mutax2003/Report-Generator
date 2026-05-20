@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate samples
+        run: python scripts/create_samples.py
+
+      - name: Tag production template
+        run: python scripts/tag_production_template.py
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: CLI smoke render
+        run: python scripts/render_cli.py
+
+      - name: Production E2E render
+        run: python scripts/production_e2e.py

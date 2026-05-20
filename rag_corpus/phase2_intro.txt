@@ -1,0 +1,11 @@
+Phase 2 Environmental Site Assessment — reference tone
+---
+
+A Phase 2 ESA builds on the Phase 1 findings to evaluate potential contamination through intrusive investigation and laboratory analysis. Soil, groundwater, and sometimes vapour samples are compared to applicable screening criteria for the site use and jurisdiction.
+
+The scope of work should clearly state the number and location of boreholes or test pits, sampling depths, and analytical parameters requested. Laboratory certificates of analysis must be reviewed for data qualifiers and holding times.
+
+Where analytical results exceed screening levels, the report should describe the exceedance, discuss potential sources, and recommend whether further delineation or risk assessment is warranted. Conclusions must be supported by the data presented in the report body and appendices.
+
+---
+Limitations typical in Phase 2 reports include access constraints, weather, and the discrete nature of subsurface sampling. The investigation reflects conditions at the time of field work only.

@@ -1,0 +1,63 @@
+---
+description: ESA Report Generator (Streamlit + docxtpl) — architecture, stack, and deliverables
+alwaysApply: true
+---
+
+# Technical Architect Prompt: ESA Report Generator (Streamlit Edition)
+
+This revised prompt combines the professional document generation logic with a clean, interactive **Streamlit** interface. You can paste this directly into Cursor to build a functional V1 of your internal reporting tool.
+
+## Objective
+
+Act as a Senior Python Developer and System Architect. Build a web-based **Environmental Report Generation Engine** using **Streamlit** and **docxtpl**. The application must allow non-technical users to upload an Excel data file and a Word template, then download a rendered Phase 1 or Phase 2 ESA report.
+
+## Tech Stack
+
+- **Frontend:** Streamlit
+- **Document Logic:** docxtpl (Jinja2 templating)
+- **Data Processing:** pandas, openpyxl
+
+## 1. Functional Requirements
+
+### A. The Streamlit UI
+
+- **File Uploaders:** Two clear upload zones: one for the **Excel Data Source** and one for the **Word Template (.docx)**.
+- **Project Meta-Data:** Sidebar for global variables that might not be in the Excel sheet (e.g., Prepared By, Date of Issue).
+- **Process Action:** Primary button labeled **Generate Report** that triggers the rendering logic.
+- **Download Utility:** After successful generation, a download button for the resulting .docx file.
+
+### B. The Rendering Engine (docxtpl)
+
+- **Context Mapping:** Read the first sheet of the Excel file (`ProjectData`) and convert it into a dictionary where column headers are keys.
+- **Dynamic Tables:** Read a second sheet (`LabResults`) and format it as a list of dictionaries for Word table loops (e.g., `{% tr for item in lab_results %}`).
+- **Formatting Logic:** Use `RichText` for specific formatting in cells (e.g., bolding or colors for exceedances).
+
+### C. Robust Logic & Safety
+
+- **Error Catching:** If a tag exists in the Word doc but is missing from the Excel data, show a graceful warning in the UI rather than crashing.
+- **Input Validation:** Verify uploaded files use the correct extensions (.xlsx and .docx).
+
+## 2. Architectural Design
+
+- **Modular Code:** Separate **Streamlit UI code** from **document generation logic**.
+- **Session State:** Use Streamlit session state so the generated file persists through the download phase.
+
+## 3. Deliverables
+
+- `app.py`: Main entry point with the Streamlit interface and integration logic.
+- `engine.py`: Class-based module for document rendering.
+- **Example Excel Template:** Code snippet or instructions for Excel structure aligned with the engine.
+- **Jinja2 Cheat Sheet:** Brief guide for `{{ tags }}` and `{% loops %}` inside Word templates.
+
+## M365 / portability note
+
+The tool is portable Python: run locally first. For **Power Automate** later, reuse `engine.py` and change only how data reaches the engine.
+
+## How to use this in Cursor
+
+1. Open this project folder in Cursor.
+2. Ensure `app.py` exists (or create it).
+3. Open Chat (Cmd+L / Ctrl+L) and reference this rule or paste the objective/requirements as needed.
+4. After code exists, you can ask for a sample **Phase 2 Lab Results** Excel table and matching Word table Jinja2 to test table generation.
+
+Optional follow-up for agents: provide a sample `LabResults` table structure and how Phase 2 exceedances are represented (e.g., RichText) when the user requests testing examples.

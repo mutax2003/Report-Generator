@@ -1,0 +1,185 @@
+"""Suggest Jinja2 tags for untagged production Word templates."""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from ai.client import complete_json, prompt_version
+from ai.docx_extract import extract_docx_full_text
+from ai.models import AiAudit, TagSuggestion
+from field_validation import load_field_contract
+
+# From PRODUCTION_TEMPLATE_GUIDE + common ESA placeholders
+_BRACKET_MAP: dict[str, str] = {
+    "company": "company",
+    "company address": "company_address",
+    "keywords": "keywords",
+    "lab": "lab_name",
+    "client full name": "client_name",
+    "client name": "client_name",
+}
+
+_PHRASE_MAP: list[tuple[str, str]] = [
+    ("Client Full Name", "client_name"),
+    ("client full name", "client_name"),
+    ("Company Address", "company_address"),
+    ("[Company]", "company"),
+    ("[Company Address]", "company_address"),
+    ("[Keywords]", "keywords"),
+    ("[LAB]", "lab_name"),
+]
+
+
+def _allowed_keys() -> set[str]:
+    contract = load_field_contract()
+    keys: set[str] = set()
+    pd = contract.get("sheets", {}).get("ProjectData", {})
+    keys.update(pd.get("recommended_all_phases", []))
+    keys.update(pd.get("recommended_phase_2", []))
+    keys.update(contract.get("sidebar_meta", {}).keys())
+    keys.discard("report_phase")
+    return keys
+
+
+def _rule_suggestions(text: str) -> list[TagSuggestion]:
+    found: list[TagSuggestion] = []
+    seen: set[str] = set()
+
+    for m in re.finditer(r"\[([^\]]{1,80})\]", text):
+        inner = m.group(1).strip()
+        key = _BRACKET_MAP.get(inner.lower(), _norm_bracket_key(inner))
+        tag = f"{{{{ {key} }}}}"
+        orig = m.group(0)
+        if orig not in seen:
+            seen.add(orig)
+            found.append(
+                TagSuggestion(
+                    original_text=orig,
+                    jinja_tag=tag,
+                    confidence=0.95 if inner.lower() in _BRACKET_MAP else 0.7,
+                    source="rule",
+                    notes="Replace bracket placeholder in Word with this tag (single run).",
+                )
+            )
+
+    for phrase, key in _PHRASE_MAP:
+        if phrase in text and phrase not in seen:
+            seen.add(phrase)
+            found.append(
+                TagSuggestion(
+                    original_text=phrase,
+                    jinja_tag=f"{{{{ {key} }}}}",
+                    confidence=0.85,
+                    source="rule",
+                    notes="Replace static phrase with Jinja tag.",
+                )
+            )
+
+    # Existing jinja tags
+    for m in re.finditer(r"\{\{\s*([A-Za-z_]\w*)\s*\}\}", text):
+        key = m.group(1)
+        if key not in seen:
+            seen.add(key)
+            found.append(
+                TagSuggestion(
+                    original_text=m.group(0),
+                    jinja_tag=m.group(0),
+                    confidence=1.0,
+                    source="rule",
+                    notes="Already tagged.",
+                )
+            )
+
+    return found
+
+
+def _norm_bracket_key(inner: str) -> str:
+    s = re.sub(r"[^\w\s]", "", inner.strip().lower())
+    return re.sub(r"\s+", "_", s)
+
+
+def _llm_suggestions(text: str, allowed: set[str]) -> list[TagSuggestion]:
+    payload = complete_json(
+        system=(
+            "You are an expert in docxtpl Word templates for environmental reports. "
+            "Return JSON only: {\"suggestions\": [{\"original_text\": \"...\", "
+            "\"jinja_key\": \"snake_case\", \"confidence\": 0.0-1.0, \"notes\": \"...\"}]}. "
+            f"Only use jinja_key from this allowlist: {sorted(allowed)}."
+        ),
+        user=f"Document excerpt:\n\n{text[:24_000]}",
+    )
+    if not payload or "suggestions" not in payload:
+        return []
+    out: list[TagSuggestion] = []
+    for item in payload.get("suggestions", [])[:40]:
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get("jinja_key", "")).strip()
+        if key not in allowed:
+            continue
+        out.append(
+            TagSuggestion(
+                original_text=str(item.get("original_text", ""))[:200],
+                jinja_tag=f"{{{{ {key} }}}}",
+                confidence=float(item.get("confidence", 0.6)),
+                source="llm",
+                notes=str(item.get("notes", ""))[:500],
+            )
+        )
+    return out
+
+
+def suggest_template_tags(
+    template_bytes: bytes,
+    *,
+    use_llm: bool = True,
+) -> tuple[list[TagSuggestion], AiAudit]:
+    text = extract_docx_full_text(template_bytes)
+    allowed = _allowed_keys()
+    suggestions = _rule_suggestions(text)
+    audit = AiAudit(features=["template_tagger"], prompt_version=prompt_version())
+
+    existing_keys = {s.jinja_tag for s in suggestions if s.confidence >= 1.0}
+    if use_llm:
+        llm_rows = _llm_suggestions(text, allowed)
+        audit.used_llm = bool(llm_rows)
+        if llm_rows:
+            audit.model = __import__("ai.config", fromlist=["openai_model"]).openai_model()
+        for row in llm_rows:
+            if row.jinja_tag not in existing_keys:
+                suggestions.append(row)
+
+    # Flag keys not in contract
+    for s in suggestions:
+        m = re.search(r"\{\{\s*(\w+)\s*\}\}", s.jinja_tag)
+        if m and m.group(1) not in allowed:
+            s.notes = (s.notes + " Warning: not in field_contract.json.").strip()
+
+    return suggestions, audit
+
+
+def suggestions_to_markdown(suggestions: list[TagSuggestion]) -> str:
+    lines = [
+        "# Template tagging suggestions",
+        "",
+        "| Find in Word | Replace with | Confidence | Source | Notes |",
+        "|--------------|--------------|------------|--------|-------|",
+    ]
+    for s in suggestions:
+        lines.append(
+            f"| {s.original_text} | `{s.jinja_tag}` | {s.confidence:.0%} | {s.source} | {s.notes} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Table loop (lab results)",
+            "",
+            "Add a table with header row, then:",
+            "- `{%tr for item in lab_results %}`",
+            "- `{{ item.analyte }}`, `{{ item.result_display }}`, `{{ item.unit }}`, `{{ item.exceedance_flag }}`",
+            "- `{%tr endfor %}`",
+            "",
+        ]
+    )
+    return "\n".join(lines)

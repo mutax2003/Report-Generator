@@ -1,0 +1,38 @@
+ESA Report Generator — Excel workbook layout
+============================================
+
+Sheet 1: ProjectData (required name)
+--------------------------------------
+- Row 1: column headers (each header becomes a Jinja2 context key).
+- Row 2 onward: data rows. The engine uses the FIRST data row only and
+  builds one flat dict: header -> cell value (strings; NaN -> "").
+
+  Example headers: site_name, client_name, project_number, address
+
+  Tip: Use snake_case or consistent names that match your Word template
+  placeholders, e.g. {{ site_name }}.
+
+Sheet 2: LabResults (required name)
+-------------------------------------
+- Row 1: column headers.
+- Each subsequent row becomes one dict in the list `lab_results`.
+
+  Supported columns (any subset OK; extras are passed through as strings):
+
+  - Analyte (or analyte): parameter name
+  - Result: numeric or text result
+  - Unit: units
+  - Criteria: screening / regulatory value (optional)
+  - Exceedance: "Y", "Yes", "TRUE", "1", or "X" marks exceedance
+
+  Exceedance logic:
+  - If Exceedance is truthy (above), or Result > Criteria when both parse
+    as numbers, the engine sets result_display as RichText (bold + red).
+
+  Template: loop with {%tr for item in lab_results %} and use
+  {{ item.analyte }}, {{ item.result_display }} (or {{ item.result_plain }}),
+  {{ item.unit }}, etc.
+  Keys in each row are lowercased header names with spaces -> underscores.
+
+Sidebar fields (app.py) are merged into the same context as ProjectData
+(e.g. prepared_by, date_of_issue) and override Excel keys if names match.

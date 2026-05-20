@@ -1,0 +1,10 @@
+# Align with security.MAX_* limits (values in MB)
+[server]
+maxUploadSize = 30
+# XSRF protection requires CORS; do not set enableCORS=false with XSRF on.
+enableXsrfProtection = true
+headless = true
+
+[browser]
+gatherUsageStats = false
+serverAddress = "localhost"

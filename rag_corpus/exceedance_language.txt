@@ -1,0 +1,8 @@
+Exceedance discussion — reference language
+---
+
+Analytical results that exceed applicable screening criteria should be identified in summary tables and discussed in the results section. For each exceedance, state the analyte, media, concentration, units, and the criterion exceeded.
+
+Professional judgment is required when comparing results to criteria: confirm that units, detection limits, and the correct standard for land use have been applied. Duplicate or quality control samples should be reviewed where provided by the laboratory.
+
+Recommendations may include additional sampling to delineate the lateral and vertical extent of impacts, or comparison to risk-based standards where appropriate under local guidance.

@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Generated / local outputs
+samples/rendered_output.docx
+samples/e2e_output.docx
+samples/production_rendered.docx
+
+# Client templates (optional — remove line to version-control)
+22xxxxR Phase 2 ESA Full_merge.docx
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,58 @@
+Production template — Jinja2 mapping guide
+==========================================
+
+Files
+-----
+- Full merge (local, gitignored): 22xxxxR Phase 2 ESA Full_merge.docx (project root)
+- Committed tagged reference: samples/production_template.docx
+
+Status
+------
+The full merge document may not yet contain docxtpl/Jinja2 tags. The committed
+samples/production_template.docx is pre-tagged for all guide fields + lab table.
+
+Tag the merge document (when present):
+
+  python scripts/tag_production_template.py --source "22xxxxR Phase 2 ESA Full_merge.docx" --out samples/production_template.docx
+
+Or generate the reference template only:
+
+  python scripts/tag_production_template.py
+
+Run inventory_template.py to list tags after you edit the Word file:
+
+  python scripts/inventory_template.py "samples/production_template.docx"
+
+Bracket placeholders found in the document
+------------------------------------------
+Replace these in Word with Jinja2 tags (same name, snake_case):
+
+  [Company]           ->  {{ company }}
+  [Company Address]   ->  {{ company_address }}
+  [Keywords]          ->  {{ keywords }}
+  [LAB]               ->  {{ lab_name }}
+
+Common static text to replace
+-----------------------------
+  "Client Full Name"     ->  {{ client_full_name }}  or  {{ client_name }}
+  Site / project ID line   ->  {{ site_name }}
+  Address lines            ->  {{ site_address }}  or  {{ address }}
+
+Excel workbook: samples/production_data.xlsx
+--------------------------------------------
+Sheet ProjectData — columns match the keys above (first data row used).
+Sheet LabResults — lab table for {%tr for item in lab_results %} loops.
+
+Sidebar (app) adds: prepared_by, date_of_issue, report_phase.
+
+Phase 1 reports
+---------------
+Select "Phase 1" in the sidebar; LabResults sheet is optional (empty
+lab_results list). Phase 2 requires the LabResults sheet.
+
+Next steps for your team
+------------------------
+1. Copy the production .docx and add {{ tags }} where text should vary.
+2. Add a lab results table with docxtpl row loop (see JINJA2_CHEATSHEET.txt).
+3. Fill samples/production_data.xlsx (or your project copy).
+4. Generate in the app and fix any warnings for missing tags.

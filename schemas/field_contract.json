@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ESA Report Generator field contract",
+  "description": "Recommended Excel ProjectData columns and sidebar fields. Aligns template tags with data sources (mail-merge / document-automation pattern).",
+  "version": "1.0.0",
+  "sheets": {
+    "ProjectData": {
+      "layout": "Row 1 = column headers (become Jinja keys after normalization). Row 2 = values for the report.",
+      "recommended_all_phases": [
+        "site_name",
+        "client_name",
+        "project_number",
+        "address",
+        "prepared_by",
+        "date_of_issue"
+      ],
+      "recommended_phase_2": [
+        "site_address",
+        "report_title",
+        "lab_name",
+        "consultant_name",
+        "company"
+      ]
+    },
+    "LabResults": {
+      "layout": "One row per analyte. Headers: Analyte, Result, Unit, Criteria, Exceedance (aliases accepted).",
+      "required_phase_2": true,
+      "loop_variable": "lab_results",
+      "row_fields": ["analyte", "result", "unit", "criteria", "exceedance_flag", "result_display"]
+    }
+  },
+  "sidebar_meta": {
+    "prepared_by": "Author name (overrides or supplements Excel if same key)",
+    "date_of_issue": "ISO date",
+    "report_phase": "Phase 1 | Phase 2",
+    "template_version": "Optional semantic version of the Word template (e.g. 2.1.0)"
+  },
+  "template_rules": [
+    "Type each {{ tag }} in one continuous run in Word (no bold/color mid-tag).",
+    "Use static table header row, then {%tr for item in lab_results %} for data rows.",
+    "Version templates in Git; store rendered .docx outside version control.",
+    "Run pre-flight before every production generate."
+  ]
+}
