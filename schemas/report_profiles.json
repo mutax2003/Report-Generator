@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ESA Report Generator — report type profiles",
+  "version": "1.0.0",
+  "config_sheet": "ReportConfig",
+  "primary_sheet_default": "ProjectData",
+  "profiles": {
+    "phase1_alberta": {
+      "label": "Alberta Phase I ESA (Ecoventure)",
+      "description": "AER Schedule Two style; optional drilling waste and tank tables.",
+      "default_phase": "Phase 1",
+      "primary_sheet": "ProjectData",
+      "required_sheets": ["ProjectData"],
+      "sheet_mappings": {
+        "LabResults": "lab_results",
+        "DrillingWaste": "drilling_waste",
+        "StorageTanks": "storage_tanks"
+      },
+      "lab_loop_variable": null,
+      "narrative_profile": "phase1_alberta",
+      "recommended_fields": [
+        "site_name",
+        "client_name",
+        "project_number",
+        "address",
+        "prepared_by",
+        "date_of_issue",
+        "consultant_name",
+        "company",
+        "well_name",
+        "uwi",
+        "report_title",
+        "qp_names",
+        "spud_date",
+        "cased_date",
+        "reentry_detail",
+        "drilling_waste_summary",
+        "aer_waste_compliance_option",
+        "air_photo_observations",
+        "site_visit_completed",
+        "executive_summary",
+        "conclusions_recommendations"
+      ]
+    },
+    "phase2_esa": {
+      "label": "Phase II ESA (laboratory results)",
+      "description": "Requires LabResults sheet and lab_results table loop in Word.",
+      "default_phase": "Phase 2",
+      "primary_sheet": "ProjectData",
+      "required_sheets": ["ProjectData", "LabResults"],
+      "sheet_mappings": {
+        "LabResults": "lab_results"
+      },
+      "lab_loop_variable": "lab_results",
+      "narrative_profile": "phase2",
+      "recommended_fields": [
+        "site_name",
+        "client_name",
+        "project_number",
+        "address",
+        "prepared_by",
+        "date_of_issue",
+        "site_address",
+        "report_title",
+        "lab_name",
+        "consultant_name",
+        "company"
+      ]
+    },
+    "template_driven": {
+      "label": "Custom — match template tags to Excel sheets",
+      "description": "Maps Word {%tr for item in X %} loops and {{ fields }} to any Excel sheets you supply. Use ReportConfig sheet to override mappings.",
+      "default_phase": "Phase 1",
+      "primary_sheet": "ProjectData",
+      "required_sheets": ["ProjectData"],
+      "sheet_mappings": {},
+      "auto_discover_loops": true,
+      "auto_map_sheets": true,
+      "lab_loop_variable": "lab_results",
+      "narrative_profile": "generic",
+      "recommended_fields": [
+        "site_name",
+        "client_name",
+        "project_number",
+        "address",
+        "prepared_by",
+        "date_of_issue"
+      ]
+    }
+  }
+}

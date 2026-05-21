@@ -9,7 +9,7 @@ alwaysApply: true
 
 **Primary use case:** Alberta O&G **Phase I ESA** for **Ecoventure Inc.** (`consultant_name` / `company` = Ecoventure Inc.). Samples: `samples/phase1_alberta_data.xlsx` + `samples/phase1_alberta_template.docx`.
 
-**Authoritative docs:** [docs/README.md](docs/README.md) · Phase I: [docs/11-alberta-phase1-esa.md](docs/11-alberta-phase1-esa.md) · User testing: [docs/12-testing-with-your-documents.md](docs/12-testing-with-your-documents.md)
+**Authoritative docs:** [docs/README.md](docs/README.md) · [docs/00-start-here.md](docs/00-start-here.md) (consultants) · Phase I: [docs/11-alberta-phase1-esa.md](docs/11-alberta-phase1-esa.md) · Profiles: [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md) · Deploy: [docs/14-deployment.md](docs/14-deployment.md) · Power Automate: [docs/15-power-automate-guide.md](docs/15-power-automate-guide.md) · User testing: [docs/12-testing-with-your-documents.md](docs/12-testing-with-your-documents.md)
 
 **Setup (required before scripts):**
 
@@ -28,31 +28,37 @@ Use venv `python` or `.\.venv\Scripts\python.exe` — system `python` lacks `pan
 | `LabResults` | Optional | **Required** | `lab_results` list |
 | `DrillingWaste` | Optional | Optional | `drilling_waste` list (Alberta Phase I tables) |
 | `StorageTanks` | Optional | Optional | `storage_tanks` list |
+| `ReportConfig` | Optional | Optional | key/value overrides (`report_type`, `map_*`) |
 
-**Code layout:** `app.py` + `ui/*` (Streamlit) · `engine.py` (`ReportEngine`) · `template_tools.py` (pre-flight) · `security.py` · `provenance.py` · `schemas/field_contract.json` · `scripts/` (CLI/E2E) · `automate/` (headless API).
+**Code layout:** `app.py` + `ui/*` (Streamlit) · `engine.py` (`ReportEngine`) · `report_profile.py` · `template_attachments.py` (PDF→DOCX) · `deliverable_pack.py` · `phase1_narrative.py` · `template_tools.py` · `security.py` · `provenance.py` · `schemas/report_profiles.json` · `schemas/field_contract.json` (legacy/AI) · `scripts/` · `automate/`.
 
-**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py`
+**Report profiles:** `phase1_alberta`, `phase2_esa`, `template_driven` — see [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md). Recommended fields per profile in `schemas/report_profiles.json`. Optional Excel `ReportConfig` sheet for overrides.
+
+**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (75 tests)
 
 ---
 
 ## Objective (V1 baseline)
 
-Web-based **Environmental Report Generation Engine**: upload Excel + Word template → download rendered Phase 1 or Phase 2 ESA `.docx`.
+Web-based **Environmental Report Generation Engine**: upload Excel + Word or PDF template → download rendered Phase 1 or Phase 2 ESA `.docx` (+ optional deliverable zip with appendices).
 
 ## Tech stack
 
 - **Frontend:** Streamlit (`app.py`, `ui/`)
 - **Document logic:** docxtpl (Jinja2)
 - **Data:** pandas, openpyxl
+- **PDF templates:** pdf2docx conversion via `template_attachments.py`
 
 ## Functional requirements (checklist)
 
 ### Streamlit UI
 
-- Two upload zones: Excel (`.xlsx`) and Word template (`.docx`)
-- Sidebar: Prepared By, Date of Issue, Report phase, template version
-- **Generate Report** button; download rendered `.docx` after success
-- Pre-flight panel (errors block generate; warnings allow)
+- Two upload zones: Excel (`.xlsx`) and report template (`.docx` or `.pdf`; PDF cached and converted in `ui/helpers.py`)
+- Sidebar: **Profile** (`report_type`), **Report phase** (syncs with profile), Prepared By, Date of Issue, template version, **executive summary override**
+- **Generate Report** button; download rendered `.docx`, manifest JSON, **deliverable package (.zip)**
+- **Appendices A–F** PDF uploader (`ui/appendix_panel.py`); included in zip with SHA-256 in manifest
+- After PDF upload: **Download converted Word template** for tagging in Word
+- Pre-flight: profile-aware missing-field checklist; **Download ReportConfig sheet (Excel)**
 - Session state persists generated file for download
 
 ### Rendering engine (`engine.py`)
@@ -61,6 +67,7 @@ Web-based **Environmental Report Generation Engine**: upload Excel + Word templa
 - `LabResults` → `lab_results` for `{%tr for item in lab_results %}`
 - `DrillingWaste` / `StorageTanks` → optional table loops (Phase I)
 - `RichText` for lab exceedances (`result_display` bold red)
+- Phase I: auto `executive_summary` via `phase1_narrative.py` when empty (sidebar override wins)
 - Missing scalar tags: warn + empty string, do not crash
 - Validate file extensions and upload size/zip safety (`security.py`)
 
@@ -72,13 +79,15 @@ Web-based **Environmental Report Generation Engine**: upload Excel + Word templa
 
 ## Deliverables (present in repo)
 
-- `app.py`, `engine.py`
+- `app.py`, `engine.py`, `deliverable_pack.py`
 - `EXCEL_LAYOUT.txt`, `JINJA2_CHEATSHEET.txt`
 - `scripts/create_samples.py` — demo + production + phase1_alberta fixtures
+- `Dockerfile`, `docs/14-deployment.md`, `docs/15-power-automate-guide.md`
 
 ## Agent guidance
 
 - Prefer editing existing modules over new abstractions
-- Match `field_contract.json` and sample headers when adding fields
+- **Primary field list:** `schemas/report_profiles.json` → `recommended_fields` per profile; update `schemas/field_contract.json` only for legacy docs or AI template tagger compatibility
+- Match sample headers when adding fields
 - Word tags: single formatting run per `{{ tag }}`; table headers above `{%tr for ... %}` loops
 - After template/engine changes: `python scripts\health_check.py` and `python -m unittest discover -s tests -v`

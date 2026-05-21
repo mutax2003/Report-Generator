@@ -7,7 +7,8 @@
 | **Context** | Python dict passed to Jinja2: ProjectData fields + sidebar + `lab_results` list |
 | **docxtpl** | Library that renders Jinja2 inside Word `.docx` files |
 | **Dry run** | Build context and manifest without creating Word output |
-| **Field contract** | `schemas/field_contract.json` — recommended Excel/sidebar fields |
+| **Report profile** | `phase1_alberta`, `phase2_esa`, `template_driven` — sheet mapping and recommended fields in `schemas/report_profiles.json` |
+| **Field contract** | Legacy reference in `schemas/field_contract.json`; pre-flight warnings use **report profiles** first |
 | **Generation manifest** | JSON audit file with SHA-256 hashes and tag statistics |
 | **Jinja2** | Template language: `{{ var }}`, `{% if %}`, `{% for %}` |
 | **LabResults** | Required Excel sheet name for Phase 2 lab data |

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import re
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +16,7 @@ from engine import (
     generate_sample_excel,
     generate_sample_template_docx,
 )
+from template_attachments import PreparedTemplate, prepare_template_upload
 from template_tools import scan_template
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,11 +39,52 @@ def format_size(num_bytes: int | None) -> str:
     return f"{num_bytes / (1024 * 1024):.1f} MB"
 
 
-def show_upload_status(label: str, uploaded: Any) -> None:
+def show_upload_status(label: str, uploaded: Any, *, extra: str = "") -> None:
     if uploaded is None:
         st.caption(f"{label}: not selected")
         return
-    st.caption(f"{label}: **{uploaded.name}** ({format_size(uploaded.size)})")
+    suffix = f" — {extra}" if extra else ""
+    st.caption(f"{label}: **{uploaded.name}** ({format_size(uploaded.size)}){suffix}")
+
+
+def _template_cache_key(data: bytes, filename: str) -> str:
+    digest = hashlib.sha256(data).hexdigest()
+    return f"tpl_{digest}_{filename}"
+
+
+def prepare_uploaded_template(uploaded: Any) -> PreparedTemplate | None:
+    """Convert PDF→DOCX if needed; cache by file hash to avoid re-conversion on reruns."""
+    if uploaded is None:
+        return None
+    data = uploaded.getvalue()
+    name = uploaded.name or ""
+    key = _template_cache_key(data, name)
+    if key in st.session_state:
+        return st.session_state[key]
+    prepared = prepare_template_upload(data, name)
+    st.session_state[key] = prepared
+    st.session_state["last_prepared_template"] = prepared
+    return prepared
+
+
+def parse_template_version_from_filename(filename: str) -> str:
+    """Extract semantic version from template name, e.g. phase1_ecoventure_v2.1.docx → 2.1."""
+    m = re.search(r"[vV](\d+(?:\.\d+)+)", filename or "")
+    return m.group(1) if m else ""
+
+
+def render_converted_template_download(prepared: PreparedTemplate | None) -> None:
+    if prepared is None or prepared.source_format != "pdf":
+        return
+    base = Path(prepared.source_filename).stem
+    st.download_button(
+        "Download converted Word template (.docx)",
+        data=prepared.docx_bytes,
+        file_name=f"{base}_converted.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        use_container_width=True,
+        help="Add Jinja2 tags in Word, then re-upload the .docx template.",
+    )
 
 
 def _ensure_samples() -> None:

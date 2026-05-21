@@ -37,7 +37,9 @@ python scripts\create_samples.py
 python -m unittest discover -s tests -v
 ```
 
-Expected: **62 tests OK** (includes `test_phase1_narrative.py` for Signum-style executive summary).
+Expected: **75 tests OK** (includes deliverable pack, report profile export, smoke integration, template attachments).
+
+Optional slow check: `ESA_RUN_HEALTH_CHECK=1 python -m unittest tests.test_smoke_integration.SmokeIntegrationTests.test_health_check_script`
 
 ### Skip conditions
 

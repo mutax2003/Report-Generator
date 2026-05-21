@@ -4,6 +4,7 @@ import hashlib
 
 import streamlit as st
 
+from report_profile import build_report_config_workbook_bytes
 from template_tools import PreflightResult, missing_fields_checklist, run_preflight
 
 
@@ -47,6 +48,7 @@ def render_preflight_panel(
     preflight: PreflightResult | None,
     *,
     report_phase: str = "Phase 2",
+    report_type: str = "",
 ) -> bool:
     """Show pre-flight checklist. Returns True if Generate should be allowed."""
     if preflight is None:
@@ -80,7 +82,14 @@ def render_preflight_panel(
     with col3:
         st.metric("Missing", missing_n)
     with col4:
-        if report_phase.strip() == "Phase 1" and cov:
+        if cov and cov.table_row_counts:
+            parts = [
+                f"{k}: {n}"
+                for k, n in sorted(cov.table_row_counts.items())
+                if n > 0
+            ]
+            st.metric("Table rows", ", ".join(parts) if parts else "0")
+        elif report_phase.strip() == "Phase 1" and cov:
             st.metric(
                 "Drilling / tank rows",
                 f"{cov.drilling_waste_row_count} / {cov.storage_tanks_row_count}",
@@ -94,11 +103,19 @@ def render_preflight_panel(
                 st.write(", ".join(cov.matched))
         if cov.missing_in_data:
             st.code(", ".join(cov.missing_in_data), language=None)
+            rt = report_type or "phase1_alberta"
             st.download_button(
                 "Download missing-fields checklist",
-                data=missing_fields_checklist(cov),
+                data=missing_fields_checklist(cov, report_type=rt),
                 file_name="missing_excel_columns.txt",
                 mime="text/plain",
+                use_container_width=True,
+            )
+            st.download_button(
+                "Download ReportConfig sheet (Excel)",
+                data=build_report_config_workbook_bytes(rt),
+                file_name=f"report_config_{rt}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )
         if cov.unused_in_template:

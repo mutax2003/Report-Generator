@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ESA Report Generator field contract",
-  "description": "Recommended Excel ProjectData columns and sidebar fields. Primary use: Alberta O&G Phase I (Ecoventure Inc.).",
+  "description": "Legacy reference for field names. Primary recommended-field lists live in schemas/report_profiles.json per profile; contract_warnings() reads profiles first.",
   "version": "1.1.0",
   "preparing_firm_default": "Ecoventure Inc.",
   "sheets": {

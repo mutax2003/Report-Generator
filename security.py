@@ -203,6 +203,42 @@ def validate_excel_upload(data: bytes, filename: str = "") -> None:
     inspect_zip_archive(data, purpose="xlsx")
 
 
+MAX_PDF_TEMPLATE_PAGES = 500
+
+
+def validate_pdf_template_upload(data: bytes, filename: str = "") -> None:
+    """Validate PDF before conversion to Word for merge."""
+    del filename
+    if not data:
+        raise SecurityError("Template file is empty.")
+    if len(data) > MAX_TEMPLATE_BYTES:
+        mb = MAX_TEMPLATE_BYTES // (1024 * 1024)
+        raise SecurityError(f"PDF template too large (max {mb} MB).")
+    if not data.startswith(b"%PDF"):
+        raise SecurityError("Not a valid PDF file (missing %PDF header).")
+    try:
+        from pypdf import PdfReader
+    except ImportError as e:
+        raise SecurityError("PDF support requires pypdf.") from e
+    try:
+        reader = PdfReader(io.BytesIO(data))
+    except Exception as e:
+        raise SecurityError("Could not read PDF template.") from e
+    if getattr(reader, "is_encrypted", False):
+        try:
+            if reader.is_encrypted:
+                raise SecurityError("Encrypted PDF templates are not supported.")
+        except Exception:
+            raise SecurityError("Encrypted PDF templates are not supported.") from e
+    pages = len(reader.pages)
+    if pages == 0:
+        raise SecurityError("PDF template has no pages.")
+    if pages > MAX_PDF_TEMPLATE_PAGES:
+        raise SecurityError(
+            f"PDF template has too many pages ({pages}; max {MAX_PDF_TEMPLATE_PAGES})."
+        )
+
+
 def validate_template_upload(data: bytes, filename: str = "") -> None:
     del filename
     if not data:
@@ -252,8 +288,9 @@ def sanitize_meta(meta: dict[str, Any] | None) -> dict[str, str]:
         if not key:
             continue
         s = "" if v is None else str(v).strip()
-        if len(s) > MAX_META_VALUE_LEN:
-            s = s[:MAX_META_VALUE_LEN]
+        cap = MAX_CONTEXT_STRING_LEN if key == "executive_summary" else MAX_META_VALUE_LEN
+        if len(s) > cap:
+            s = s[:cap]
         out[key] = s
     return out
 
@@ -279,18 +316,13 @@ def clamp_context(context: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             f"Very large context ({len(context)} keys); some keys may be ignored."
         )
 
-    for list_key in ("lab_results", "drilling_waste", "storage_tanks"):
-        rows = context.get(list_key)
-        if isinstance(rows, list) and len(rows) > MAX_LAB_ROWS:
-            warnings.append(
-                f"{list_key} truncated from {len(rows)} to {MAX_LAB_ROWS} rows."
-            )
-            context[list_key] = rows[:MAX_LAB_ROWS]
-
     for key, val in list(context.items()):
-        if key in ("lab_results", "drilling_waste", "storage_tanks") and isinstance(
-            val, list
-        ):
+        if isinstance(val, list) and not key.startswith("_"):
+            if len(val) > MAX_LAB_ROWS:
+                warnings.append(
+                    f"{key} truncated from {len(val)} to {MAX_LAB_ROWS} rows."
+                )
+                context[key] = val[:MAX_LAB_ROWS]
             for row in val:
                 if not isinstance(row, dict):
                     continue

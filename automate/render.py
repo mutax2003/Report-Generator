@@ -11,6 +11,7 @@ from typing import Any
 
 from engine import ReportEngine
 from provenance import GenerationRecord, sha256_hex
+from template_attachments import prepare_template_upload
 
 
 def render_report_from_bytes(
@@ -22,12 +23,14 @@ def render_report_from_bytes(
     template_filename: str = "template.docx",
 ) -> tuple[bytes, list[str], dict[str, Any], GenerationRecord]:
     """Render a report; returns (docx_bytes, warnings, context, manifest record)."""
-    engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=template_bytes)
-    return engine.render(
+    prepared = prepare_template_upload(template_bytes, template_filename)
+    engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=prepared.docx_bytes)
+    docx_bytes, warnings, context, record = engine.render(
         meta=meta,
         excel_filename=excel_filename,
         template_filename=template_filename,
     )
+    return docx_bytes, prepared.warnings + warnings, context, record
 
 
 def render_report_from_paths(

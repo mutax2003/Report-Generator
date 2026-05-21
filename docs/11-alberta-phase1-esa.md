@@ -26,25 +26,29 @@ Client name, UWI, and well identifiers come from project Excel data per engageme
 
 - **`DrillingWaste`** — mud type, volume (m³), disposal method, location → `drilling_waste` loop in Word.
 - **`StorageTanks`** — tank type, content, location, capacity → `storage_tanks` loop.
+- **`ReportConfig`** — key/value rows to override profile or sheet mappings (see [13-flexible-report-profiles.md](13-flexible-report-profiles.md)).
 
-Do **not** require **`LabResults`** when sidebar **Report phase** is **Phase 1**.
+Do **not** require **`LabResults`** when sidebar **Report phase** is **Phase 1**. Sidebar **Profile** should be **Alberta Phase I ESA (Ecoventure)** (`phase1_alberta`).
 
 ## Word template
 
 `phase1_alberta_template.docx` (generated sample) includes:
 
 1. Cover — prepared for / **prepared by Ecoventure Inc.** / UWI / QP names / date  
-2. **Executive summary** — `{{ executive_summary }}` (Signum Consulting–style multi-paragraph structure; Ecoventure voice). If blank in Excel, the engine auto-generates from ProjectData fields (`spud_date`, `drilling_waste_summary`, `air_photo_observations`, etc.).  
+2. **Executive summary** — `{{ executive_summary }}` (Signum Consulting–style multi-paragraph structure; Ecoventure voice). If blank in Excel, the engine auto-generates from ProjectData fields. Override in sidebar **Override executive summary** before generate.  
 3. AER Schedule Two highlights — drilling, production, site visit, conclusions (scalar tags)  
 4. Table loops for drilling waste and storage tanks  
-5. Static appendix list (A–F) — attach PDFs separately in deliverable package  
+5. Static appendix list (A–F) — client PDFs uploaded in the app and packaged in the deliverable zip  
 
 ## Workflow
 
-1. Sidebar: **Phase 1**, **Prepared by**, date, template version.  
-2. Upload `phase1_alberta_data.xlsx` + `phase1_alberta_template.docx` (or your Ecoventure `.docx`).  
-3. Pre-flight → dry run → **Generate Report**.  
-4. Append client-specific appendix PDFs (air photos, ABADATA, land title) outside the merge engine.
+1. Sidebar: **Phase 1**, profile **Alberta Phase I ESA**, **Prepared by**, date, template version.  
+2. Upload `phase1_alberta_data.xlsx` + `phase1_alberta_template.docx` (or `.pdf` layout reference—convert and tag in Word if needed).  
+3. Pre-flight → optional dry run → **Generate Report**.  
+4. Upload appendix PDFs **A–F** (air photos, ABADATA, land title, etc.) in the **Appendices** section.  
+5. Download **Report (.docx)**, **manifest JSON**, and **Download deliverable package (.zip)** for SharePoint / client delivery.
+
+Combined **Final_Report.pdf** (Word + appendices in one file) is not merged in-app; export the `.docx` to PDF in Word and combine appendices with your PDF tool if required.
 
 ## Commands
 
@@ -55,6 +59,8 @@ python scripts\render_cli.py --excel samples\phase1_alberta_data.xlsx --template
 
 ## Related
 
+- [00-start-here.md](00-start-here.md) — consultant quick path  
 - [03-excel-data-guide.md](03-excel-data-guide.md)  
 - [04-template-authoring.md](04-template-authoring.md)  
 - [09-ai-assistant.md](09-ai-assistant.md) — Phase 1 narrative drafts (Alberta/AER tone when RAG loaded)  
+- [13-flexible-report-profiles.md](13-flexible-report-profiles.md)  

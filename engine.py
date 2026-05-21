@@ -16,6 +16,12 @@ from jinja2.exceptions import TemplateError
 from jinja2.sandbox import SandboxedEnvironment
 
 from phase1_narrative import build_phase1_executive_summary
+from report_profile import (
+    ReportRuntimeConfig,
+    list_keys_from_context,
+    resolve_report_config,
+    table_row_counts,
+)
 
 from security import (
     MAX_LAB_ROWS,
@@ -212,91 +218,102 @@ class ReportEngine:
             self._root_vars_cache = collect_template_root_vars(self.template_bytes)
         return self._root_vars_cache
 
+    def resolve_config(self, meta: dict[str, str] | None) -> ReportRuntimeConfig:
+        return resolve_report_config(self.excel_bytes, self.template_bytes, meta)
+
     def coverage(self, meta: dict[str, str] | None) -> "TemplateCoverage":
         from template_tools import TemplateCoverage
 
         ctx = self.build_context(meta)
         needed = self.template_root_vars()
-        ctx_keys = {
-            k
-            for k in ctx
-            if k not in ("lab_results", "drilling_waste", "storage_tanks")
-        }
-        lab = ctx.get("lab_results")
-        lab_count = len(lab) if isinstance(lab, list) else 0
-        dw = ctx.get("drilling_waste")
-        st = ctx.get("storage_tanks")
+        ctx_keys = list_keys_from_context(ctx)
+        counts = table_row_counts(ctx)
         return TemplateCoverage(
             template_vars=needed,
             context_keys=ctx_keys,
             matched=sorted(needed & ctx_keys),
             missing_in_data=sorted(needed - ctx_keys),
             unused_in_template=sorted(ctx_keys - needed),
-            lab_row_count=lab_count,
-            drilling_waste_row_count=len(dw) if isinstance(dw, list) else 0,
-            storage_tanks_row_count=len(st) if isinstance(st, list) else 0,
+            lab_row_count=counts.get("lab_results", 0),
+            drilling_waste_row_count=counts.get("drilling_waste", 0),
+            storage_tanks_row_count=counts.get("storage_tanks", 0),
+            table_row_counts=counts,
         )
 
-    def _read_excel(
-        self, *, require_lab: bool = True
-    ) -> tuple[
-        dict[str, Any],
-        list[dict[str, Any]],
-        list[dict[str, Any]],
-        list[dict[str, Any]],
-    ]:
+    def _read_excel(self, runtime: ReportRuntimeConfig) -> tuple[dict[str, Any], dict[str, list]]:
         bio = io.BytesIO(self.excel_bytes)
         with pd.ExcelFile(bio, engine="openpyxl") as xl:
             names = xl.sheet_names
-            if PROJECT_SHEET not in names:
+            for req in runtime.required_sheets:
+                if req not in names:
+                    raise ValueError(
+                        f"Report type '{runtime.report_type}' requires sheet "
+                        f"'{req}'. Found: {names}"
+                    )
+            if runtime.require_lab_sheet and LAB_SHEET not in names:
                 raise ValueError(
-                    f"Missing sheet '{PROJECT_SHEET}'. Found: {names}"
+                    f"Report type '{runtime.report_type}' requires sheet "
+                    f"'{LAB_SHEET}'. Found: {names}"
                 )
-            if require_lab and LAB_SHEET not in names:
+            primary = runtime.primary_sheet
+            if primary not in names:
                 raise ValueError(
-                    f"Missing sheet '{LAB_SHEET}'. Found: {names}"
+                    f"Missing primary sheet '{primary}'. Found: {names}"
                 )
-            project_df = xl.parse(PROJECT_SHEET, header=0)
-            lab_df = xl.parse(LAB_SHEET, header=0) if LAB_SHEET in names else pd.DataFrame()
-            waste_df = (
-                xl.parse(DRILLING_WASTE_SHEET, header=0)
-                if DRILLING_WASTE_SHEET in names
-                else pd.DataFrame()
-            )
-            tanks_df = (
-                xl.parse(STORAGE_TANKS_SHEET, header=0)
-                if STORAGE_TANKS_SHEET in names
-                else pd.DataFrame()
-            )
+            project_df = xl.parse(primary, header=0)
+            if project_df.empty:
+                raise ValueError(
+                    f"Sheet '{primary}' has no data rows "
+                    "(row 1 = headers, row 2 = values)."
+                )
+            if len(project_df.columns) > MAX_PROJECT_COLUMNS:
+                project_df = project_df.iloc[:, :MAX_PROJECT_COLUMNS]
+            project = _project_row_to_dict(project_df)
 
-        if project_df.empty:
-            raise ValueError(
-                f"Sheet '{PROJECT_SHEET}' has no data rows (add headers in row 1 and values in row 2)."
-            )
-        if len(project_df.columns) > MAX_PROJECT_COLUMNS:
-            project_df = project_df.iloc[:, :MAX_PROJECT_COLUMNS]
-        project = _project_row_to_dict(project_df)
-        lab_results = _lab_frame_to_records(lab_df) if require_lab else []
-        drilling_waste = _dataframe_to_records(waste_df)
-        storage_tanks = _dataframe_to_records(tanks_df)
-        return project, lab_results, drilling_waste, storage_tanks
+            lists: dict[str, list] = {}
+            lab_var = runtime.lab_loop_variable or "lab_results"
+            for sheet_name, loop_var in runtime.sheet_to_loop.items():
+                if sheet_name == primary or sheet_name not in names:
+                    continue
+                df = xl.parse(sheet_name, header=0)
+                if loop_var == lab_var or loop_var == "lab_results":
+                    lists[loop_var] = _lab_frame_to_records(df)
+                else:
+                    lists[loop_var] = _dataframe_to_records(df)
+
+            for loop_var in runtime.template_loops:
+                lists.setdefault(loop_var, [])
+
+            if runtime.require_lab_sheet and LAB_SHEET in names:
+                lists.setdefault(
+                    lab_var,
+                    _lab_frame_to_records(xl.parse(LAB_SHEET, header=0)),
+                )
+
+        return project, lists
 
     def build_context(self, meta: dict[str, str] | None) -> dict[str, Any]:
         meta = sanitize_meta(meta)
-        phase = str(meta.get("report_phase", "")).strip()
-        require_lab = phase != "Phase 1"
-        project, lab_results, drilling_waste, storage_tanks = self._read_excel(
-            require_lab=require_lab
-        )
+        runtime = self.resolve_config(meta)
+        project, list_data = self._read_excel(runtime)
         ctx: dict[str, Any] = {**project}
         for k, v in meta.items():
             nk = _norm_key(k)
             if nk:
                 ctx[nk] = v if v is not None else ""
-        ctx["lab_results"] = lab_results
-        ctx["drilling_waste"] = drilling_waste
-        ctx["storage_tanks"] = storage_tanks
-        if phase == "Phase 1" and not _s(project.get("executive_summary")):
+        for loop_var, rows in list_data.items():
+            ctx[loop_var] = rows
+        for loop_var in runtime.template_loops:
+            ctx.setdefault(loop_var, [])
+        for legacy in ("lab_results", "drilling_waste", "storage_tanks"):
+            ctx.setdefault(legacy, [])
+        ctx["_report_type"] = runtime.report_type
+        phase = str(ctx.get("report_phase", "")).strip()
+        if (
+            runtime.narrative_profile == "phase1_alberta"
+            and phase == "Phase 1"
+            and not _s(ctx.get("executive_summary"))
+        ):
             ctx["executive_summary"] = build_phase1_executive_summary(ctx)
             ctx["_executive_summary_auto_generated"] = True
         return ctx
@@ -339,7 +356,11 @@ class ReportEngine:
                 f"Template uses '{{{{ {m} }}}}' but no Excel/sidebar value yet."
             )
         warnings.extend(
-            contract_warnings(context, report_phase=str((meta or {}).get("report_phase", "")))
+            contract_warnings(
+                context,
+                report_phase=str((meta or {}).get("report_phase", "")),
+                report_type=str(context.get("_report_type", "")),
+            )
         )
         try:
             coverage = self.coverage(meta)
@@ -356,6 +377,7 @@ class ReportEngine:
             excel_filename=excel_filename,
             template_filename=template_filename,
             dry_run=True,
+            template_source_format=str((meta or {}).get("template_source_format", "")),
         )
         return context, warnings, record
 
@@ -386,11 +408,15 @@ class ReportEngine:
             )
             context[m] = ""
 
+        render_ctx = {
+            k: v for k, v in context.items() if not str(k).startswith("_")
+        }
+
         tpl_bio = io.BytesIO(self.template_bytes)
         doc = DocxTemplate(tpl_bio)
         env = SandboxedEnvironment(undefined=StrictUndefined, autoescape=False)
         try:
-            doc.render(context, jinja_env=env)
+            doc.render(render_ctx, jinja_env=env)
         except TemplateError as e:
             raise ValueError(
                 "Template rendering failed. Check Jinja2 tags and table loops "
@@ -417,6 +443,7 @@ class ReportEngine:
             excel_filename=excel_filename,
             template_filename=template_filename,
             dry_run=False,
+            template_source_format=str((meta or {}).get("template_source_format", "")),
         )
         return docx_bytes, warnings, context, record
 
@@ -776,5 +803,53 @@ def generate_phase1_alberta_template_docx(path: str) -> None:
     doc.add_paragraph(
         "Appendices A–F (AER forms, ABADATA, air photos, drilling waste, survey, "
         "land title) are attached separately to the deliverable package."
+    )
+    doc.save(path)
+
+
+def generate_custom_demo_excel(path: str) -> None:
+    """Minimal custom report workbook (template_driven profile demo)."""
+    project = pd.DataFrame(
+        [
+            {
+                "client_name": "Custom Client Ltd.",
+                "site_name": "Demo Site 100",
+                "report_title": "Custom Environmental Report",
+                "summary_text": "This report uses a flexible profile and custom table sheet.",
+            }
+        ]
+    )
+    observations = pd.DataFrame(
+        [
+            {"observation": "Stressed vegetation near access road", "severity": "Low"},
+            {"observation": "Stained soil near tank berm", "severity": "Medium"},
+        ]
+    )
+    config = pd.DataFrame(
+        [
+            {"key": "report_type", "value": "template_driven"},
+            {"key": "map_Observations", "value": "observations"},
+        ]
+    )
+    with pd.ExcelWriter(path, engine="openpyxl") as w:
+        project.to_excel(w, sheet_name=PROJECT_SHEET, index=False)
+        observations.to_excel(w, sheet_name="Observations", index=False)
+        config.to_excel(w, sheet_name="ReportConfig", index=False)
+
+
+def generate_custom_demo_template_docx(path: str) -> None:
+    """Word template with scalar fields + observations table loop."""
+    doc = Document()
+    doc.add_heading("{{ report_title }}", level=0)
+    doc.add_paragraph("Client: {{ client_name }}")
+    doc.add_paragraph("Site: {{ site_name }}")
+    doc.add_paragraph("{{ summary_text }}")
+    doc.add_paragraph("Prepared by: {{ prepared_by }} | Date: {{ date_of_issue }}")
+    _add_docx_table_loop(
+        doc,
+        "Field observations:",
+        "observations",
+        ["Observation", "Severity"],
+        ["observation", "severity"],
     )
     doc.save(path)

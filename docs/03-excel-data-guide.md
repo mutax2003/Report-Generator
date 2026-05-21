@@ -12,6 +12,7 @@ The merge engine reads structured data from an Excel workbook (`.xlsx`). This do
 | `LabResults` | Optional | **Required** | One row per analyte → `lab_results` list in Jinja |
 | `DrillingWaste` | Optional | Optional | One row per mud/disposal record → `drilling_waste` (Alberta Phase I) |
 | `StorageTanks` | Optional | Optional | One row per tank → `storage_tanks` (Alberta Phase I) |
+| `ReportConfig` | Optional | Optional | key/value overrides for profile and `map_SheetName` → loop variable |
 
 Sheet names are **case-sensitive** and must match exactly (not “first sheet” or “Sheet1”).
 
@@ -122,13 +123,30 @@ Sidebar fields from the app are merged into the same context dict:
 | `prepared_by` | Author |
 | `date_of_issue` | ISO date string |
 | `report_phase` | `Phase 1` / `Phase 2` |
+| `report_type` | Profile id: `phase1_alberta`, `phase2_esa`, `template_driven` |
 | `template_version` | Template semver for manifest |
+| `executive_summary` | Optional override (sidebar) |
 
 **Override rule:** If a sidebar key normalizes to the same name as an Excel column, **sidebar wins**.
 
-## Field contract
+### ReportConfig sheet (optional)
 
-Machine-readable contract: [`schemas/field_contract.json`](../schemas/field_contract.json).
+Two columns: **key**, **value** (row 1 headers). Examples:
+
+| key | value |
+|-----|-------|
+| `report_type` | `template_driven` |
+| `primary_sheet` | `ProjectData` |
+| `map_LabResults` | `lab_results` |
+| `map_Observations` | `observations` |
+
+Excel `ReportConfig` overrides sidebar profile when `report_type` is set. Download a starter sheet from pre-flight. See [13-flexible-report-profiles.md](13-flexible-report-profiles.md).
+
+## Field lists (profiles + legacy contract)
+
+**Canonical recommended fields per report type:** [`schemas/report_profiles.json`](../schemas/report_profiles.json) → `recommended_fields` on each profile. Pre-flight warnings and missing-field checklists use these lists.
+
+Legacy reference (AI tagger, older docs): [`schemas/field_contract.json`](../schemas/field_contract.json).
 
 ### Recommended fields — all phases
 

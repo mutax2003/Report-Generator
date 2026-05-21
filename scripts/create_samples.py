@@ -8,6 +8,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from engine import (  # noqa: E402
+    generate_custom_demo_excel,
+    generate_custom_demo_template_docx,
     generate_phase1_alberta_excel,
     generate_phase1_alberta_template_docx,
     generate_production_excel,
@@ -30,6 +32,8 @@ def main() -> None:
     prod_tpl = samples / "production_template.docx"
     p1_xlsx = samples / "phase1_alberta_data.xlsx"
     p1_tpl = samples / "phase1_alberta_template.docx"
+    custom_xlsx = samples / "custom_demo_data.xlsx"
+    custom_tpl = samples / "custom_demo_template.docx"
 
     generate_sample_excel(str(xlsx))
     generate_production_excel(str(prod_xlsx))
@@ -38,6 +42,8 @@ def main() -> None:
     generate_production_template_docx(str(prod_tpl))
     generate_phase1_alberta_excel(str(p1_xlsx))
     generate_phase1_alberta_template_docx(str(p1_tpl))
+    generate_custom_demo_excel(str(custom_xlsx))
+    generate_custom_demo_template_docx(str(custom_tpl))
 
     print(f"Wrote: {xlsx}")
     print(f"Wrote: {prod_xlsx}")
@@ -46,6 +52,8 @@ def main() -> None:
     print(f"Wrote: {prod_tpl}")
     print(f"Wrote: {p1_xlsx}")
     print(f"Wrote: {p1_tpl}")
+    print(f"Wrote: {custom_xlsx}")
+    print(f"Wrote: {custom_tpl}")
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ This guide walks report authors and QA staff through the web application from fi
 ## Prerequisites
 
 - Python 3.10+ with dependencies installed ([README](../README.md#setup)).
-- A prepared **Excel** workbook and **Word template** (or use sidebar sample downloads).
+- A prepared **Excel** workbook and **Word or PDF template** (or use sidebar sample downloads).
 
 ## Launching the application
 
@@ -24,22 +24,28 @@ Two columns:
 | Column | Control | Accepts |
 |--------|---------|---------|
 | Left | **Excel Data Source (.xlsx)** | One `.xlsx` file |
-| Right | **Word Template (.docx)** | One `.docx` file |
+| Right | **Report template (.docx or .pdf)** | One Word or PDF file |
 
 After selection, a caption shows file name and size.
 
-### Sidebar — Project meta-data
+**PDF templates:** The app converts PDF to Word internally for merging (cached per file so reruns are fast). You still need Jinja2 `{{ tags }}` in the document—add them in Word after conversion using **Download converted Word template (.docx)**, or upload a tagged `.docx` instead. Pre-flight will warn if no tags are detected.
+
+### Sidebar — Report type and meta-data
 
 | Field | Purpose | Recorded in manifest |
 |-------|---------|----------------------|
+| **Report phase** | `Phase 1` or `Phase 2` | Yes — controls `LabResults` requirement; changing phase updates the default profile |
+| **Profile** | `phase1_alberta`, `phase2_esa`, or `template_driven` | Yes (`report_type`) — maps Excel sheets to template loops |
 | **Prepared by** | Author name on cover / signature block | Yes |
 | **Date of issue** | Report issue date (ISO format internally) | Yes |
-| **Report phase** | `Phase 1` or `Phase 2` | Yes — controls `LabResults` requirement |
-| **Template version** | Optional semver, e.g. `2.1.0` | Yes — tracks which template revision was used |
+| **Template version** | Optional semver, e.g. `2.1.0` | Yes — auto-suggested from filename when name contains `v2.1` etc. |
+| **Override executive summary** | Replaces Excel / auto-generated Phase I text when filled | Yes |
 
-**Phase 1:** `LabResults` sheet is optional; lab table may be empty.
+**Phase 1:** `LabResults` sheet is optional; lab table may be empty. Default profile: **Alberta Phase I ESA (Ecoventure)**.
 
-**Phase 2:** `LabResults` sheet is required; pre-flight errors if missing.
+**Phase 2:** `LabResults` sheet is required; pre-flight errors if missing. Selecting **Phase 2** switches profile to **Phase II ESA**.
+
+See [13-flexible-report-profiles.md](13-flexible-report-profiles.md) for custom templates and optional **`ReportConfig`** sheet in Excel.
 
 Sidebar also provides **download buttons** for sample Excel and Word files when `samples/` exists (auto-created on first use if missing).
 
@@ -53,11 +59,12 @@ Sidebar also provides **download buttons** for sample Excel and Word files when 
 #### Report generation (primary workflow)
 
 1. **Analyze uploaded Word template** (expander) — Lists root `{{ variables }}` and block tags; warns about possible split tags.
-2. **Pre-flight checks** — Sheet names, errors, warnings, matched/missing template variables, split-tag lint.
+2. **Pre-flight checks** — Sheet names, errors, warnings, matched/missing template variables (profile-aware checklist), split-tag lint; download **missing-fields checklist** or **ReportConfig sheet (Excel)**.
 3. **Workflow step indicator** — Visual checklist: Excel → Template → Pre-flight OK → Output.
-4. **Preview data (dry run)** — Builds merge context and manifest **without** rendering Word (fast QA).
-5. **Generate Report** — Primary action; disabled until uploads valid and pre-flight has no **errors**.
-6. **Download section** — Report `.docx`, warnings, context preview, manifest JSON.
+4. **Preview data (dry run)** — Builds merge context and manifest **without** rendering Word (fast QA); top scalar keys and table row counts.
+5. **Appendices (optional)** — Upload PDFs labeled **A–F** (Alberta Phase I); included in deliverable zip.
+6. **Generate Report** — Primary action; disabled until uploads valid and pre-flight has no **errors**.
+7. **Download section** — Report `.docx`, warnings, context preview, manifest JSON, **Download deliverable package (.zip)** when report or appendices exist.
 
 #### AI assistant
 
@@ -75,14 +82,14 @@ flowchart TD
   D -->|No| F[Optional: Preview dry run]
   F --> G[Generate Report]
   G --> H[Review warnings]
-  H --> I[Download Report + manifest]
+  H --> I[Download Report manifest zip package]
 ```
 
 ### Step 1 — Upload files
 
 - Excel must contain sheet **`ProjectData`** (exact name).
 - Phase 2 Excel must also contain **`LabResults`**.
-- Template must be `.docx` with valid Jinja2 tags (see [04-template-authoring.md](04-template-authoring.md)).
+- Template must be `.docx` or `.pdf` with valid Jinja2 tags in the merged Word document (see [04-template-authoring.md](04-template-authoring.md)).
 
 ### Step 2 — Pre-flight
 
@@ -92,13 +99,13 @@ flowchart TD
 | **Warnings** (yellow) | Can generate — missing optional tags, empty recommended fields, split-tag hints | Fix for production quality |
 | **Matched / missing vars** | Template `{{ tags }}` vs Excel + sidebar keys | Add Excel columns or sidebar values for missing tags |
 
-Download **missing-fields checklist** from pre-flight when offered — paste into Excel planning.
+Download **missing-fields checklist** (includes profile-recommended fields) or **ReportConfig sheet (Excel)** from pre-flight when offered — paste into Excel planning.
 
 ### Step 3 — Dry-run preview (optional)
 
 Expander **Preview data (dry run)**:
 
-- Shows merged context keys and lab row count.
+- Shows top scalar context keys and table row counts (`lab_results`, `drilling_waste`, `storage_tanks`).
 - Download manifest JSON without producing Word.
 - Use before a long render or when validating a new template.
 
@@ -113,9 +120,10 @@ Expander **Preview data (dry run)**:
 | Download | Use |
 |----------|-----|
 | **Download Report** | Client-ready `.docx` |
-| **Download generation manifest (JSON)** | Audit: SHA-256 hashes, timestamps, missing variables, AI audit entries |
+| **Download generation manifest (JSON)** | Audit: SHA-256 hashes, timestamps, missing variables, template source (`docx`/`pdf`), appendix hashes, AI audit entries |
+| **Download deliverable package (.zip)** | `report.docx`, manifest JSON, `appendices/` folder (and converted template if PDF was uploaded) |
 
-Store manifest alongside issued reports for reproducibility ([BEST_PRACTICES.md](../BEST_PRACTICES.md)).
+Store manifest alongside issued reports for reproducibility ([BEST_PRACTICES.md](../BEST_PRACTICES.md)). A single merged client PDF is not produced in-app—export Word to PDF separately if needed.
 
 ## Session state behavior
 
@@ -153,7 +161,7 @@ Production-aligned samples: `production_data.xlsx`, `production_template.docx`.
 | No Excel or template uploaded | Upload both files |
 | Pre-flight errors | Resolve sheet/tag/file issues |
 | Another render in progress | Wait for spinner to finish |
-| Wrong file extension | Use `.xlsx` and `.docx` only |
+| Wrong file extension | Use `.xlsx` and `.docx` or `.pdf` for template |
 
 ## Template help expander
 

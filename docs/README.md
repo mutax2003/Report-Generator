@@ -8,6 +8,7 @@ Complete documentation for the Environmental Site Assessment (ESA) report genera
 
 | Document | Who it is for |
 |----------|----------------|
+| [00-start-here.md](00-start-here.md) | **Consultants** — upload, profile, generate, appendices (one page) |
 | [01-overview.md](01-overview.md) | Everyone — purpose, architecture, data flow |
 | [02-user-guide.md](02-user-guide.md) | Consultants, report authors, QA reviewers |
 | [03-excel-data-guide.md](03-excel-data-guide.md) | Data preparers — workbook structure and field contract |
@@ -20,6 +21,9 @@ Complete documentation for the Environmental Site Assessment (ESA) report genera
 | [10-glossary-faq.md](10-glossary-faq.md) | Quick lookup — terms and common questions |
 | [11-alberta-phase1-esa.md](11-alberta-phase1-esa.md) | Alberta O&G Phase I — **Ecoventure Inc.** |
 | [12-testing-with-your-documents.md](12-testing-with-your-documents.md) | **Test with your Excel + Word templates** |
+| [13-flexible-report-profiles.md](13-flexible-report-profiles.md) | **Report types / custom templates + Excel mapping** |
+| [14-deployment.md](14-deployment.md) | IT — Docker, Azure Container Apps, production checklist |
+| [15-power-automate-guide.md](15-power-automate-guide.md) | M365 — SharePoint trigger → HTTP render flow |
 
 ## Quick start
 

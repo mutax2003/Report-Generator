@@ -6,7 +6,7 @@ Guide for maintaining and extending the ESA Report Generator codebase.
 
 1. **`engine.py` is headless** — No Streamlit imports in the merge core (Power Automate / Azure ready).
 2. **Warnings vs errors** — Missing scalar template vars warn and render empty; invalid files and missing required sheets error.
-3. **Schema-first data** — `schemas/field_contract.json` drives recommendations; extend when adding production fields.
+3. **Schema-first data** — `schemas/report_profiles.json` `recommended_fields` per profile drives pre-flight warnings; extend profiles when adding production fields. Update `field_contract.json` for AI tagger / legacy docs if needed.
 4. **Defense in depth** — Validate at upload, parse, context build, and output validation.
 
 ## Module reference
@@ -51,13 +51,29 @@ Environment bypass for tests only: `ESA_VALIDATION_BYPASS=1`.
 | `run_preflight` | Full pre-render check |
 | `missing_fields_checklist` | Markdown text for Excel planning |
 
+### `report_profile.py`
+
+`resolve_report_config`, `get_recommended_fields`, `build_report_config_workbook_bytes`, template loop discovery.
+
+### `template_attachments.py`
+
+`prepare_template_upload` — PDF → DOCX via pdf2docx; `PreparedTemplate` dataclass.
+
+### `deliverable_pack.py`
+
+`build_deliverable_zip`, `AppendixFile`, `appendix_manifest_entries`, `enrich_manifest_dict`.
+
+### `phase1_narrative.py`
+
+`build_phase1_executive_summary` — Signum-style structure, Ecoventure voice.
+
 ### `provenance.py`
 
-`GenerationRecord` dataclass, `build_generation_record`, `sha256_hex`. Manifest JSON for audit.
+`GenerationRecord` dataclass (`report_type`, `template_source_format`, `appendix_files`), `build_generation_record`, `sha256_hex`.
 
 ### `field_validation.py`
 
-`load_field_contract`, `contract_warnings` — non-blocking recommendations.
+`contract_warnings` — reads `report_profiles.json` first; falls back to `field_contract.json`.
 
 ### `app.py`
 
@@ -67,11 +83,12 @@ Streamlit orchestration only: session state, uploaders, calls `ui/*`, instantiat
 
 | Module | Role |
 |--------|------|
-| `sidebar.py` | Meta inputs + sample download buttons |
-| `helpers.py` | `_ensure_samples`, template analysis expander |
-| `preflight.py` | Cached preflight, panel rendering |
+| `sidebar.py` | Profile, phase sync, meta, executive summary override, sample downloads |
+| `helpers.py` | Template cache, PDF conversion download, `_ensure_samples`, template analysis |
+| `preflight.py` | Cached preflight, profile checklist, ReportConfig export |
 | `preview.py` | Dry-run panel |
 | `results.py` | Download buttons, context preview, manifest |
+| `appendix_panel.py` | Appendix A–F uploads, deliverable zip download |
 | `workflow.py` | Step indicator UI |
 | `ai_panel.py` | AI tab (Tier 1 & 2) |
 
@@ -100,7 +117,7 @@ Optional LLM features; each module has offline fallback. Does not modify `Report
 ### Add a new ProjectData field
 
 1. Add column to Excel / `production_data.xlsx`.
-2. Add to `schemas/field_contract.json` if recommended.
+2. Add to `schemas/report_profiles.json` `recommended_fields` for the relevant profile (and `field_contract.json` if AI tagger needs it).
 3. Add `{{ field }}` to Word template.
 4. No code change required if header normalizes to existing Jinja name.
 
@@ -129,7 +146,7 @@ Would require: multiple ProjectData rows → list in context, template redesign,
 
 ## Dependencies
 
-See `requirements.txt`. Core: `streamlit`, `docxtpl`, `pandas`, `openpyxl`, `python-docx`, `Jinja2`. Optional AI: `openai`, `pypdf`.
+See `requirements.txt`. Core: `streamlit`, `docxtpl`, `pandas`, `openpyxl`, `python-docx`, `Jinja2`, `pdf2docx`, `pypdf`. Optional AI: `openai`.
 
 ## Local development loop
 

@@ -21,17 +21,21 @@ def load_field_contract() -> dict[str, Any]:
 
 
 def contract_warnings(
-    context: dict[str, Any], *, report_phase: str = "Phase 2"
+    context: dict[str, Any],
+    *,
+    report_phase: str = "Phase 2",
+    report_type: str = "",
 ) -> list[str]:
-    """Non-blocking recommendations (pattern from schema-first document systems)."""
-    contract = load_field_contract()
-    sheets = contract.get("sheets", {})
-    project = sheets.get("ProjectData", {})
-    recommended = list(project.get("recommended_all_phases", []))
-    if report_phase.strip() == "Phase 1":
-        recommended.extend(project.get("recommended_phase_1_alberta_og", []))
-    else:
-        recommended.extend(project.get("recommended_phase_2", []))
+    """Non-blocking recommendations from report profile (falls back to field_contract)."""
+    from report_profile import get_recommended_fields
+
+    rt = (report_type or "").strip()
+    if not rt:
+        if report_phase.strip() == "Phase 1":
+            rt = "phase1_alberta"
+        else:
+            rt = "phase2_esa"
+    recommended = get_recommended_fields(rt)
 
     warnings: list[str] = []
     keys = {str(k).lower() for k in context}

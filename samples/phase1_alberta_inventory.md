@@ -15,7 +15,7 @@ Alberta O&G **AER Schedule Two** Phase 1 ESA package (reclamation certificate wo
 | AER 10.3 Production / tanks | Yes | Scalar + `StorageTanks` sheet |
 | AER 10.4 Site visit | Yes | Scalar checklist fields |
 | AER 10.5–10.7 Imagery, interviews, conclusions | Partial | Key scalar fields |
-| Appendices A–F | No (V1) | Attach PDFs manually to deliverable |
+| Appendices A–F | Streamlit upload A–F | Included in deliverable zip; merge to one PDF outside app |
 
 ## Ecoventure branding (implementation default)
 
@@ -97,7 +97,8 @@ Jinja: `{%tr for item in storage_tanks %}`
 
 - `samples/phase1_alberta_data.xlsx`  
 - `samples/phase1_alberta_template.docx`  
-- `schemas/field_contract.json` — `recommended_phase_1_alberta_og`  
+- `schemas/report_profiles.json` — `phase1_alberta` → `recommended_fields`
+- `schemas/field_contract.json` — legacy `recommended_phase_1_alberta_og`  
 - `engine.py` — optional sheets + generators  
 - `docs/11-alberta-phase1-esa.md`  
 - Default sidebar **Phase 1**  

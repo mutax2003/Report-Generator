@@ -51,7 +51,16 @@ def render_preview_panel(
         if warnings:
             for w in warnings:
                 st.warning(w)
-        render_context_preview(context or {})
+        scalar_keys = [
+            k for k, v in (context or {}).items()
+            if not str(k).startswith("_") and not isinstance(v, list)
+        ]
+        st.caption(f"Scalar fields: {len(scalar_keys)} · previewing top 10")
+        render_context_preview(context or {}, max_rows=10)
+        for key in ("lab_results", "drilling_waste", "storage_tanks"):
+            data = (context or {}).get(key)
+            if isinstance(data, list):
+                st.metric(key, len(data))
         if record:
             st.caption(
                 f"Excel SHA-256: `{record.excel_sha256[:16]}…` · "

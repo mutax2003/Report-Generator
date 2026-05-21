@@ -10,7 +10,8 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from engine import DRILLING_WASTE_SHEET, LAB_SHEET, PROJECT_SHEET, ReportEngine
+from engine import LAB_SHEET, PROJECT_SHEET, ReportEngine
+from report_profile import resolve_report_config
 from security import SecurityError, ZipReadBudget, open_docx_zip, read_docx_xml_member
 
 
@@ -26,6 +27,7 @@ class TemplateCoverage:
     lab_row_count: int = 0
     drilling_waste_row_count: int = 0
     storage_tanks_row_count: int = 0
+    table_row_counts: dict[str, int] = field(default_factory=dict)
 
     @property
     def ready(self) -> bool:
@@ -148,8 +150,14 @@ def template_coverage(
     return engine.coverage(meta)
 
 
-def missing_fields_checklist(coverage: TemplateCoverage) -> str:
-    """Text block for Excel ProjectData column planning."""
+def missing_fields_checklist(
+    coverage: TemplateCoverage,
+    *,
+    report_type: str = "",
+) -> str:
+    """Text block for Excel ProjectData column planning (profile-aware)."""
+    from report_profile import get_recommended_fields
+
     lines = [
         "# Add these columns to sheet 'ProjectData' (row 1 headers, row 2 values)",
         "",
@@ -160,11 +168,28 @@ def missing_fields_checklist(coverage: TemplateCoverage) -> str:
             lines.append(f"  {name}")
     else:
         lines.append("All template root variables are covered.")
+    rt = (report_type or "").strip()
+    if rt:
+        rec = get_recommended_fields(rt)
+        missing_rec = [
+            f
+            for f in rec
+            if f not in coverage.matched and f not in coverage.missing_in_data
+        ]
+        if missing_rec:
+            lines.extend(["", f"Recommended for profile '{rt}' (not in template scan):"])
+            for name in missing_rec:
+                lines.append(f"  {name}")
     if coverage.unused_in_template:
         lines.extend(["", "Excel columns not used in template:"])
         for name in coverage.unused_in_template:
             lines.append(f"  {name}")
-    lines.extend(["", f"Lab rows loaded: {coverage.lab_row_count}"])
+    if coverage.table_row_counts:
+        lines.extend(["", "Table row counts:"])
+        for k, n in sorted(coverage.table_row_counts.items()):
+            lines.append(f"  {k}: {n}")
+    else:
+        lines.extend(["", f"Lab rows loaded: {coverage.lab_row_count}"])
     return "\n".join(lines)
 
 
@@ -175,8 +200,15 @@ def run_preflight(
 ) -> PreflightResult:
     """Dry-run checks without rendering the document."""
     result = PreflightResult()
-    phase = str((meta or {}).get("report_phase", "Phase 2")).strip()
-    require_lab = phase != "Phase 1"
+    meta = meta or {}
+
+    try:
+        runtime = resolve_report_config(excel_bytes, template_bytes, meta)
+    except Exception as e:
+        result.errors.append(f"Could not resolve report profile: {e}")
+        return result
+
+    result.warnings.append(f"Report type: {runtime.label} (`{runtime.report_type}`)")
 
     try:
         engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=template_bytes)
@@ -191,13 +223,16 @@ def run_preflight(
         bio = io.BytesIO(excel_bytes)
         with pd.ExcelFile(bio, engine="openpyxl") as xl:
             result.sheet_names = list(xl.sheet_names)
-            if PROJECT_SHEET not in result.sheet_names:
+            for req in runtime.required_sheets:
+                if req not in result.sheet_names:
+                    result.errors.append(
+                        f"Report type requires sheet '{req}'. "
+                        f"Found: {result.sheet_names}"
+                    )
+            if runtime.primary_sheet not in result.sheet_names:
                 result.errors.append(
-                    f"Missing sheet '{PROJECT_SHEET}'. Found: {result.sheet_names}"
-                )
-            elif require_lab and LAB_SHEET not in result.sheet_names:
-                result.errors.append(
-                    f"Phase 2 requires sheet '{LAB_SHEET}'. Found: {result.sheet_names}"
+                    f"Missing primary sheet '{runtime.primary_sheet}'. "
+                    f"Found: {result.sheet_names}"
                 )
     except Exception as e:
         result.errors.append(f"Could not read Excel: {e}")
@@ -217,25 +252,31 @@ def run_preflight(
     except Exception as e:
         result.errors.append(f"Could not read template: {e}")
 
+    if scan and runtime.template_loops:
+        for loop_var in sorted(runtime.template_loops):
+            has_sheet = loop_var in runtime.sheet_to_loop.values()
+            if not has_sheet:
+                result.warnings.append(
+                    f"Template loops '{{{{ item in {loop_var} }}}}' but no Excel sheet "
+                    f"is mapped — table will be empty."
+                )
+
     if not result.errors:
         try:
             result.coverage = engine.coverage(meta)
-            if require_lab and result.coverage.lab_row_count == 0:
-                result.warnings.append("LabResults has no data rows.")
-            if not require_lab:
-                if DRILLING_WASTE_SHEET not in result.sheet_names:
-                    result.warnings.append(
-                        f"Phase 1: optional sheet '{DRILLING_WASTE_SHEET}' not found."
-                    )
-                if (
-                    scan
-                    and result.coverage
-                    and result.coverage.drilling_waste_row_count == 0
-                    and any("drilling_waste" in b for b in scan.block_tags)
-                ):
-                    result.warnings.append(
-                        "Template loops drilling_waste but sheet has no rows."
-                    )
+            cov = result.coverage
+            if runtime.require_lab_sheet and cov and cov.lab_row_count == 0:
+                result.warnings.append(
+                    f"Sheet '{LAB_SHEET}' (lab_results) has no data rows."
+                )
+            if cov and cov.table_row_counts:
+                for loop_var, count in sorted(cov.table_row_counts.items()):
+                    if count == 0 and scan and any(
+                        loop_var in b for b in scan.block_tags
+                    ):
+                        result.warnings.append(
+                            f"Table loop '{loop_var}' has 0 rows in Excel."
+                        )
         except ValueError as e:
             result.errors.append(str(e))
         except Exception as e:

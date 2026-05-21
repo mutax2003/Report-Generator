@@ -9,14 +9,15 @@ Patterns adopted from **mail merge**, **legal/document automation**, and **docxt
 | Layer | What to version | What not to version |
 |--------|-----------------|---------------------|
 | **Word template** | `.docx` with Jinja tags in Git | Rendered client deliverables |
-| **Excel contract** | `samples/production_data.xlsx`, `schemas/field_contract.json` | One-off client workbooks (unless archived per project) |
+| **Excel contract** | `samples/production_data.xlsx`, `schemas/report_profiles.json` | One-off client workbooks (unless archived per project) |
 | **Engine** | `engine.py`, `security.py` | — |
 
 Non-developers maintain Word design; developers maintain the merge engine. Same split as Word Mail Merge, Carbone, and docxtpl production setups.
 
-## 2. Schema-first data (field contract)
+## 2. Schema-first data (report profiles)
 
-- Document every root variable in **`schemas/field_contract.json`** and [EXCEL_LAYOUT.txt](EXCEL_LAYOUT.txt).
+- Document recommended fields in **`schemas/report_profiles.json`** per profile (`phase1_alberta`, `phase2_esa`, `template_driven`). Update **`schemas/field_contract.json`** only if the AI tagger or legacy docs need the same names.
+- List layout in [EXCEL_LAYOUT.txt](EXCEL_LAYOUT.txt).
 - **Row 1** of `ProjectData` = headers → normalized keys (`Site Name` → `site_name`).
 - **Row 2** = single project record (this tool is single-report, not batch).
 - Phase 2: require **`LabResults`** with analyte rows; loop in Word with `{%tr for item in lab_results %}`.
@@ -91,8 +92,10 @@ Keep **`ReportEngine`** free of Streamlit. Later automation passes `excel_bytes`
 
 | Task | Where |
 |------|--------|
-| Field list / contract | `schemas/field_contract.json` |
+| Field list / contract | `schemas/report_profiles.json` (canonical) |
 | Tag inventory | Sidebar downloads + **Analyze uploaded Word template** |
-| Missing columns checklist | Pre-flight → **Download missing-fields checklist** |
+| Missing columns checklist | Pre-flight → **Download missing-fields checklist** (profile-aware) |
+| ReportConfig starter | Pre-flight → **Download ReportConfig sheet (Excel)** |
 | Preview without Word | **Preview data (dry run)** |
 | Provenance | **Download generation manifest (JSON)** |
+| Deliverable zip | **Download deliverable package (.zip)** after generate |

@@ -44,7 +44,17 @@ Sheet: StorageTanks (optional — Alberta Phase I)
 
   Template: {%tr for item in storage_tanks %} ... {%tr endfor %}
 
+Sheet: ReportConfig (optional)
+--------------------------------
+- Columns: key, value (row 1 headers).
+- Examples: report_type, primary_sheet, map_LabResults=lab_results
+- See docs/13-flexible-report-profiles.md
+
+Recommended fields: schemas/report_profiles.json (per profile).
+Legacy list: schemas/field_contract.json
+
 Sidebar (Streamlit) merges into context and overrides Excel on name clash:
-  prepared_by, date_of_issue, report_phase, template_version
+  report_type (profile), report_phase, prepared_by, date_of_issue,
+  template_version, executive_summary
 
 Setup: .\.venv\Scripts\Activate.ps1 then pip install -r requirements.txt

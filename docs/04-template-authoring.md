@@ -2,6 +2,17 @@
 
 Word templates are ordinary `.docx` files with **Jinja2** syntax interpreted by [docxtpl](https://docxtpl.readthedocs.io/). Authors maintain templates; the engine supplies data from Excel and the sidebar.
 
+## Supported template formats
+
+| Format | Upload | Merge behavior |
+|--------|--------|----------------|
+| **.docx** | Yes | Direct merge with docxtpl (preferred) |
+| **.pdf** | Yes | Converted to .docx on upload, then merge |
+
+PDF conversion preserves layout approximately; **Jinja2 tags are not created automatically**. Open the converted file in Word, add `{{ fields }}` and table loops, save as `.docx`, and re-upload—or tag before export to PDF.
+
+Maximum template size: 30 MB (see [07-security-and-deployment.md](07-security-and-deployment.md)).
+
 ## Principles
 
 1. **One tag, one run** — Type each `{{ variable }}` without applying bold/italic/color in the middle of the tag. Split runs are the #1 render failure (pre-flight lints these).

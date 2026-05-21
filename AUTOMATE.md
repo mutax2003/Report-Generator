@@ -52,7 +52,9 @@ Response body is the rendered `.docx`. Warnings may appear in header `X-ESA-Warn
 
 **Security:** bind `127.0.0.1` only unless behind VPN or authenticated reverse proxy.
 
-## Power Automate (outline)
+## Power Automate
+
+**Full step-by-step:** [docs/15-power-automate-guide.md](docs/15-power-automate-guide.md)
 
 1. **Store** Excel and Word template (SharePoint / OneDrive).
 2. **Get file content** for both.

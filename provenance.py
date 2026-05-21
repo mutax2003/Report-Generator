@@ -40,6 +40,9 @@ class GenerationRecord:
     lab_row_count: int = 0
     warning_count: int = 0
     missing_variables: list[str] = field(default_factory=list)
+    report_type: str = ""
+    template_source_format: str = ""
+    appendix_files: list[dict[str, str]] = field(default_factory=list)
     dry_run: bool = False
     ai_audit: list[dict[str, Any]] = field(default_factory=list)
 
@@ -63,14 +66,19 @@ def build_generation_record(
     template_filename: str = "",
     output_filename: str = "",
     dry_run: bool = False,
+    template_source_format: str = "",
+    appendix_files: list[dict[str, str]] | None = None,
 ) -> GenerationRecord:
     meta = meta or {}
     cov = coverage
     return GenerationRecord(
         generated_at=datetime.now(timezone.utc).isoformat(),
         report_phase=str(meta.get("report_phase", "")),
+        report_type=str(meta.get("report_type", "")),
         prepared_by=str(meta.get("prepared_by", "")),
         template_version=str(meta.get("template_version", "")),
+        template_source_format=template_source_format or "",
+        appendix_files=list(appendix_files or []),
         excel_sha256=sha256_hex(excel_bytes),
         template_sha256=sha256_hex(template_bytes),
         output_sha256=sha256_hex(output_bytes) if output_bytes else None,
