@@ -2,6 +2,8 @@
 
 Complete documentation for the Environmental Site Assessment (ESA) report generation system. This tool merges Excel project data and laboratory results into Word templates using Jinja2 ([docxtpl](https://docxtpl.readthedocs.io/)), delivered through a Streamlit web interface and headless automation APIs.
 
+**Coding agents:** see [../AGENTS.md](../AGENTS.md) for rules, setup, and quick commands.
+
 ## Audience
 
 | Document | Who it is for |
@@ -16,6 +18,8 @@ Complete documentation for the Environmental Site Assessment (ESA) report genera
 | [08-testing.md](08-testing.md) | QA / developers — unit tests, E2E, CI |
 | [09-ai-assistant.md](09-ai-assistant.md) | Power users — optional AI tab features |
 | [10-glossary-faq.md](10-glossary-faq.md) | Quick lookup — terms and common questions |
+| [11-alberta-phase1-esa.md](11-alberta-phase1-esa.md) | Alberta O&G Phase I — **Ecoventure Inc.** |
+| [12-testing-with-your-documents.md](12-testing-with-your-documents.md) | **Test with your Excel + Word templates** |
 
 ## Quick start
 

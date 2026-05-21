@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from engine import LAB_SHEET, PROJECT_SHEET, ReportEngine
+from engine import DRILLING_WASTE_SHEET, LAB_SHEET, PROJECT_SHEET, ReportEngine
 from security import SecurityError, ZipReadBudget, open_docx_zip, read_docx_xml_member
 
 
@@ -24,6 +24,8 @@ class TemplateCoverage:
     missing_in_data: list[str] = field(default_factory=list)
     unused_in_template: list[str] = field(default_factory=list)
     lab_row_count: int = 0
+    drilling_waste_row_count: int = 0
+    storage_tanks_row_count: int = 0
 
     @property
     def ready(self) -> bool:
@@ -200,6 +202,7 @@ def run_preflight(
     except Exception as e:
         result.errors.append(f"Could not read Excel: {e}")
 
+    scan: TemplateScan | None = None
     try:
         scan = scan_template(template_bytes)
         result.template_var_count = len(scan.root_vars)
@@ -219,6 +222,20 @@ def run_preflight(
             result.coverage = engine.coverage(meta)
             if require_lab and result.coverage.lab_row_count == 0:
                 result.warnings.append("LabResults has no data rows.")
+            if not require_lab:
+                if DRILLING_WASTE_SHEET not in result.sheet_names:
+                    result.warnings.append(
+                        f"Phase 1: optional sheet '{DRILLING_WASTE_SHEET}' not found."
+                    )
+                if (
+                    scan
+                    and result.coverage
+                    and result.coverage.drilling_waste_row_count == 0
+                    and any("drilling_waste" in b for b in scan.block_tags)
+                ):
+                    result.warnings.append(
+                        "Template loops drilling_waste but sheet has no rows."
+                    )
         except ValueError as e:
             result.errors.append(str(e))
         except Exception as e:

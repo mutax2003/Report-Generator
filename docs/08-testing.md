@@ -16,17 +16,28 @@ Framework: Python `unittest` (stdlib).
 | `test_production_starter.py` | Production starter template render |
 | `test_production_template.py` | Full production template render |
 | `test_ai_features.py` | AI offline paths, RAG, heuristics |
+| `test_phase1_alberta.py` | Alberta Phase I Ecoventure samples render + context |
+| `test_phase1_narrative.py` | Signum-style executive summary builder + auto-fill |
+
+## Ten-step health check
+
+Quick regression pass (imports, Phase I Ecoventure render, security, full unittest):
+
+```powershell
+python scripts\health_check.py
+```
 
 ## Running tests
 
 ```powershell
 cd "c:\Users\Andrew Liu\Report Generator"
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python scripts\create_samples.py
 python -m unittest discover -s tests -v
 ```
 
-Expected: **56 tests OK** (count may increase with new tests).
+Expected: **62 tests OK** (includes `test_phase1_narrative.py` for Signum-style executive summary).
 
 ### Skip conditions
 
@@ -39,6 +50,11 @@ Some tests skip if `samples/` missing — committed samples in repo prevent skip
 | `scripts/render_cli.py` | Demo sample merge + manifest |
 | `scripts/tag_production_template.py` | Production template tagging |
 | `scripts/production_e2e.py` | Production data + template preflight + render |
+| `scripts/phase1_alberta_e2e.py` | Alberta Phase I Ecoventure preflight + render |
+| `scripts/prepare_user_test_pack.py` | Copy samples to `user_test/` (row 2 customized) |
+| `scripts/test_with_your_documents.py` | Pre-flight, dry run, render for any Excel + template pair |
+
+User workflow (your Excel + Word): [12-testing-with-your-documents.md](12-testing-with-your-documents.md)
 
 Full local E2E chain:
 
@@ -83,6 +99,9 @@ On push/PR to `main` or `master`:
 5. `unittest discover`
 6. `render_cli.py`
 7. `production_e2e.py`
+8. `phase1_alberta_e2e.py`
+9. `health_check.py` (10-step regression)
+10. `test_with_your_documents.py` (default Alberta sample pair)
 
 ## Test environment bypass
 

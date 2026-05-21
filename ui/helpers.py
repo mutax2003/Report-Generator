@@ -6,6 +6,8 @@ from typing import Any
 import streamlit as st
 
 from engine import (
+    generate_phase1_alberta_excel,
+    generate_phase1_alberta_template_docx,
     generate_production_excel,
     generate_production_starter_template_docx,
     generate_production_template_docx,
@@ -20,6 +22,8 @@ SAMPLE_DOCX = ROOT / "samples" / "sample_template.docx"
 PRODUCTION_XLSX = ROOT / "samples" / "production_data.xlsx"
 PRODUCTION_STARTER_DOCX = ROOT / "samples" / "production_starter_template.docx"
 PRODUCTION_TEMPLATE_DOCX = ROOT / "samples" / "production_template.docx"
+PHASE1_ALBERTA_XLSX = ROOT / "samples" / "phase1_alberta_data.xlsx"
+PHASE1_ALBERTA_DOCX = ROOT / "samples" / "phase1_alberta_template.docx"
 
 
 def format_size(num_bytes: int | None) -> str:
@@ -52,6 +56,10 @@ def _ensure_samples() -> None:
         generate_production_starter_template_docx(str(PRODUCTION_STARTER_DOCX))
     if not PRODUCTION_TEMPLATE_DOCX.is_file():
         generate_production_template_docx(str(PRODUCTION_TEMPLATE_DOCX))
+    if not PHASE1_ALBERTA_XLSX.is_file():
+        generate_phase1_alberta_excel(str(PHASE1_ALBERTA_XLSX))
+    if not PHASE1_ALBERTA_DOCX.is_file():
+        generate_phase1_alberta_template_docx(str(PHASE1_ALBERTA_DOCX))
 
 
 def render_download_helpers() -> None:
@@ -95,6 +103,22 @@ def render_download_helpers() -> None:
             "Download production template (tagged)",
             data=PRODUCTION_TEMPLATE_DOCX.read_bytes(),
             file_name="production_template.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True,
+        )
+    if PHASE1_ALBERTA_XLSX.is_file():
+        st.sidebar.download_button(
+            "Download Alberta Phase I Excel (Ecoventure)",
+            data=PHASE1_ALBERTA_XLSX.read_bytes(),
+            file_name="phase1_alberta_data.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
+    if PHASE1_ALBERTA_DOCX.is_file():
+        st.sidebar.download_button(
+            "Download Alberta Phase I template (Ecoventure)",
+            data=PHASE1_ALBERTA_DOCX.read_bytes(),
+            file_name="phase1_alberta_template.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True,
         )

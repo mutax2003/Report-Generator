@@ -4,10 +4,12 @@ Web application for generating **Phase 1** and **Phase 2 Environmental Site Asse
 
 ## Documentation
 
-**Full documentation:** **[docs/README.md](docs/README.md)** — start here.
+**Full documentation:** **[docs/README.md](docs/README.md)** — start here.  
+**Agents / Cursor:** **[AGENTS.md](AGENTS.md)** — rules, setup, quick commands.
 
 | Guide | Audience |
 |-------|----------|
+| [docs/11-alberta-phase1-esa.md](docs/11-alberta-phase1-esa.md) | **Alberta O&G Phase I (Ecoventure)** — primary use case |
 | [docs/01-overview.md](docs/01-overview.md) | Architecture and data flow |
 | [docs/02-user-guide.md](docs/02-user-guide.md) | Streamlit workflow (upload → pre-flight → generate) |
 | [docs/03-excel-data-guide.md](docs/03-excel-data-guide.md) | Excel sheets, columns, exceedances |
@@ -18,6 +20,7 @@ Web application for generating **Phase 1** and **Phase 2 Environmental Site Asse
 | [docs/08-testing.md](docs/08-testing.md) | Tests and E2E scripts |
 | [docs/09-ai-assistant.md](docs/09-ai-assistant.md) | Optional AI tab |
 | [docs/10-glossary-faq.md](docs/10-glossary-faq.md) | Terms and FAQ |
+| [docs/12-testing-with-your-documents.md](docs/12-testing-with-your-documents.md) | **Test with your Excel + Word templates** |
 
 Quick references: [EXCEL_LAYOUT.txt](EXCEL_LAYOUT.txt) · [JINJA2_CHEATSHEET.txt](JINJA2_CHEATSHEET.txt) · [BEST_PRACTICES.md](BEST_PRACTICES.md)
 
@@ -61,8 +64,20 @@ python scripts\create_samples.py
 | `samples/production_data.xlsx` | Production-aligned fields |
 | `samples/production_template.docx` | Tagged production reference |
 | `samples/production_starter_template.docx` | Minimal production starter |
+| `samples/phase1_alberta_data.xlsx` | Alberta Phase I data (Ecoventure Inc.) |
+| `samples/phase1_alberta_template.docx` | Alberta Phase I Word template (Ecoventure) |
 
-**Demo:** `samples/sample_data.xlsx` + `samples/sample_template.docx`
+**Demo:** `samples/sample_data.xlsx` + `samples/sample_template.docx`  
+**Alberta Phase I:** `samples/phase1_alberta_data.xlsx` + `samples/phase1_alberta_template.docx` (Ecoventure Inc.)
+
+### Test with your own files
+
+```powershell
+python scripts\prepare_user_test_pack.py
+python scripts\test_with_your_documents.py --excel user_test\my_project_data.xlsx --template user_test\my_template.docx
+```
+
+See [docs/12-testing-with-your-documents.md](docs/12-testing-with-your-documents.md).
 
 ## Scripts
 
@@ -72,6 +87,9 @@ python scripts\create_samples.py
 | `python scripts\production_e2e.py` | Production preflight + render |
 | `python scripts\tag_production_template.py` | Tag merge doc or generate reference template |
 | `python scripts\inventory_template.py template.docx` | List Jinja tags |
+| `python scripts\prepare_user_test_pack.py` | Copy Alberta samples to `user_test/` for editing |
+| `python scripts\test_with_your_documents.py` | Pre-flight + dry run + render (no browser) |
+| `.\run.ps1 scripts\test_with_your_documents.py` | Same, via venv Python (Windows) |
 | `python -m unittest discover -s tests -v` | Full test suite |
 
 ## Automation

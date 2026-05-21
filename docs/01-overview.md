@@ -66,12 +66,12 @@ Design goals:
 
 ## Report phases
 
-| Phase | `LabResults` sheet | Behavior |
-|-------|-------------------|----------|
-| **Phase 1** | Optional | Empty `lab_results` list if sheet missing |
-| **Phase 2** | **Required** | Lab table loops populate from sheet rows |
+| Phase | `LabResults` | `DrillingWaste` / `StorageTanks` | Behavior |
+|-------|--------------|----------------------------------|----------|
+| **Phase 1** | Optional | Optional (Alberta O&G) | Empty `lab_results` if sheet missing; optional `drilling_waste` / `storage_tanks` table loops |
+| **Phase 2** | **Required** | Optional | Lab table loops populate from `LabResults` rows |
 
-Set phase in the sidebar **Report phase** dropdown.
+Primary Alberta Phase I workflow: [11-alberta-phase1-esa.md](11-alberta-phase1-esa.md). Set phase in the sidebar **Report phase** dropdown (default **Phase 1**).
 
 ## Repository layout
 

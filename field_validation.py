@@ -28,7 +28,9 @@ def contract_warnings(
     sheets = contract.get("sheets", {})
     project = sheets.get("ProjectData", {})
     recommended = list(project.get("recommended_all_phases", []))
-    if report_phase.strip() != "Phase 1":
+    if report_phase.strip() == "Phase 1":
+        recommended.extend(project.get("recommended_phase_1_alberta_og", []))
+    else:
         recommended.extend(project.get("recommended_phase_2", []))
 
     warnings: list[str] = []

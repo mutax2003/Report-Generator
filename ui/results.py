@@ -10,17 +10,21 @@ from ui.helpers import format_size
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
+_LIST_KEYS = ("lab_results", "drilling_waste", "storage_tanks")
+
+
 def render_context_preview(context: dict[str, Any], *, max_rows: int = 15) -> None:
     rows = [
         {"key": k, "value": str(v)[:200]}
         for k, v in sorted(context.items())
-        if k != "lab_results"
+        if k not in _LIST_KEYS
     ][:max_rows]
     if rows:
         st.dataframe(rows, use_container_width=True, hide_index=True)
-    lab = context.get("lab_results")
-    if isinstance(lab, list):
-        st.caption(f"lab_results: {len(lab)} row(s) (not shown in table)")
+    for key in _LIST_KEYS:
+        data = context.get(key)
+        if isinstance(data, list) and data:
+            st.caption(f"{key}: {len(data)} row(s) (table loop data)")
 
 
 def render_download_section(

@@ -2,39 +2,49 @@ ESA Report Generator — Excel workbook layout
 ============================================
 
 Full guide: docs/03-excel-data-guide.md
+Alberta Phase I: docs/11-alberta-phase1-esa.md
 
-Sheet 1: ProjectData (required name)
---------------------------------------
+Sheet: ProjectData (required name)
+----------------------------------
 - Row 1: column headers (each header becomes a Jinja2 context key).
-- Row 2 onward: data rows. The engine uses the FIRST data row only and
-  builds one flat dict: header -> cell value (strings; NaN -> "").
+- Row 2: ONLY this data row is used for the report (single-project mode).
+- Row 3+: ignored.
 
-  Example headers: site_name, client_name, project_number, address
+  Example headers: site_name, client_name, project_number, address,
+  consultant_name, company, well_name, uwi, executive_summary
 
-  Tip: Use snake_case or consistent names that match your Word template
-  placeholders, e.g. {{ site_name }}.
+  Tip: Match Word placeholders, e.g. {{ site_name }}.
+  Phase I: set consultant_name and company to Ecoventure Inc.
 
-Sheet 2: LabResults (required name)
--------------------------------------
+Sheet: LabResults (exact name)
+------------------------------
+- Phase 1: optional (empty lab_results if missing).
+- Phase 2: required.
+
 - Row 1: column headers.
-- Each subsequent row becomes one dict in the list `lab_results`.
+- Each subsequent row -> one dict in lab_results.
 
-  Supported columns (any subset OK; extras are passed through as strings):
+  Columns: Analyte, Result, Unit, Criteria, Exceedance (aliases OK).
+  Exceedance: Y/Yes/TRUE/1/X or numeric Result > Criteria -> bold red RichText.
 
-  - Analyte (or analyte): parameter name
-  - Result: numeric or text result
-  - Unit: units
-  - Criteria: screening / regulatory value (optional)
-  - Exceedance: "Y", "Yes", "TRUE", "1", or "X" marks exceedance
+  Template: {%tr for item in lab_results %} ... {%tr endfor %}
+  Use {{ item.result_display }} for formatted exceedances.
 
-  Exceedance logic:
-  - If Exceedance is truthy (above), or Result > Criteria when both parse
-    as numbers, the engine sets result_display as RichText (bold + red).
+Sheet: DrillingWaste (optional — Alberta Phase I)
+-------------------------------------------------
+- Row 1: headers; each data row -> drilling_waste list.
+- Example: mud_type, volume_m3, disposal_method, location
 
-  Template: loop with {%tr for item in lab_results %} and use
-  {{ item.analyte }}, {{ item.result_display }} (or {{ item.result_plain }}),
-  {{ item.unit }}, etc.
-  Keys in each row are lowercased header names with spaces -> underscores.
+  Template: {%tr for item in drilling_waste %} ... {%tr endfor %}
 
-Sidebar fields (app.py) are merged into the same context as ProjectData
-(e.g. prepared_by, date_of_issue) and override Excel keys if names match.
+Sheet: StorageTanks (optional — Alberta Phase I)
+------------------------------------------------
+- Row 1: headers; each data row -> storage_tanks list.
+- Example: tank_type, content, location, capacity_m3
+
+  Template: {%tr for item in storage_tanks %} ... {%tr endfor %}
+
+Sidebar (Streamlit) merges into context and overrides Excel on name clash:
+  prepared_by, date_of_issue, report_phase, template_version
+
+Setup: .\.venv\Scripts\Activate.ps1 then pip install -r requirements.txt

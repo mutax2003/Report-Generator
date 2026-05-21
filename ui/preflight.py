@@ -43,7 +43,11 @@ def run_preflight_check(
     )
 
 
-def render_preflight_panel(preflight: PreflightResult | None) -> bool:
+def render_preflight_panel(
+    preflight: PreflightResult | None,
+    *,
+    report_phase: str = "Phase 2",
+) -> bool:
     """Show pre-flight checklist. Returns True if Generate should be allowed."""
     if preflight is None:
         st.info("Upload Excel and Word template to see pre-flight checks.")
@@ -76,7 +80,13 @@ def render_preflight_panel(preflight: PreflightResult | None) -> bool:
     with col3:
         st.metric("Missing", missing_n)
     with col4:
-        st.metric("Lab rows", cov.lab_row_count if cov else 0)
+        if report_phase.strip() == "Phase 1" and cov:
+            st.metric(
+                "Drilling / tank rows",
+                f"{cov.drilling_waste_row_count} / {cov.storage_tanks_row_count}",
+            )
+        else:
+            st.metric("Lab rows", cov.lab_row_count if cov else 0)
 
     if cov:
         if cov.matched:

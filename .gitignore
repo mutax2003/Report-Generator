@@ -14,6 +14,16 @@ samples/e2e_output.docx
 samples/production_rendered.docx
 samples/*_manifest.json
 samples/e2e_*.docx
+samples/phase1_alberta_rendered.docx
+
+# Client reference PDFs (confidential)
+samples/*.pdf
+
+# Local test outputs
+out/
+user_test/*.docx
+user_test/*.xlsx
+!user_test/README.txt
 
 # Client templates (optional — remove line to version-control)
 22xxxxR Phase 2 ESA Full_merge.docx

@@ -1,8 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ESA Report Generator field contract",
-  "description": "Recommended Excel ProjectData columns and sidebar fields. Aligns template tags with data sources (mail-merge / document-automation pattern).",
-  "version": "1.0.0",
+  "description": "Recommended Excel ProjectData columns and sidebar fields. Primary use: Alberta O&G Phase I (Ecoventure Inc.).",
+  "version": "1.1.0",
+  "preparing_firm_default": "Ecoventure Inc.",
   "sheets": {
     "ProjectData": {
       "layout": "Row 1 = column headers (become Jinja keys after normalization). Row 2 = values for the report.",
@@ -14,6 +15,23 @@
         "prepared_by",
         "date_of_issue"
       ],
+      "recommended_phase_1_alberta_og": [
+        "consultant_name",
+        "company",
+        "well_name",
+        "uwi",
+        "report_title",
+        "qp_names",
+        "spud_date",
+        "cased_date",
+        "reentry_detail",
+        "drilling_waste_summary",
+        "aer_waste_compliance_option",
+        "air_photo_observations",
+        "site_visit_completed",
+        "executive_summary",
+        "conclusions_recommendations"
+      ],
       "recommended_phase_2": [
         "site_address",
         "report_title",
@@ -21,6 +39,18 @@
         "consultant_name",
         "company"
       ]
+    },
+    "DrillingWaste": {
+      "layout": "One row per disposal record. Loop variable: drilling_waste.",
+      "required_phase_1_alberta": false,
+      "loop_variable": "drilling_waste",
+      "row_fields": ["mud_type", "volume_m3", "disposal_method", "location"]
+    },
+    "StorageTanks": {
+      "layout": "One row per tank. Loop variable: storage_tanks.",
+      "required_phase_1_alberta": false,
+      "loop_variable": "storage_tanks",
+      "row_fields": ["tank_type", "content", "location", "capacity_m3"]
     },
     "LabResults": {
       "layout": "One row per analyte. Headers: Analyte, Result, Unit, Criteria, Exceedance (aliases accepted).",
@@ -30,15 +60,16 @@
     }
   },
   "sidebar_meta": {
-    "prepared_by": "Author name (overrides or supplements Excel if same key)",
+    "prepared_by": "Author name (Ecoventure QP)",
     "date_of_issue": "ISO date",
     "report_phase": "Phase 1 | Phase 2",
     "template_version": "Optional semantic version of the Word template (e.g. 2.1.0)"
   },
   "template_rules": [
     "Type each {{ tag }} in one continuous run in Word (no bold/color mid-tag).",
-    "Use static table header row, then {%tr for item in lab_results %} for data rows.",
-    "Version templates in Git; store rendered .docx outside version control.",
+    "Use static table header row, then {%tr for item in lab_results %} for Phase 2 lab data.",
+    "Phase 1 Alberta: {%tr for item in drilling_waste %} and storage_tanks loops.",
+    "Reports originate from Ecoventure Inc.; client data per project Excel.",
     "Run pre-flight before every production generate."
   ]
 }

@@ -279,15 +279,18 @@ def clamp_context(context: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             f"Very large context ({len(context)} keys); some keys may be ignored."
         )
 
-    lab = context.get("lab_results")
-    if isinstance(lab, list) and len(lab) > MAX_LAB_ROWS:
-        warnings.append(
-            f"LabResults truncated from {len(lab)} to {MAX_LAB_ROWS} rows."
-        )
-        context["lab_results"] = lab[:MAX_LAB_ROWS]
+    for list_key in ("lab_results", "drilling_waste", "storage_tanks"):
+        rows = context.get(list_key)
+        if isinstance(rows, list) and len(rows) > MAX_LAB_ROWS:
+            warnings.append(
+                f"{list_key} truncated from {len(rows)} to {MAX_LAB_ROWS} rows."
+            )
+            context[list_key] = rows[:MAX_LAB_ROWS]
 
     for key, val in list(context.items()):
-        if key == "lab_results" and isinstance(val, list):
+        if key in ("lab_results", "drilling_waste", "storage_tanks") and isinstance(
+            val, list
+        ):
             for row in val:
                 if not isinstance(row, dict):
                     continue

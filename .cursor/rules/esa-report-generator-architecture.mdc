@@ -3,61 +3,82 @@ description: ESA Report Generator (Streamlit + docxtpl) — architecture, stack,
 alwaysApply: true
 ---
 
-# Technical Architect Prompt: ESA Report Generator (Streamlit Edition)
+# ESA Report Generator — Architecture (Streamlit + docxtpl)
 
-This revised prompt combines the professional document generation logic with a clean, interactive **Streamlit** interface. You can paste this directly into Cursor to build a functional V1 of your internal reporting tool.
+## Current state (repo is built — extend, do not greenfield)
 
-## Objective
+**Primary use case:** Alberta O&G **Phase I ESA** for **Ecoventure Inc.** (`consultant_name` / `company` = Ecoventure Inc.). Samples: `samples/phase1_alberta_data.xlsx` + `samples/phase1_alberta_template.docx`.
 
-Act as a Senior Python Developer and System Architect. Build a web-based **Environmental Report Generation Engine** using **Streamlit** and **docxtpl**. The application must allow non-technical users to upload an Excel data file and a Word template, then download a rendered Phase 1 or Phase 2 ESA report.
+**Authoritative docs:** [docs/README.md](docs/README.md) · Phase I: [docs/11-alberta-phase1-esa.md](docs/11-alberta-phase1-esa.md) · User testing: [docs/12-testing-with-your-documents.md](docs/12-testing-with-your-documents.md)
 
-## Tech Stack
+**Setup (required before scripts):**
 
-- **Frontend:** Streamlit
-- **Document Logic:** docxtpl (Jinja2 templating)
-- **Data Processing:** pandas, openpyxl
+```powershell
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
-## 1. Functional Requirements
+Use venv `python` or `.\.venv\Scripts\python.exe` — system `python` lacks `pandas` / project deps.
 
-### A. The Streamlit UI
+**Excel sheets (exact names, case-sensitive):**
 
-- **File Uploaders:** Two clear upload zones: one for the **Excel Data Source** and one for the **Word Template (.docx)**.
-- **Project Meta-Data:** Sidebar for global variables that might not be in the Excel sheet (e.g., Prepared By, Date of Issue).
-- **Process Action:** Primary button labeled **Generate Report** that triggers the rendering logic.
-- **Download Utility:** After successful generation, a download button for the resulting .docx file.
+| Sheet | Phase 1 | Phase 2 | Jinja context |
+|-------|---------|---------|---------------|
+| `ProjectData` | Required | Required | Flat dict from **row 2 only** |
+| `LabResults` | Optional | **Required** | `lab_results` list |
+| `DrillingWaste` | Optional | Optional | `drilling_waste` list (Alberta Phase I tables) |
+| `StorageTanks` | Optional | Optional | `storage_tanks` list |
 
-### B. The Rendering Engine (docxtpl)
+**Code layout:** `app.py` + `ui/*` (Streamlit) · `engine.py` (`ReportEngine`) · `template_tools.py` (pre-flight) · `security.py` · `provenance.py` · `schemas/field_contract.json` · `scripts/` (CLI/E2E) · `automate/` (headless API).
 
-- **Context Mapping:** Read the first sheet of the Excel file (`ProjectData`) and convert it into a dictionary where column headers are keys.
-- **Dynamic Tables:** Read a second sheet (`LabResults`) and format it as a list of dictionaries for Word table loops (e.g., `{% tr for item in lab_results %}`).
-- **Formatting Logic:** Use `RichText` for specific formatting in cells (e.g., bolding or colors for exceedances).
+**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py`
 
-### C. Robust Logic & Safety
+---
 
-- **Error Catching:** If a tag exists in the Word doc but is missing from the Excel data, show a graceful warning in the UI rather than crashing.
-- **Input Validation:** Verify uploaded files use the correct extensions (.xlsx and .docx).
+## Objective (V1 baseline)
 
-## 2. Architectural Design
+Web-based **Environmental Report Generation Engine**: upload Excel + Word template → download rendered Phase 1 or Phase 2 ESA `.docx`.
 
-- **Modular Code:** Separate **Streamlit UI code** from **document generation logic**.
-- **Session State:** Use Streamlit session state so the generated file persists through the download phase.
+## Tech stack
 
-## 3. Deliverables
+- **Frontend:** Streamlit (`app.py`, `ui/`)
+- **Document logic:** docxtpl (Jinja2)
+- **Data:** pandas, openpyxl
 
-- `app.py`: Main entry point with the Streamlit interface and integration logic.
-- `engine.py`: Class-based module for document rendering.
-- **Example Excel Template:** Code snippet or instructions for Excel structure aligned with the engine.
-- **Jinja2 Cheat Sheet:** Brief guide for `{{ tags }}` and `{% loops %}` inside Word templates.
+## Functional requirements (checklist)
 
-## M365 / portability note
+### Streamlit UI
 
-The tool is portable Python: run locally first. For **Power Automate** later, reuse `engine.py` and change only how data reaches the engine.
+- Two upload zones: Excel (`.xlsx`) and Word template (`.docx`)
+- Sidebar: Prepared By, Date of Issue, Report phase, template version
+- **Generate Report** button; download rendered `.docx` after success
+- Pre-flight panel (errors block generate; warnings allow)
+- Session state persists generated file for download
 
-## How to use this in Cursor
+### Rendering engine (`engine.py`)
 
-1. Open this project folder in Cursor.
-2. Ensure `app.py` exists (or create it).
-3. Open Chat (Cmd+L / Ctrl+L) and reference this rule or paste the objective/requirements as needed.
-4. After code exists, you can ask for a sample **Phase 2 Lab Results** Excel table and matching Word table Jinja2 to test table generation.
+- `ProjectData` → dict (headers → snake_case keys)
+- `LabResults` → `lab_results` for `{%tr for item in lab_results %}`
+- `DrillingWaste` / `StorageTanks` → optional table loops (Phase I)
+- `RichText` for lab exceedances (`result_display` bold red)
+- Missing scalar tags: warn + empty string, do not crash
+- Validate file extensions and upload size/zip safety (`security.py`)
 
-Optional follow-up for agents: provide a sample `LabResults` table structure and how Phase 2 exceedances are represented (e.g., RichText) when the user requests testing examples.
+### Architecture
+
+- **Modular:** UI separate from `ReportEngine`
+- **Session state** for generated bytes and manifest
+- **M365 / portability:** Reuse `engine.py` in Power Automate later; only change data ingress
+
+## Deliverables (present in repo)
+
+- `app.py`, `engine.py`
+- `EXCEL_LAYOUT.txt`, `JINJA2_CHEATSHEET.txt`
+- `scripts/create_samples.py` — demo + production + phase1_alberta fixtures
+
+## Agent guidance
+
+- Prefer editing existing modules over new abstractions
+- Match `field_contract.json` and sample headers when adding fields
+- Word tags: single formatting run per `{{ tag }}`; table headers above `{%tr for ... %}` loops
+- After template/engine changes: `python scripts\health_check.py` and `python -m unittest discover -s tests -v`

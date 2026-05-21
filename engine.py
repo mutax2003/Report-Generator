@@ -15,6 +15,8 @@ from jinja2 import StrictUndefined
 from jinja2.exceptions import TemplateError
 from jinja2.sandbox import SandboxedEnvironment
 
+from phase1_narrative import build_phase1_executive_summary
+
 from security import (
     MAX_LAB_ROWS,
     MAX_PROJECT_COLUMNS,
@@ -34,6 +36,19 @@ from security import (
 
 PROJECT_SHEET = "ProjectData"
 LAB_SHEET = "LabResults"
+DRILLING_WASTE_SHEET = "DrillingWaste"
+STORAGE_TANKS_SHEET = "StorageTanks"
+
+ECOVENTURE_CONSULTANT = "Ecoventure Inc."
+
+
+def _s(value: Any) -> str:
+    if value is None:
+        return ""
+    t = str(value).strip()
+    if t.lower() in ("nan", "none"):
+        return ""
+    return t
 
 
 def _norm_key(name: str) -> str:
@@ -132,6 +147,23 @@ def _lab_frame_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     return rows
 
 
+def _dataframe_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
+    """Generic sheet → list of dicts (normalized keys, string cells)."""
+    if df.empty:
+        return []
+    if len(df) > MAX_LAB_ROWS:
+        df = df.head(MAX_LAB_ROWS)
+    rows: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        rec: dict[str, Any] = {}
+        for col in df.columns:
+            key = _norm_key(col)
+            if key:
+                rec[key] = _cell_str(row[col])
+        rows.append(rec)
+    return rows
+
+
 def _parse_simple_mustache_vars(xml_text: str) -> set[str]:
     """Top-level {{ var }} names; skips dotted paths (e.g. item.x)."""
     needed: set[str] = set()
@@ -185,9 +217,15 @@ class ReportEngine:
 
         ctx = self.build_context(meta)
         needed = self.template_root_vars()
-        ctx_keys = {k for k in ctx if k != "lab_results"}
+        ctx_keys = {
+            k
+            for k in ctx
+            if k not in ("lab_results", "drilling_waste", "storage_tanks")
+        }
         lab = ctx.get("lab_results")
         lab_count = len(lab) if isinstance(lab, list) else 0
+        dw = ctx.get("drilling_waste")
+        st = ctx.get("storage_tanks")
         return TemplateCoverage(
             template_vars=needed,
             context_keys=ctx_keys,
@@ -195,11 +233,18 @@ class ReportEngine:
             missing_in_data=sorted(needed - ctx_keys),
             unused_in_template=sorted(ctx_keys - needed),
             lab_row_count=lab_count,
+            drilling_waste_row_count=len(dw) if isinstance(dw, list) else 0,
+            storage_tanks_row_count=len(st) if isinstance(st, list) else 0,
         )
 
     def _read_excel(
         self, *, require_lab: bool = True
-    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    ) -> tuple[
+        dict[str, Any],
+        list[dict[str, Any]],
+        list[dict[str, Any]],
+        list[dict[str, Any]],
+    ]:
         bio = io.BytesIO(self.excel_bytes)
         with pd.ExcelFile(bio, engine="openpyxl") as xl:
             names = xl.sheet_names
@@ -213,6 +258,16 @@ class ReportEngine:
                 )
             project_df = xl.parse(PROJECT_SHEET, header=0)
             lab_df = xl.parse(LAB_SHEET, header=0) if LAB_SHEET in names else pd.DataFrame()
+            waste_df = (
+                xl.parse(DRILLING_WASTE_SHEET, header=0)
+                if DRILLING_WASTE_SHEET in names
+                else pd.DataFrame()
+            )
+            tanks_df = (
+                xl.parse(STORAGE_TANKS_SHEET, header=0)
+                if STORAGE_TANKS_SHEET in names
+                else pd.DataFrame()
+            )
 
         if project_df.empty:
             raise ValueError(
@@ -222,19 +277,28 @@ class ReportEngine:
             project_df = project_df.iloc[:, :MAX_PROJECT_COLUMNS]
         project = _project_row_to_dict(project_df)
         lab_results = _lab_frame_to_records(lab_df) if require_lab else []
-        return project, lab_results
+        drilling_waste = _dataframe_to_records(waste_df)
+        storage_tanks = _dataframe_to_records(tanks_df)
+        return project, lab_results, drilling_waste, storage_tanks
 
     def build_context(self, meta: dict[str, str] | None) -> dict[str, Any]:
         meta = sanitize_meta(meta)
         phase = str(meta.get("report_phase", "")).strip()
         require_lab = phase != "Phase 1"
-        project, lab_results = self._read_excel(require_lab=require_lab)
+        project, lab_results, drilling_waste, storage_tanks = self._read_excel(
+            require_lab=require_lab
+        )
         ctx: dict[str, Any] = {**project}
         for k, v in meta.items():
             nk = _norm_key(k)
             if nk:
                 ctx[nk] = v if v is not None else ""
         ctx["lab_results"] = lab_results
+        ctx["drilling_waste"] = drilling_waste
+        ctx["storage_tanks"] = storage_tanks
+        if phase == "Phase 1" and not _s(project.get("executive_summary")):
+            ctx["executive_summary"] = build_phase1_executive_summary(ctx)
+            ctx["_executive_summary_auto_generated"] = True
         return ctx
 
     def missing_template_vars(
@@ -262,8 +326,13 @@ class ReportEngine:
         from provenance import GenerationRecord, build_generation_record
 
         context = self.build_context(meta)
+        auto_exec = context.pop("_executive_summary_auto_generated", False)
         context, clamp_warnings = clamp_context(context)
         warnings: list[str] = list(clamp_warnings)
+        if auto_exec:
+            warnings.append(
+                "Executive summary auto-generated from ProjectData (Signum-style structure)."
+            )
         missing = self.missing_template_vars(context)
         for m in missing:
             warnings.append(
@@ -302,8 +371,14 @@ class ReportEngine:
         (filled with empty string for render).
         """
         context = self.build_context(meta)
+        auto_exec = context.pop("_executive_summary_auto_generated", False)
         context, clamp_warnings = clamp_context(context)
         warnings: list[str] = list(clamp_warnings)
+        if auto_exec:
+            warnings.append(
+                "Executive summary auto-generated from ProjectData (Signum-style structure). "
+                "Review before client delivery."
+            )
         for m in self.missing_template_vars(context):
             warnings.append(
                 f"Template uses '{{{{ {m} }}}}' but no Excel/sidebar value; "
@@ -553,3 +628,153 @@ PRODUCTION_BRACKET_REPLACEMENTS: dict[str, str] = {
     "[LAB]": "{{ lab_name }}",
     "Client Full Name": "{{ client_full_name }}",
 }
+
+
+def _add_docx_table_loop(
+    doc: Document,
+    title: str,
+    loop_var: str,
+    headers: list[str],
+    item_fields: list[str],
+) -> None:
+    """docxtpl table-row loop with static header row."""
+    doc.add_paragraph("")
+    doc.add_paragraph(title)
+    ncols = len(headers)
+    table = doc.add_table(rows=4, cols=ncols)
+    table.style = "Table Grid"
+    for i, h in enumerate(headers):
+        table.rows[0].cells[i].text = h
+    table.rows[1].cells[0].merge(table.rows[1].cells[ncols - 1])
+    table.rows[1].cells[0].text = f"{{%tr for item in {loop_var} %}}"
+    for i, field in enumerate(item_fields):
+        table.rows[2].cells[i].text = f"{{{{ item.{field} }}}}"
+    table.rows[3].cells[0].merge(table.rows[3].cells[ncols - 1])
+    table.rows[3].cells[0].text = "{%tr endfor %}"
+
+
+def generate_phase1_alberta_excel(path: str) -> None:
+    """Alberta O&G Phase I workbook — Ecoventure Inc. sample (Signum-style executive summary)."""
+    row = {
+        "client_name": "Example Energy Ltd.",
+        "consultant_name": ECOVENTURE_CONSULTANT,
+        "company": ECOVENTURE_CONSULTANT,
+        "well_name": "Example 4D Windy 4-4-49-4",
+        "site_name": "Example 4D Windy 4-4-49-4",
+        "uwi": "00/04-04-049-04W4/0",
+        "project_number": "ESA-P1-2017-001",
+        "report_title": "Phase I Environmental Site Assessment",
+        "report_month_year": "March 2017",
+        "qp_names": "Ecoventure QP (P.Eng.); Ecoventure QP (R.T.Ag.)",
+        "spud_date": "15-Mar-2004",
+        "cased_date": "17-Mar-2004",
+        "final_drill_date": "19-Jun-2004",
+        "well_depth_m": "710",
+        "well_status": "suspended",
+        "reentry": "Yes",
+        "reentry_detail": (
+            "The well was re-entered in June 2004 and drilled to a total depth of 710 metres (m), "
+            "and the well is currently suspended"
+        ),
+        "production_fluid": "gas with water",
+        "aer_waste_compliance_option": "Option 1 (AER, 2014)",
+        "drilling_waste_summary": (
+            "110 m3 of drilling waste (surface mud and fasthole mud) was disposed of via LWD at "
+            "SW1/4 04-049-04 W4M, 35 m3 of mainhole drilling mud was landsprayed at SE-09-049-04 W4M, "
+            "3 m3 of shale was landspread onsite, and 60 m3 of mainhole drilling mud was hauled to "
+            "the remote site at Example 10-04-048-06 W4M"
+        ),
+        "phase2_drilling_waste_required": "No",
+        "phase2_esa_required": "Yes",
+        "client_phase_keyword": "Phase II",
+        "site_visit_completed": "No",
+        "air_photo_observations": (
+            "The 2015 historical air photo shows the well centre and a possible disturbance area "
+            "southeast of well centre for the containment berm and tanks"
+        ),
+        "investigations_recommended": (
+            "well centre and the production areas be investigated"
+        ),
+        "infrastructure_summary": (
+            "Access road, teardrop, wellhead, containment berm for production tanks"
+        ),
+        "spills_releases": "No",
+        "conclusions_recommendations": (
+            "Investigate well centre and production areas. Phase II ESA recommended."
+        ),
+    }
+    row["executive_summary"] = build_phase1_executive_summary(row)
+    project = pd.DataFrame([row])
+    waste = pd.DataFrame(
+        [
+            {
+                "mud_type": "Gel Chem",
+                "volume_m3": "208",
+                "disposal_method": "LWD, landspray, landspread onsite, remote site",
+                "location": "SW1/4 04-049-04 W4M; SE-09-049-04 W4M; onsite; remote site",
+            },
+        ]
+    )
+    tanks = pd.DataFrame(
+        [
+            {
+                "tank_type": "Above ground tank",
+                "content": "Produced water",
+                "location": "SE of well centre",
+                "capacity_m3": "Unknown",
+            },
+        ]
+    )
+    with pd.ExcelWriter(path, engine="openpyxl") as w:
+        project.to_excel(w, sheet_name=PROJECT_SHEET, index=False)
+        waste.to_excel(w, sheet_name=DRILLING_WASTE_SHEET, index=False)
+        tanks.to_excel(w, sheet_name=STORAGE_TANKS_SHEET, index=False)
+
+
+def generate_phase1_alberta_template_docx(path: str) -> None:
+    """Alberta Phase I ESA Word template — Ecoventure Inc."""
+    doc = Document()
+    doc.add_heading("{{ report_title }}", level=0)
+    doc.add_paragraph("PREPARED FOR: {{ client_name }}")
+    doc.add_paragraph("{{ well_name }}")
+    doc.add_paragraph("{{ uwi }}")
+    doc.add_paragraph("")
+    doc.add_paragraph("PREPARED BY:")
+    doc.add_paragraph("{{ consultant_name }}")
+    doc.add_paragraph("{{ qp_names }}")
+    doc.add_paragraph("{{ report_month_year }}")
+    doc.add_heading("Executive Summary", level=1)
+    doc.add_paragraph("{{ executive_summary }}")
+    doc.add_heading("AER Schedule Two — Phase I ESA (summary)", level=1)
+    doc.add_paragraph("Well: {{ well_name }} | UWI: {{ uwi }}")
+    doc.add_paragraph("Spud: {{ spud_date }} | Final drill: {{ final_drill_date }} | TD: {{ well_depth_m }} m")
+    doc.add_paragraph("Status: {{ well_status }} | Re-entry: {{ reentry }} | Fluid: {{ production_fluid }}")
+    doc.add_paragraph("Drilling waste (AER): {{ aer_waste_compliance_option }}")
+    doc.add_paragraph("{{ drilling_waste_summary }}")
+    doc.add_paragraph("Infrastructure: {{ infrastructure_summary }}")
+    doc.add_paragraph("Spills/releases: {{ spills_releases }}")
+    doc.add_paragraph("Site visit completed: {{ site_visit_completed }}")
+    doc.add_paragraph("Phase II ESA required: {{ phase2_esa_required }}")
+    doc.add_heading("Conclusions and Recommendations", level=1)
+    doc.add_paragraph("{{ conclusions_recommendations }}")
+    doc.add_paragraph("Prepared by: {{ prepared_by }} | Date: {{ date_of_issue }}")
+    _add_docx_table_loop(
+        doc,
+        "Drilling waste disposal:",
+        "drilling_waste",
+        ["Mud type", "Volume (m3)", "Disposal method", "Location"],
+        ["mud_type", "volume_m3", "disposal_method", "location"],
+    )
+    _add_docx_table_loop(
+        doc,
+        "Storage tanks:",
+        "storage_tanks",
+        ["Type", "Content", "Location", "Capacity (m3)"],
+        ["tank_type", "content", "location", "capacity_m3"],
+    )
+    doc.add_paragraph("")
+    doc.add_paragraph(
+        "Appendices A–F (AER forms, ABADATA, air photos, drilling waste, survey, "
+        "land title) are attached separately to the deliverable package."
+    )
+    doc.save(path)

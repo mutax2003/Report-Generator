@@ -10,8 +10,12 @@ The merge engine reads structured data from an Excel workbook (`.xlsx`). This do
 |-------|---------|---------|---------|
 | `ProjectData` | Required | Required | Single project record → flat template variables |
 | `LabResults` | Optional | **Required** | One row per analyte → `lab_results` list in Jinja |
+| `DrillingWaste` | Optional | Optional | One row per mud/disposal record → `drilling_waste` (Alberta Phase I) |
+| `StorageTanks` | Optional | Optional | One row per tank → `storage_tanks` (Alberta Phase I) |
 
 Sheet names are **case-sensitive** and must match exactly (not “first sheet” or “Sheet1”).
+
+Alberta Phase I detail: [11-alberta-phase1-esa.md](11-alberta-phase1-esa.md) · field list: [../samples/phase1_alberta_inventory.md](../samples/phase1_alberta_inventory.md).
 
 ### ProjectData layout
 
@@ -36,6 +40,26 @@ Row 3:  | TCE      | 12.5   | ug/L  | 5.0      | Y          |
 ```
 
 Each data row becomes one element in `lab_results` for Word table loops.
+
+### DrillingWaste layout (optional)
+
+```
+Row 1:  | mud_type   | volume_m3 | disposal_method | location |
+Row 2+: | Surface    | 110       | LWD             | SW1/4... |
+```
+
+Each data row → `drilling_waste` list. Word loop: `{%tr for item in drilling_waste %}` … `{%tr endfor %}`.
+
+Typical columns (any subset; extras pass through): `mud_type`, `volume_m3`, `disposal_method`, `location`.
+
+### StorageTanks layout (optional)
+
+```
+Row 1:  | tank_type | content      | location | capacity_m3 |
+Row 2+: | Production| Crude oil    | Berm     | 50          |
+```
+
+Each data row → `storage_tanks` list. Word loop: `{%tr for item in storage_tanks %}`.
 
 ## Header normalization
 
@@ -134,6 +158,7 @@ Empty recommended fields produce **warnings** only (generation still allowed).
 | File | Contents |
 |------|----------|
 | `samples/sample_data.xlsx` | Minimal demo project + 3 lab rows |
+| `samples/phase1_alberta_data.xlsx` | Alberta Phase I — Ecoventure; `DrillingWaste` + `StorageTanks` |
 | `samples/production_data.xlsx` | Fields aligned with production ESA template guide |
 
 Regenerate:

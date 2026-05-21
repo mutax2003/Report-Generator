@@ -15,8 +15,11 @@ Guide for maintaining and extending the ESA Report Generator codebase.
 
 | Symbol | Role |
 |--------|------|
-| `PROJECT_SHEET`, `LAB_SHEET` | Constant sheet names |
+| `PROJECT_SHEET`, `LAB_SHEET` | `ProjectData`, `LabResults` |
+| `DRILLING_WASTE_SHEET`, `STORAGE_TANKS_SHEET` | Optional Alberta Phase I table sheets |
+| `ECOVENTURE_CONSULTANT` | Default firm string (`Ecoventure Inc.`) |
 | `ReportEngine` | Main class: construct with bytes, call `build_context`, `render`, `dry_run`, `coverage` |
+| `generate_phase1_alberta_excel/docx` | Committed Alberta Phase I sample fixtures |
 | `collect_template_root_vars` | Parse `{{ root }}` from template ZIP XML |
 | `suggested_download_name` | Safe output filename from context + meta |
 | `generate_*_excel/docx` | Sample/production fixture builders |

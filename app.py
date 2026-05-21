@@ -51,7 +51,10 @@ def main() -> None:
     _init_state()
 
     st.title("ESA Report Generator")
-    st.caption("Upload Excel + Word template, review pre-flight checks, then generate.")
+    st.caption(
+        "Ecoventure Inc. — Alberta O&G Phase I / II. Upload Excel + Word template, "
+        "review pre-flight, then generate."
+    )
 
     render_ai_settings_sidebar()
     meta = render_sidebar()
@@ -103,7 +106,9 @@ def _render_report_tab(
     preflight: Any,
 ) -> None:
     render_template_analysis(template_bytes)
-    can_generate = render_preflight_panel(preflight)
+    can_generate = render_preflight_panel(
+        preflight, report_phase=meta.get("report_phase", "Phase 1")
+    )
 
     render_workflow_step(
         has_excel=excel_file is not None,

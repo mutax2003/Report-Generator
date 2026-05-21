@@ -77,6 +77,41 @@ class AiFeatureTests(unittest.TestCase):
         self.assertGreaterEqual(len(drafts), 1)
         self.assertFalse(audit.used_llm)
 
+    def test_narrative_phase1_ecoventure(self) -> None:
+        from ai.narrative import sections_for_phase
+
+        ctx = {
+            "client_name": "Example Energy Ltd.",
+            "consultant_name": "Ecoventure Inc.",
+            "well_name": "Example 4D Windy 4-4-49-4",
+            "report_phase": "Phase 1",
+            "executive_summary": "Ecoventure Inc. prepared this Phase I ESA.",
+            "drilling_waste_summary": "Option 1 disposal.",
+        }
+        self.assertIn("drilling_waste", sections_for_phase("Phase 1"))
+        drafts, audit = draft_narratives(ctx, use_llm=False)
+        self.assertGreaterEqual(len(drafts), 3)
+        exec_d = next(d for d in drafts if d.section == "executive_summary")
+        self.assertIn("Ecoventure", exec_d.text)
+        self.assertFalse(audit.used_llm)
+
+    def test_narrative_phase1_generates_signum_style_when_empty(self) -> None:
+        from ai.narrative import draft_narratives
+
+        ctx = {
+            "client_name": "Example Energy Ltd.",
+            "consultant_name": "Ecoventure Inc.",
+            "well_name": "Example 4D Windy 4-4-49-4",
+            "report_phase": "Phase 1",
+            "spud_date": "15-Mar-2004",
+            "drilling_waste_summary": "110 m3 disposed via LWD",
+            "site_visit_completed": "No",
+        }
+        drafts, _ = draft_narratives(ctx, use_llm=False)
+        exec_d = next(d for d in drafts if d.section == "executive_summary")
+        self.assertIn("was contracted by", exec_d.text)
+        self.assertIn("After reviewing regulatory information", exec_d.text)
+
     def test_copilot_offline(self) -> None:
         pf = run_preflight(
             self.excel,

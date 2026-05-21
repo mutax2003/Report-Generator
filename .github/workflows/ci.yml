@@ -35,3 +35,12 @@ jobs:
 
       - name: Production E2E render
         run: python scripts/production_e2e.py
+
+      - name: Alberta Phase I E2E (Ecoventure)
+        run: python scripts/phase1_alberta_e2e.py
+
+      - name: User document test script (Alberta defaults)
+        run: python scripts/test_with_your_documents.py
+
+      - name: Ten-step health check
+        run: python scripts/health_check.py

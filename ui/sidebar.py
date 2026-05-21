@@ -17,7 +17,7 @@ def render_sidebar() -> dict[str, str]:
     )
     date_of_issue = st.sidebar.date_input("Date of issue", value=dt.date.today())
     phase = st.sidebar.selectbox(
-        "Report phase", options=["Phase 1", "Phase 2"], index=1
+        "Report phase", options=["Phase 1", "Phase 2"], index=0
     )
     st.sidebar.caption("Phase 1 skips required LabResults sheet.")
     template_version = st.sidebar.text_input(
