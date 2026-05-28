@@ -12,7 +12,10 @@ __pycache__/
 samples/rendered_output.docx
 samples/e2e_output.docx
 samples/production_rendered.docx
-samples/*_manifest.json
+samples/rendered_output_manifest.json
+samples/production_rendered_manifest.json
+samples/e2e_*_manifest.json
+samples/phase1_alberta_rendered_manifest.json
 samples/e2e_*.docx
 samples/phase1_alberta_rendered.docx
 samples/groundwater_monitoring_rendered.docx
