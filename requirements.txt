@@ -5,7 +5,7 @@ pandas==3.0.2
 openpyxl==3.1.5
 python-docx==1.1.2
 Jinja2==3.1.6
-openai>=1.40.0
+openai>=2.38.0
 pypdf>=4.0.0
 cryptography>=3.1
 pdf2docx>=0.5.8
