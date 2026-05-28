@@ -47,7 +47,33 @@ def detect_template_format(data: bytes, filename: str = "") -> str:
     return "docx"
 
 
-def convert_pdf_to_docx(pdf_bytes: bytes) -> bytes:
+def truncate_pdf_bytes(pdf_bytes: bytes, max_pages: int | None) -> bytes:
+    """Return first ``max_pages`` of a PDF (decrypt with empty password if needed)."""
+    if not max_pages or max_pages < 1:
+        return pdf_bytes
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError as e:
+        raise SecurityError("PDF page trim requires pypdf.") from e
+
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    if reader.is_encrypted:
+        if reader.decrypt("") == 0:
+            raise SecurityError(
+                "PDF is encrypted; re-export without password or supply --pdf-password."
+            )
+    n = min(max_pages, len(reader.pages))
+    if n >= len(reader.pages):
+        return pdf_bytes
+    writer = PdfWriter()
+    for i in range(n):
+        writer.add_page(reader.pages[i])
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
+def convert_pdf_to_docx(pdf_bytes: bytes, *, max_pages: int | None = None) -> bytes:
     """Convert PDF to Word using pdf2docx (layout preserved approximately)."""
     try:
         from pdf2docx import Converter
@@ -57,10 +83,12 @@ def convert_pdf_to_docx(pdf_bytes: bytes) -> bytes:
             "Run: pip install pdf2docx"
         ) from e
 
+    work_bytes = truncate_pdf_bytes(pdf_bytes, max_pages)
+
     with tempfile.TemporaryDirectory() as tmp:
         pdf_path = Path(tmp) / "upload.pdf"
         docx_path = Path(tmp) / "converted.docx"
-        pdf_path.write_bytes(pdf_bytes)
+        pdf_path.write_bytes(work_bytes)
         converter = Converter(str(pdf_path))
         try:
             converter.convert(str(docx_path))

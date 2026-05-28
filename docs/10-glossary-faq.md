@@ -32,7 +32,7 @@ A: Input: `.xlsx` and `.docx`. Output: `.docx` only.
 A: No. Open the `.docx` in Word and export to PDF if needed.
 
 **Q: Can one Excel file produce multiple reports?**  
-A: Not in one run. Only row 2 of `ProjectData` is used. Run again with different data or extend the engine.
+A: Yes. Put one site per row on `ProjectData` (row 1 = headers). In Streamlit choose **All N reports (batch)** or use `python scripts\render_cli.py --all-rows`. Optional: add `site_name` or `project_number` on `LabResults` / `DrillingWaste` rows to link table data per site.
 
 **Q: Phase 1 vs Phase 2?**  
 A: Phase 2 requires `LabResults`. Phase 1 does not.

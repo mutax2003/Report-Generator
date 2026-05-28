@@ -8,6 +8,7 @@ from typing import Any
 import streamlit as st
 
 from engine import (
+    ReportEngine,
     generate_phase1_alberta_excel,
     generate_phase1_alberta_template_docx,
     generate_production_excel,
@@ -52,6 +53,21 @@ def _template_cache_key(data: bytes, filename: str) -> str:
     return f"tpl_{digest}_{filename}"
 
 
+def get_cached_report_engine(
+    excel_bytes: bytes, template_bytes: bytes
+) -> ReportEngine:
+    """Reuse ReportEngine across Streamlit reruns when uploads are unchanged."""
+    key = (
+        hashlib.sha256(excel_bytes).hexdigest(),
+        hashlib.sha256(template_bytes).hexdigest(),
+    )
+    cache = st.session_state.setdefault("_report_engine_cache", {})
+    if cache.get("key") != key:
+        cache["key"] = key
+        cache["engine"] = ReportEngine(excel_bytes, template_bytes)
+    return cache["engine"]
+
+
 def prepare_uploaded_template(uploaded: Any) -> PreparedTemplate | None:
     """Convert PDF→DOCX if needed; cache by file hash to avoid re-conversion on reruns."""
     if uploaded is None:
@@ -62,6 +78,24 @@ def prepare_uploaded_template(uploaded: Any) -> PreparedTemplate | None:
     if key in st.session_state:
         return st.session_state[key]
     prepared = prepare_template_upload(data, name)
+    from security import MAX_TEMPLATE_BYTES, _template_size_limit
+
+    limit = _template_size_limit()
+    if len(prepared.docx_bytes) > limit:
+        st.warning(
+            f"Prepared Word template is {len(prepared.docx_bytes) / (1024 * 1024):.1f} MB "
+            f"(limit {limit // (1024 * 1024)} MB). Generation will be blocked until you "
+            "upload a smaller file or use `*-markup-upload.docx` from "
+            "`scripts\\phase1_pdf_to_markup.py --for-streamlit`."
+        )
+    elif (
+        prepared.source_format == "pdf"
+        and len(prepared.docx_bytes) > MAX_TEMPLATE_BYTES
+    ):
+        st.info(
+            f"PDF converted to {len(prepared.docx_bytes) / (1024 * 1024):.1f} MB Word file. "
+            "For Streamlit, prefer a pre-trimmed `*-markup-upload.docx`."
+        )
     st.session_state[key] = prepared
     st.session_state["last_prepared_template"] = prepared
     return prepared
@@ -84,6 +118,11 @@ def render_converted_template_download(prepared: PreparedTemplate | None) -> Non
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         use_container_width=True,
         help="Add Jinja2 tags in Word, then re-upload the .docx template.",
+    )
+    st.caption(
+        "Tip: run `python scripts\\phase1_pdf_to_markup.py --for-streamlit` for a "
+        "`*-markup-upload.docx` under 30 MB (required for upload). Full layouts stay in "
+        "`*-markup.docx` for CLI only."
     )
 
 

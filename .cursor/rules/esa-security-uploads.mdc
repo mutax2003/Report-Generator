@@ -1,0 +1,25 @@
+---
+description: Upload validation, limits, and safe errors (security.py)
+globs: security.py,app.py,ui/helpers.py
+alwaysApply: false
+---
+
+# Upload security (`security.py`)
+
+## Principles
+
+- **Validate at upload** — size, ZIP structure, OOXML markers, path traversal, encrypted members.
+- **Clamp context** — `clamp_context` caps lab rows and string lengths before Jinja merge.
+- **User-facing errors** — use `user_safe_error()` / allowed `ValueError` prefixes only; redact internals.
+
+## Tunables (file top)
+
+`MAX_EXCEL_BYTES`, `MAX_TEMPLATE_BYTES`, `MAX_RENDERED_DOCX_BYTES`, zip member/count/ratio limits, `MAX_LAB_ROWS`, `MAX_META_VALUE_LEN`, `MAX_DOWNLOAD_NAME_LEN`. Change with production sizing in mind — document in PR if limits shift.
+
+## Tests only
+
+- **`ESA_VALIDATION_BYPASS=1`** — construct minimal fixtures in unit tests only.
+
+## Templates as code
+
+Jinja in `.docx` is **trusted** (authors with template access). Untrusted input is **Excel/PDF uploads** and **sidebar meta** — keep `sanitize_meta` and filename sanitization on any new code paths.

@@ -1,0 +1,30 @@
+---
+description: Report profiles, field contracts, Excel/Word authoring conventions
+globs: schemas/**/*.json,report_profile.py,field_validation.py,EXCEL_LAYOUT.txt,JINJA2_CHEATSHEET.txt
+alwaysApply: false
+---
+
+# Schemas and template contracts
+
+## Source of truth
+
+- **Recommended fields per report type:** `schemas/report_profiles.json` (`phase1_alberta`, `phase2_esa`, `template_driven`).
+- **Legacy / AI tagger alignment:** `schemas/field_contract.json` — update only when tagger or legacy docs need the same names.
+
+## Excel layout
+
+- **`ProjectData`**: row 1 = headers (→ snake_case keys), **row 2+ = one site per row** (batch: all rows or pick one in UI).
+- Sheet names are **case-sensitive** — see [EXCEL_LAYOUT.txt](EXCEL_LAYOUT.txt) and the always-on architecture rule.
+
+## Word templates
+
+- Each `{{ variable }}` in **one** formatting run (no split bold inside a tag).
+- Tables: **static header row**, then `{%tr for item in lab_results %}`, then `{%tr endfor %}` — [JINJA2_CHEATSHEET.txt](JINJA2_CHEATSHEET.txt).
+- Phase 2 lab tables: prefer **`result_display`** (RichText exceedances); **`result_plain`** for plain text.
+
+## Pre-flight semantics
+
+- **Missing template vars** → warn, render empty (do not block).
+- **Invalid files / required sheets missing / split tags** → block generation.
+
+When adding production fields: extend **`report_profiles.json`** first; run preflight/tests with `samples/` pairs.

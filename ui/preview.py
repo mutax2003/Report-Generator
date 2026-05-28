@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import streamlit as st
 
-from engine import ReportEngine
 from provenance import GenerationRecord, record_filename
 from security import user_safe_error
-from ui.helpers import format_size
+from ui.helpers import format_size, get_cached_report_engine
 from ui.results import render_context_preview
 
 
@@ -23,15 +22,14 @@ def render_preview_panel(
 
     if st.button("Preview data (dry run)", use_container_width=True):
         try:
-            engine = ReportEngine(
-                excel_bytes=excel_bytes,
-                template_bytes=template_bytes,
-            )
+            engine = get_cached_report_engine(excel_bytes, template_bytes)
+            row_index = int(st.session_state.get("projectdata_row_select", 0))
             with st.spinner("Building context (no Word render)..."):
                 context, warnings, record = engine.dry_run(
                     meta=meta,
                     excel_filename=excel_name,
                     template_filename=template_name,
+                    project_row_index=row_index,
                 )
             st.session_state["dry_run_context"] = context
             st.session_state["dry_run_warnings"] = warnings

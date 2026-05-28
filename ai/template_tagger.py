@@ -30,8 +30,34 @@ _PHRASE_MAP: list[tuple[str, str]] = [
     ("[LAB]", "lab_name"),
 ]
 
+# Alberta Phase I ESA (Ecoventure) — common cover / narrative phrases
+_PHASE1_PHRASE_MAP: list[tuple[str, str]] = [
+    ("Ecoventure Inc.", "company"),
+    ("Ecoventure Inc. (Ecoventure)", "consultant_name"),
+    ("Phase 1 Environmental Site Assessment", "report_title"),
+    ("Phase I Environmental Site Assessment", "report_title"),
+]
 
-def _allowed_keys() -> set[str]:
+
+def _allowed_keys(report_type: str | None = None) -> set[str]:
+    if report_type == "phase1_alberta":
+        from report_profile import get_recommended_fields
+
+        keys = set(get_recommended_fields("phase1_alberta"))
+        keys.update(
+            {
+                "prepared_by",
+                "date_of_issue",
+                "report_phase",
+                "template_version",
+                "executive_summary",
+                "drilling_waste_intro",
+                "site_recon_intro",
+                "phase2_recommendation",
+            }
+        )
+        return keys
+
     contract = load_field_contract()
     keys: set[str] = set()
     pd = contract.get("sheets", {}).get("ProjectData", {})
@@ -42,9 +68,13 @@ def _allowed_keys() -> set[str]:
     return keys
 
 
-def _rule_suggestions(text: str) -> list[TagSuggestion]:
+def _rule_suggestions(text: str, *, report_type: str | None = None) -> list[TagSuggestion]:
     found: list[TagSuggestion] = []
     seen: set[str] = set()
+
+    phrase_maps = list(_PHRASE_MAP)
+    if report_type == "phase1_alberta":
+        phrase_maps = _PHASE1_PHRASE_MAP + phrase_maps
 
     for m in re.finditer(r"\[([^\]]{1,80})\]", text):
         inner = m.group(1).strip()
@@ -63,7 +93,7 @@ def _rule_suggestions(text: str) -> list[TagSuggestion]:
                 )
             )
 
-    for phrase, key in _PHRASE_MAP:
+    for phrase, key in phrase_maps:
         if phrase in text and phrase not in seen:
             seen.add(phrase)
             found.append(
@@ -99,13 +129,16 @@ def _norm_bracket_key(inner: str) -> str:
     return re.sub(r"\s+", "_", s)
 
 
-def _llm_suggestions(text: str, allowed: set[str]) -> list[TagSuggestion]:
+def _llm_suggestions(
+    text: str, allowed: set[str], *, system_extra: str = ""
+) -> list[TagSuggestion]:
     payload = complete_json(
         system=(
             "You are an expert in docxtpl Word templates for environmental reports. "
             "Return JSON only: {\"suggestions\": [{\"original_text\": \"...\", "
             "\"jinja_key\": \"snake_case\", \"confidence\": 0.0-1.0, \"notes\": \"...\"}]}. "
             f"Only use jinja_key from this allowlist: {sorted(allowed)}."
+            + system_extra
         ),
         user=f"Document excerpt:\n\n{text[:24_000]}",
     )
@@ -134,15 +167,27 @@ def suggest_template_tags(
     template_bytes: bytes,
     *,
     use_llm: bool = True,
+    report_type: str | None = None,
 ) -> tuple[list[TagSuggestion], AiAudit]:
     text = extract_docx_full_text(template_bytes)
-    allowed = _allowed_keys()
-    suggestions = _rule_suggestions(text)
-    audit = AiAudit(features=["template_tagger"], prompt_version=prompt_version())
+    allowed = _allowed_keys(report_type)
+    suggestions = _rule_suggestions(text, report_type=report_type)
+    audit = AiAudit(
+        features=["template_tagger"]
+        + (["phase1_alberta"] if report_type == "phase1_alberta" else []),
+        prompt_version=prompt_version(),
+    )
 
     existing_keys = {s.jinja_tag for s in suggestions if s.confidence >= 1.0}
     if use_llm:
-        llm_rows = _llm_suggestions(text, allowed)
+        system_extra = ""
+        if report_type == "phase1_alberta":
+            system_extra = (
+                " This is an Alberta O&G Phase I ESA (AER Schedule Two style). "
+                "Prioritize cover fields, executive_summary, conclusions_recommendations, "
+                "well_name, uwi, drilling_waste_summary."
+            )
+        llm_rows = _llm_suggestions(text, allowed, system_extra=system_extra)
         audit.used_llm = bool(llm_rows)
         if llm_rows:
             audit.model = __import__("ai.config", fromlist=["openai_model"]).openai_model()

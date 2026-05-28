@@ -19,6 +19,15 @@ samples/phase1_alberta_rendered.docx
 # Client reference PDFs (confidential)
 samples/*.pdf
 
+# Client reference Word (confidential — keep local only)
+samples/*Devon*.docx
+samples/00_*.docx
+samples/25*R*.docx
+samples/26*R*.docx
+samples/*-markup*.docx
+samples/*_Secure*.docx
+samples/~$*
+
 # Local test outputs
 out/
 user_test/*.docx

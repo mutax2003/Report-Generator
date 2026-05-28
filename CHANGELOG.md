@@ -14,7 +14,11 @@ All notable changes to the ESA Report Generator. Manifest schema and profile IDs
 - Manifest fields: `report_type`, `template_source_format`, `appendix_files` (SHA-256 per appendix).
 - `deliverable_pack.py`, `template_attachments.py`, `phase1_narrative.py`, `ui/appendix_panel.py`.
 - Docs: [docs/00-start-here.md](docs/00-start-here.md), [docs/14-deployment.md](docs/14-deployment.md), [docs/15-power-automate-guide.md](docs/15-power-automate-guide.md).
-- `Dockerfile`, `.github/dependabot.yml`, smoke integration test (75 unit tests total).
+- `Dockerfile`, `.github/dependabot.yml`, smoke integration test.
+- **Standard phrases:** `schemas/phrase_catalog.json`, `phrase_resolver.py`, `ui/phrase_panel.py`, optional Excel `PhraseCatalog` sheet; Approaches A–D in [docs/04-template-authoring.md](docs/04-template-authoring.md).
+- **Batch reports:** `ReportEngine.render_batch()`, Streamlit **All N reports (batch)**, `render_cli.py --all-rows`; multi-row `ProjectData` (max 50 reports per run).
+- Phase I tooling: `phase1_markup.py`, `phase1_pdf_text.py`, scripts `phase1_pdf_to_markup.py`, `create_phase1_site_samples.py`, `phase1_site_e2e.py`.
+- Unit test suite: **93 tests** (`test_phrase_resolver`, `test_batch_render`, `test_phase1_markup`, `test_phase1_pdf_text`, and related).
 
 ### Changed
 

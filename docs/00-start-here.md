@@ -16,8 +16,10 @@ Browser: http://localhost:8501
 
 | Upload | File |
 |--------|------|
-| **Excel Data Source** | Your `.xlsx` with sheet **`ProjectData`** (row 1 = headers, row 2 = values) |
+| **Excel Data Source** | Your `.xlsx` with sheet **`ProjectData`** (row 1 = headers, **row 2+** = one site per row) |
 | **Report template** | Your `.docx` (preferred) or `.pdf` layout |
+
+Optional: **Standard phrases** on the Report tab — preset paragraphs for tagged fields (see [04-template-authoring.md](04-template-authoring.md)).
 
 **First time?** Use sidebar **Download Alberta Phase I Excel** and **Download Alberta Phase I template**.
 
@@ -41,11 +43,12 @@ Use **Download missing-fields checklist** or **Download ReportConfig sheet** if 
 
 ## 5. Generate and download
 
-1. **Generate Report**
-2. **Download Report (.docx)**
-3. **Download generation manifest (JSON)** — save with the report on SharePoint
-4. Upload appendix PDFs **A–F** (air photos, ABADATA, land title, …) if applicable
-5. **Download deliverable package (.zip)** — report + manifest + appendices folder
+1. Choose **Single report** (row 2) or **All N reports (batch)** if Excel has multiple sites on `ProjectData`
+2. **Generate Report**
+3. **Download Report (.docx)** — or batch zip when multiple sites were generated
+4. **Download generation manifest (JSON)** — save with the report on SharePoint
+5. Upload appendix PDFs **A–F** (air photos, ABADATA, land title, …) if applicable
+6. **Download deliverable package (.zip)** — report + manifest + appendices folder
 
 Export to client PDF in Word if needed; the app does not merge appendices into one PDF automatically.
 

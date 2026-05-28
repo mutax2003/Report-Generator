@@ -7,6 +7,8 @@ import streamlit as st
 from provenance import GenerationRecord, record_filename
 from ui.helpers import format_size
 
+from engine import BatchReportResult
+
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
@@ -25,6 +27,48 @@ def render_context_preview(context: dict[str, Any], *, max_rows: int = 15) -> No
         data = context.get(key)
         if isinstance(data, list) and data:
             st.caption(f"{key}: {len(data)} row(s) (table loop data)")
+
+
+def render_batch_download_section(batch: list[BatchReportResult] | None) -> None:
+    if not batch:
+        return
+    from deliverable_pack import build_batch_reports_zip
+
+    st.subheader(f"Batch output ({len(batch)} reports)")
+    zip_entries: list[tuple[str, bytes, bytes | None]] = []
+    all_warnings: list[str] = []
+    for item in batch:
+        zip_entries.append(
+            (item.filename, item.docx_bytes, item.record.to_json_bytes())
+        )
+        all_warnings.extend(item.warnings)
+    zip_bytes = build_batch_reports_zip(zip_entries)
+    zip_name = f"esa_reports_batch_{len(batch)}.zip"
+    st.download_button(
+        label=f"Download all reports (.zip, {len(batch)} files)",
+        data=zip_bytes,
+        file_name=zip_name,
+        mime="application/zip",
+        type="primary",
+        use_container_width=True,
+    )
+    if all_warnings:
+        with st.expander("Batch warnings", expanded=False):
+            for w in all_warnings[:40]:
+                st.warning(w)
+            if len(all_warnings) > 40:
+                st.caption(f"... and {len(all_warnings) - 40} more")
+    with st.expander("Individual reports", expanded=False):
+        for item in batch:
+            st.caption(item.row_label)
+            st.download_button(
+                label=f"Download {item.filename}",
+                data=item.docx_bytes,
+                file_name=item.filename,
+                mime=DOCX_MIME,
+                key=f"batch_dl_{item.project_row_index}_{item.filename}",
+                use_container_width=True,
+            )
 
 
 def render_download_section(

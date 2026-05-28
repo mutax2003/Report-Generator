@@ -37,10 +37,6 @@ class SmokeIntegrationTests(unittest.TestCase):
             "report_type": "phase2_esa",
         }
 
-    @unittest.skipUnless(
-        os.environ.get("ESA_RUN_HEALTH_CHECK") == "1",
-        "Set ESA_RUN_HEALTH_CHECK=1 to run scripts/health_check.py (slow)",
-    )
     def test_health_check_script(self) -> None:
         script = ROOT / "scripts" / "health_check.py"
         if not script.is_file():
@@ -50,7 +46,7 @@ class SmokeIntegrationTests(unittest.TestCase):
             cwd=str(ROOT),
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=120,
         )
         self.assertEqual(proc.returncode, 0, proc.stderr or proc.stdout)
 

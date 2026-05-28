@@ -13,6 +13,7 @@ The merge engine reads structured data from an Excel workbook (`.xlsx`). This do
 | `DrillingWaste` | Optional | Optional | One row per mud/disposal record → `drilling_waste` (Alberta Phase I) |
 | `StorageTanks` | Optional | Optional | One row per tank → `storage_tanks` (Alberta Phase I) |
 | `ReportConfig` | Optional | Optional | key/value overrides for profile and `map_SheetName` → loop variable |
+| `PhraseCatalog` | Optional | Optional | phrase_key / option_id / text lookup for `{phrase_key}_selected` in ProjectData |
 
 Sheet names are **case-sensitive** and must match exactly (not “first sheet” or “Sheet1”).
 
@@ -28,7 +29,8 @@ Row 3+: (ignored by engine)
 
 - **Row 1** — Column headers (become Jinja keys after normalization).
 - **Row 2** — **Only row used** for the report (single-report mode).
-- **Row 3+** — Ignored. For multiple sites, run the tool multiple times or extend the engine (not supported in V1).
+- **Row 3+** — Additional sites. Use **batch generation** in the app (*All N reports*) or `scripts/render_cli.py --all-rows`. Blank rows are skipped (max 100 rows, 50 reports per batch).
+- **Linking table sheets** — If `LabResults`, `DrillingWaste`, or `StorageTanks` include a `site_name`, `project_number`, `uwi`, `well_name`, or `project_id` column, only matching rows are merged for each report. Otherwise all table rows are shared across reports.
 
 Empty `ProjectData` (headers only) produces a pre-flight / render error.
 

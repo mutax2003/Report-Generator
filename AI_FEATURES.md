@@ -21,7 +21,7 @@ Without a key, **offline rule-based** fallbacks run for every feature.
 
 | Feature | Tab | What it does |
 |---------|-----|----------------|
-| **Template tagger** | AI → Tier 1 | Finds `[Bracket]` and known phrases; suggests `{{ jinja }}` tags from `schemas/field_contract.json` (see also `report_profiles.json` for profile fields). Download `.md` guide. |
+| **Template tagger** | AI → Tier 1 | Finds `[Bracket]` and known phrases; suggests `{{ jinja }}` tags from `schemas/field_contract.json` (see also `report_profiles.json` for profile fields). Download `.md` guide. **Alberta Phase I:** pass `report_type=phase1_alberta` (CLI: `scripts/phase1_pdf_to_markup.py`). |
 | **Lab PDF → Excel** | AI → Tier 1 | Parses COA PDFs into `LabResults` rows; download merged `.xlsx`. |
 | **Narrative drafts** | AI → Tier 1 | Drafts executive summary / site / conclusions using project context + `rag_corpus/`. |
 

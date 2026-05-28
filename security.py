@@ -27,6 +27,8 @@ _ZIP_READ_CHUNK = 64 * 1024
 
 MAX_LAB_ROWS = 10_000
 MAX_PROJECT_COLUMNS = 300
+MAX_PROJECT_ROWS = 100
+MAX_BATCH_REPORTS = 50
 MAX_CONTEXT_STRING_LEN = 32_768
 MAX_META_VALUE_LEN = 500
 MAX_DOWNLOAD_NAME_LEN = 200
@@ -44,6 +46,9 @@ _SAFE_VALUE_ERROR_PREFIXES = (
     "Missing sheet '",
     "Sheet '",
     "Template rendering failed.",
+    "Too many ProjectData rows",
+    "ProjectData row index",
+    "Could not read the Excel file.",
 )
 _SAFE_VALUE_ERROR_EXACT = frozenset(
     {
@@ -90,7 +95,8 @@ def _check_zip_member_metadata(info: zipfile.ZipInfo) -> None:
         raise SecurityError(
             f"Encrypted archive entries are not supported ({info.filename})."
         )
-    if info.file_size > MAX_SINGLE_ZIP_MEMBER_BYTES:
+    member_cap = _zip_single_member_limit()
+    if info.file_size > member_cap:
         raise SecurityError(
             f"Archive entry '{info.filename}' exceeds size limit "
             f"({info.file_size // (1024 * 1024)} MB)."
@@ -114,7 +120,7 @@ def read_zip_member(
     Read one zip member with a global decompressed-byte budget.
     Uses actual bytes read, not ZipInfo.file_size alone.
     """
-    cap = max_member_bytes if max_member_bytes is not None else MAX_SINGLE_ZIP_MEMBER_BYTES
+    cap = max_member_bytes if max_member_bytes is not None else _zip_single_member_limit()
     info = zf.getinfo(name)
     _check_zip_member_metadata(info)
 
@@ -152,7 +158,7 @@ def inspect_zip_archive(data: bytes, *, purpose: str) -> list[str]:
     except zipfile.BadZipFile as e:
         raise SecurityError(f"Corrupt or invalid {purpose.upper()} archive.") from e
 
-    budget = ZipReadBudget()
+    budget = ZipReadBudget(limit=_zip_uncompressed_limit())
     with zf:
         names = zf.namelist()
         if len(names) > MAX_ZIP_MEMBERS:
@@ -239,18 +245,46 @@ def validate_pdf_template_upload(data: bytes, filename: str = "") -> None:
         )
 
 
+def _large_template_mode() -> bool:
+    return os.environ.get("ESA_ALLOW_LARGE_TEMPLATE") == "1"
+
+
+def _template_size_limit() -> int:
+    """Effective max template bytes (local Phase 1 PDF conversions may exceed default)."""
+    limit = MAX_TEMPLATE_BYTES
+    if _large_template_mode():
+        limit = max(limit, 160 * 1024 * 1024)
+    return limit
+
+
+def _zip_uncompressed_limit() -> int:
+    if _large_template_mode():
+        return 300 * 1024 * 1024
+    return MAX_ZIP_UNCOMPRESSED_BYTES
+
+
+def _zip_single_member_limit() -> int:
+    if _large_template_mode():
+        return 160 * 1024 * 1024
+    return MAX_SINGLE_ZIP_MEMBER_BYTES
+
+
 def validate_template_upload(data: bytes, filename: str = "") -> None:
     del filename
     if not data:
         raise SecurityError("Template file is empty.")
-    if len(data) > MAX_TEMPLATE_BYTES:
-        mb = MAX_TEMPLATE_BYTES // (1024 * 1024)
+    limit = _template_size_limit()
+    if len(data) > limit:
+        mb = limit // (1024 * 1024)
         raise SecurityError(f"Template file too large (max {mb} MB).")
     inspect_zip_archive(data, purpose="docx")
 
 
 def validate_rendered_output(data: bytes) -> None:
-    if len(data) > MAX_RENDERED_DOCX_BYTES:
+    limit = MAX_RENDERED_DOCX_BYTES
+    if _large_template_mode():
+        limit = max(limit, 160 * 1024 * 1024)
+    if len(data) > limit:
         raise SecurityError("Generated report exceeds maximum allowed size.")
     # Re-validate structure and zip budget on generated output
     inspect_zip_archive(data, purpose="docx")
@@ -364,7 +398,13 @@ def user_safe_error(exc: BaseException) -> str:
         msg = str(exc)
         if _is_safe_value_error_message(msg):
             return msg
-        logger.exception("Report generation failed", exc_info=exc)
+        lower = msg.lower()
+        if "openpyxl" in lower or "parser failed" in lower or "zip file" in lower:
+            return (
+                "Could not read the Excel file. It may be corrupt, password-protected, "
+                "or not a valid .xlsx workbook."
+            )
+        logger.warning("Report generation failed: %s", msg)
         return (
             "Report generation failed. Check that your Excel and Word files are valid "
             "and that template tags match your data."

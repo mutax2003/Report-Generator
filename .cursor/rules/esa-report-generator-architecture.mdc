@@ -24,17 +24,20 @@ Use venv `python` or `.\.venv\Scripts\python.exe` — system `python` lacks `pan
 
 | Sheet | Phase 1 | Phase 2 | Jinja context |
 |-------|---------|---------|---------------|
-| `ProjectData` | Required | Required | Flat dict from **row 2 only** |
+| `ProjectData` | Required | Required | Flat dict per data row (**row 2+**; row 1 = headers). Single report uses row 2; batch uses all non-blank rows (max 100 rows, 50 reports). |
 | `LabResults` | Optional | **Required** | `lab_results` list |
 | `DrillingWaste` | Optional | Optional | `drilling_waste` list (Alberta Phase I tables) |
 | `StorageTanks` | Optional | Optional | `storage_tanks` list |
+| `PhraseCatalog` | Optional | Optional | Phrase options + `phrase_key_selected` columns (see `phrase_resolver.py`) |
 | `ReportConfig` | Optional | Optional | key/value overrides (`report_type`, `map_*`) |
 
-**Code layout:** `app.py` + `ui/*` (Streamlit) · `engine.py` (`ReportEngine`) · `report_profile.py` · `template_attachments.py` (PDF→DOCX) · `deliverable_pack.py` · `phase1_narrative.py` · `template_tools.py` · `security.py` · `provenance.py` · `schemas/report_profiles.json` · `schemas/field_contract.json` (legacy/AI) · `scripts/` · `automate/`.
+**Code layout:** `app.py` + `ui/*` (Streamlit, incl. `phrase_panel`) · `engine.py` (`ReportEngine`, `render_batch`) · `phrase_resolver.py` · `report_profile.py` · `template_attachments.py` (PDF→DOCX) · `template_size.py` · `deliverable_pack.py` · `phase1_narrative.py` · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `schemas/report_profiles.json` · `schemas/phrase_catalog.json` · `schemas/field_contract.json` (legacy/AI) · `scripts/` · `automate/`.
 
 **Report profiles:** `phase1_alberta`, `phase2_esa`, `template_driven` — see [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md). Recommended fields per profile in `schemas/report_profiles.json`. Optional Excel `ReportConfig` sheet for overrides.
 
-**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (75 tests)
+**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (93 tests)
+
+**Multiple-choice phrases:** [`schemas/phrase_catalog.json`](schemas/phrase_catalog.json) · Excel `PhraseCatalog` sheet · Streamlit **Standard phrases** panel · see [docs/04-template-authoring.md](docs/04-template-authoring.md)
 
 ---
 
@@ -54,8 +57,10 @@ Web-based **Environmental Report Generation Engine**: upload Excel + Word or PDF
 ### Streamlit UI
 
 - Two upload zones: Excel (`.xlsx`) and report template (`.docx` or `.pdf`; PDF cached and converted in `ui/helpers.py`)
+- **Standard phrases** panel (`ui/phrase_panel.py`) — optional preset paragraphs from `schemas/phrase_catalog.json`
 - Sidebar: **Profile** (`report_type`), **Report phase** (syncs with profile), Prepared By, Date of Issue, template version, **executive summary override**
-- **Generate Report** button; download rendered `.docx`, manifest JSON, **deliverable package (.zip)**
+- **Generate Report** — single site or **All N reports (batch)** when Excel has multiple `ProjectData` rows; batch downloads via `ui/results.py`
+- Download rendered `.docx`, manifest JSON, **deliverable package (.zip)**
 - **Appendices A–F** PDF uploader (`ui/appendix_panel.py`); included in zip with SHA-256 in manifest
 - After PDF upload: **Download converted Word template** for tagging in Word
 - Pre-flight: profile-aware missing-field checklist; **Download ReportConfig sheet (Excel)**
@@ -63,7 +68,8 @@ Web-based **Environmental Report Generation Engine**: upload Excel + Word or PDF
 
 ### Rendering engine (`engine.py`)
 
-- `ProjectData` → dict (headers → snake_case keys)
+- `ProjectData` → dict per row (headers → snake_case keys); `render_batch()` for multi-row Excel
+- `PhraseCatalog` / `*_selected` / UI phrase meta → resolved text via `phrase_resolver.py`
 - `LabResults` → `lab_results` for `{%tr for item in lab_results %}`
 - `DrillingWaste` / `StorageTanks` → optional table loops (Phase I)
 - `RichText` for lab exceedances (`result_display` bold red)

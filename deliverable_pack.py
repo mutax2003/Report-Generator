@@ -48,6 +48,28 @@ def appendix_manifest_entries(appendices: list[AppendixFile]) -> list[dict[str, 
     ]
 
 
+def build_batch_reports_zip(
+    reports: list[tuple[str, bytes, bytes | None]],
+) -> bytes:
+    """Zip multiple rendered reports. Each item is (filename, docx_bytes, manifest_bytes|None)."""
+    bio = io.BytesIO()
+    seen: dict[str, int] = {}
+    with zipfile.ZipFile(bio, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for docx_name, docx_bytes, manifest_bytes in reports:
+            safe = docx_name.replace("\\", "_").replace("/", "_")
+            if safe in seen:
+                seen[safe] += 1
+                stem, ext = (safe.rsplit(".", 1) + ["docx"])[:2]
+                safe = f"{stem}_{seen[safe]}.{ext}"
+            else:
+                seen[safe] = 1
+            zf.writestr(f"reports/{safe}", docx_bytes)
+            if manifest_bytes:
+                stem = safe.rsplit(".", 1)[0] if "." in safe else safe
+                zf.writestr(f"manifests/{stem}_manifest.json", manifest_bytes)
+    return bio.getvalue()
+
+
 def build_deliverable_zip(package: DeliverablePackage) -> bytes:
     """Zip report.docx, manifest, appendices/, and optional converted template."""
     bio = io.BytesIO()

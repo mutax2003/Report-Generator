@@ -26,7 +26,63 @@ python scripts\test_with_your_documents.py
 |------|-------|----------------|
 | Quick demo | `samples/sample_data.xlsx` | `samples/sample_template.docx` |
 | **Alberta Phase I (Ecoventure)** | `samples/phase1_alberta_data.xlsx` | `samples/phase1_alberta_template.docx` |
+| **Devon Phase I (short, 2017 reference)** | `samples/phase1_devon_data.xlsx` | `samples/Devon phase 1 - short.docx` |
+| **Phase I — 251106R (Base Element, WM 153)** | `samples/phase1_251106R_data.xlsx` | `samples/251106R - 15-20-049-10 W5M - Phase 1 ESA_Final_Secure-markup-upload.docx` (≤30 MB for app) |
+| **Phase I — 260109R (Caltex Trilogy)** | `samples/phase1_260109R_data.xlsx` | `samples/260109R - 16-34-055-02W4M Phase 1 ESA_Final_Secure-markup-upload.docx` (≤30 MB for app) |
+| Phase I — 260109R (full layout, CLI) | same Excel | `samples/260109R - 16-34-055-02W4M Phase 1 ESA_Final_Secure-markup.docx` |
 | Phase II style | `samples/production_data.xlsx` | `samples/production_template.docx` |
+
+### Phase 1 PDF → markup Word (new client templates)
+
+Source PDFs in `samples/` are owner-encrypted with an **empty password** (requires `cryptography` in the venv). Convert and apply MVP Jinja tags (cover fields):
+
+```powershell
+pip install -r requirements.txt
+$env:ESA_ALLOW_LARGE_TEMPLATE = "1"
+python scripts\phase1_pdf_to_markup.py
+python scripts\create_phase1_site_samples.py --ai-narratives
+```
+
+**AI + best practices (built into markup script):**
+
+- MVP cover tags from PDF metadata (`client_name`, `uwi`, `company`, etc.)
+- **AI template tagger** (`phase1_alberta` field allowlist from `schemas/report_profiles.json`)
+- Writes `{pdf-stem}-tagging-guide.md` with suggestions and a Word checklist
+- Flags: `--no-ai` (MVP only), `--suggest-only` (guide without auto-apply), `--no-llm` (rules only)
+- **AI tab** in Streamlit: re-scan uploaded `-markup.docx` with Alberta Phase I profile selected
+
+This writes `{pdf-stem}.docx`, `{pdf-stem}-markup.docx`, and per-site Excel workbooks. Re-run with `--skip-convert` after the first conversion.
+
+**Large PDFs (e.g. 251106R ~44 MB):** Full conversion can hang on “Analyzing document”. Use a page limit for MVP markup (cover + executive summary):
+
+```powershell
+python scripts\phase1_pdf_to_markup.py "samples\251106R - 15-20-049-10 W5M - Phase 1 ESA_Final_Secure.pdf" --max-pages 20
+```
+
+PDFs over 25 MB auto-use 20 pages when `--max-pages` is omitted.
+
+**Streamlit (30 MB cap):** Upload **`*-markup-upload.docx`**, not the full `*-markup.docx` or PDF:
+
+```powershell
+python scripts\phase1_pdf_to_markup.py --for-streamlit
+```
+
+This converts only enough pages (typically 12) to stay under 30 MB. Full-layout `*-markup.docx` files are for CLI only (`ESA_ALLOW_LARGE_TEMPLATE=1`).
+
+**251106R PDF (~44 MB):** Too large for PDF upload in the app; always use the markup `.docx` from the script.
+
+E2E both sites:
+
+```powershell
+$env:ESA_ALLOW_LARGE_TEMPLATE = "1"
+python scripts\phase1_site_e2e.py
+```
+
+Or per site:
+
+```powershell
+python scripts\test_with_your_documents.py --excel samples\phase1_260109R_data.xlsx --template "samples\260109R - 16-34-055-02W4M Phase 1 ESA_Final_Secure-markup.docx" --out out\phase1_260109R_rendered.docx
+```
 
 ### CLI
 

@@ -18,6 +18,10 @@ Framework: Python `unittest` (stdlib).
 | `test_ai_features.py` | AI offline paths, RAG, heuristics |
 | `test_phase1_alberta.py` | Alberta Phase I Ecoventure samples render + context |
 | `test_phase1_narrative.py` | Signum-style executive summary builder + auto-fill |
+| `test_phrase_resolver.py` | Phrase catalog, Excel `PhraseCatalog`, UI meta merge |
+| `test_batch_render.py` | Multi-row `ProjectData` batch render |
+| `test_phase1_markup.py` | Phase I markup / tag repair helpers |
+| `test_phase1_pdf_text.py` | PDF text extraction for markup pipeline |
 
 ## Ten-step health check
 
@@ -37,7 +41,7 @@ python scripts\create_samples.py
 python -m unittest discover -s tests -v
 ```
 
-Expected: **75 tests OK** (includes deliverable pack, report profile export, smoke integration, template attachments).
+Expected: **93 tests OK** (includes phrase resolver, batch render, deliverable pack, report profile export, smoke integration, template attachments, Phase I markup/PDF helpers).
 
 Optional slow check: `ESA_RUN_HEALTH_CHECK=1 python -m unittest tests.test_smoke_integration.SmokeIntegrationTests.test_health_check_script`
 

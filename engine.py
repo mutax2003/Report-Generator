@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import io
 import re
+from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
@@ -24,8 +25,10 @@ from report_profile import (
 )
 
 from security import (
+    MAX_BATCH_REPORTS,
     MAX_LAB_ROWS,
     MAX_PROJECT_COLUMNS,
+    MAX_PROJECT_ROWS,
     SecurityError,
     ZipReadBudget,
     clamp_context,
@@ -100,10 +103,45 @@ def _rich_result_plain(result: Any, exceed: bool) -> RichText | str:
     return rt
 
 
-def _project_row_to_dict(df: pd.DataFrame) -> dict[str, Any]:
-    if df.empty:
+_TABLE_LINK_COLUMNS = (
+    "project_id",
+    "project_number",
+    "site_name",
+    "uwi",
+    "well_name",
+)
+
+
+def _project_row_is_blank(row: pd.Series) -> bool:
+    for col in row.index:
+        if _cell_str(row[col]):
+            return False
+    return True
+
+
+def _project_row_is_duplicate_header(row: pd.Series, columns: pd.Index) -> bool:
+    """Skip a data row that repeats column headers (headers pasted in row 2)."""
+    match_count = 0
+    filled = 0
+    for col in columns:
+        val = _cell_str(row[col])
+        if not val:
+            continue
+        filled += 1
+        if _norm_key(val) == _norm_key(str(col)):
+            match_count += 1
+    return filled > 0 and match_count >= max(2, int(filled * 0.5))
+
+
+def _excel_row_number(dataframe_index: int) -> int:
+    """Excel row number for a ProjectData data row (row 1 = headers)."""
+    return dataframe_index + 2
+
+
+def _project_row_to_dict_at(df: pd.DataFrame, index: int) -> dict[str, Any]:
+    if df.empty or index < 0 or index >= len(df):
         return {}
-    row = df.iloc[0]
+    row = df.iloc[index]
     out: dict[str, Any] = {}
     for col in df.columns:
         key = _norm_key(col)
@@ -111,6 +149,63 @@ def _project_row_to_dict(df: pd.DataFrame) -> dict[str, Any]:
             continue
         out[key] = _cell_str(row[col])
     return out
+
+
+def _project_rows_from_df(df: pd.DataFrame) -> list[dict[str, Any]]:
+    """
+    ProjectData data rows only.
+
+    Excel layout: row 1 = column headers (``header=0`` for pandas);
+    row 2 onward = one report per non-blank row.
+    """
+    rows: list[dict[str, Any]] = []
+    for i in range(len(df)):
+        row = df.iloc[i]
+        if _project_row_is_blank(row):
+            continue
+        if _project_row_is_duplicate_header(row, df.columns):
+            continue
+        rec = _project_row_to_dict_at(df, i)
+        rec["_excel_row_number"] = _excel_row_number(i)
+        rows.append(rec)
+    return rows
+
+
+def _project_row_to_dict(df: pd.DataFrame) -> dict[str, Any]:
+    rows = _project_rows_from_df(df)
+    return rows[0] if rows else {}
+
+
+def _filter_records_for_project(
+    records: list[dict[str, Any]], project: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """When table sheets include a link column, keep rows matching this project."""
+    if not records:
+        return []
+    for col in _TABLE_LINK_COLUMNS:
+        project_val = _s(project.get(col))
+        if not project_val:
+            continue
+        if col not in records[0]:
+            continue
+        matched = [r for r in records if _s(r.get(col)) == project_val]
+        if matched:
+            return matched
+    return records
+
+
+@dataclass
+class BatchReportResult:
+    """One rendered report from a ProjectData row."""
+
+    project_row_index: int
+    excel_row_number: int
+    docx_bytes: bytes
+    warnings: list[str]
+    context: dict[str, Any]
+    record: Any
+    filename: str
+    row_label: str = ""
 
 
 def _lab_frame_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
@@ -159,15 +254,12 @@ def _dataframe_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
         return []
     if len(df) > MAX_LAB_ROWS:
         df = df.head(MAX_LAB_ROWS)
-    rows: list[dict[str, Any]] = []
-    for _, row in df.iterrows():
-        rec: dict[str, Any] = {}
-        for col in df.columns:
-            key = _norm_key(col)
-            if key:
-                rec[key] = _cell_str(row[col])
-        rows.append(rec)
-    return rows
+    cols = [c for c in df.columns if _norm_key(c)]
+    keys = [_norm_key(c) for c in cols]
+    return [
+        {k: _cell_str(v) for k, v in zip(keys, row)}
+        for row in df[cols].itertuples(index=False, name=None)
+    ]
 
 
 def _parse_simple_mustache_vars(xml_text: str) -> set[str]:
@@ -202,6 +294,34 @@ def collect_template_root_vars(template_bytes: bytes) -> set[str]:
     return roots
 
 
+def _runtime_cache_key(runtime: ReportRuntimeConfig) -> tuple[Any, ...]:
+    return (
+        runtime.report_type,
+        runtime.primary_sheet,
+        runtime.require_lab_sheet,
+        runtime.lab_loop_variable,
+        tuple(sorted(runtime.sheet_to_loop.items())),
+        tuple(runtime.required_sheets),
+        tuple(sorted(runtime.template_loops)),
+    )
+
+
+def _labels_from_project_rows(project_rows: list[dict[str, Any]]) -> list[str]:
+    labels: list[str] = []
+    for i, row in enumerate(project_rows):
+        excel_row = int(row.get("_excel_row_number") or _excel_row_number(i))
+        site = _s(row.get("site_name") or row.get("well_name"))
+        client = _s(row.get("client_name"))
+        proj = _s(row.get("project_number"))
+        parts = [p for p in (site, client, proj) if p]
+        labels.append(
+            f"Excel row {excel_row}: {' — '.join(parts)}"
+            if parts
+            else f"Excel row {excel_row}"
+        )
+    return labels
+
+
 class ReportEngine:
     """Load Excel + template bytes, build context, render docx."""
 
@@ -212,6 +332,8 @@ class ReportEngine:
         self.excel_bytes = excel_bytes
         self.template_bytes = template_bytes
         self._root_vars_cache: set[str] | None = None
+        self._excel_cache_key: tuple[Any, ...] | None = None
+        self._excel_cache: tuple[list[dict[str, Any]], dict[str, list]] | None = None
 
     def template_root_vars(self) -> set[str]:
         if self._root_vars_cache is None:
@@ -240,7 +362,20 @@ class ReportEngine:
             table_row_counts=counts,
         )
 
-    def _read_excel(self, runtime: ReportRuntimeConfig) -> tuple[dict[str, Any], dict[str, list]]:
+    def _get_parsed_excel(
+        self, runtime: ReportRuntimeConfig
+    ) -> tuple[list[dict[str, Any]], dict[str, list]]:
+        key = _runtime_cache_key(runtime)
+        if self._excel_cache_key == key and self._excel_cache is not None:
+            return self._excel_cache
+        parsed = self._read_excel(runtime)
+        self._excel_cache_key = key
+        self._excel_cache = parsed
+        return parsed
+
+    def _read_excel(
+        self, runtime: ReportRuntimeConfig
+    ) -> tuple[list[dict[str, Any]], dict[str, list]]:
         bio = io.BytesIO(self.excel_bytes)
         with pd.ExcelFile(bio, engine="openpyxl") as xl:
             names = xl.sheet_names
@@ -264,11 +399,18 @@ class ReportEngine:
             if project_df.empty:
                 raise ValueError(
                     f"Sheet '{primary}' has no data rows "
-                    "(row 1 = headers, row 2 = values)."
+                    "(row 1 = headers, row 2+ = values)."
                 )
             if len(project_df.columns) > MAX_PROJECT_COLUMNS:
                 project_df = project_df.iloc[:, :MAX_PROJECT_COLUMNS]
-            project = _project_row_to_dict(project_df)
+            project_rows = _project_rows_from_df(project_df)
+            if not project_rows:
+                raise ValueError(
+                    f"Sheet '{primary}' has no data rows "
+                    "(row 1 = headers, row 2+ = values)."
+                )
+            if len(project_rows) > MAX_PROJECT_ROWS:
+                project_rows = project_rows[:MAX_PROJECT_ROWS]
 
             lists: dict[str, list] = {}
             lab_var = runtime.lab_loop_variable or "lab_results"
@@ -290,19 +432,55 @@ class ReportEngine:
                     _lab_frame_to_records(xl.parse(LAB_SHEET, header=0)),
                 )
 
-        return project, lists
+        return project_rows, lists
 
-    def build_context(self, meta: dict[str, str] | None) -> dict[str, Any]:
+    def project_row_count(self, meta: dict[str, str] | None = None) -> int:
+        runtime = self.resolve_config(meta)
+        project_rows, _ = self._get_parsed_excel(runtime)
+        return len(project_rows)
+
+    def project_row_labels(self, meta: dict[str, str] | None = None) -> list[str]:
+        runtime = self.resolve_config(meta)
+        project_rows, _ = self._get_parsed_excel(runtime)
+        return _labels_from_project_rows(project_rows)
+
+    def build_context(
+        self,
+        meta: dict[str, str] | None,
+        *,
+        project_row_index: int = 0,
+        parsed_excel: tuple[list[dict[str, Any]], dict[str, list]] | None = None,
+    ) -> dict[str, Any]:
         meta = sanitize_meta(meta)
         runtime = self.resolve_config(meta)
-        project, list_data = self._read_excel(runtime)
+        if parsed_excel is not None:
+            project_rows, list_data = parsed_excel
+        else:
+            project_rows, list_data = self._get_parsed_excel(runtime)
+        if project_row_index < 0 or project_row_index >= len(project_rows):
+            raise ValueError(
+                f"ProjectData data row {project_row_index + 1} of {len(project_rows)} "
+                f"is out of range (use Excel rows 2–{len(project_rows) + 1})."
+            )
+        project = dict(project_rows[project_row_index])
+        excel_row = int(project.pop("_excel_row_number", _excel_row_number(project_row_index)))
         ctx: dict[str, Any] = {**project}
+        ctx["_project_row_index"] = project_row_index
+        ctx["_excel_row_number"] = excel_row
+        ctx["_project_row_count"] = len(project_rows)
         for k, v in meta.items():
             nk = _norm_key(k)
             if nk:
                 ctx[nk] = v if v is not None else ""
+        from phrase_resolver import apply_phrase_resolution
+
+        phrase_warnings = apply_phrase_resolution(
+            ctx, project, self.excel_bytes, meta=meta
+        )
+        if phrase_warnings:
+            ctx["_phrase_warnings"] = phrase_warnings
         for loop_var, rows in list_data.items():
-            ctx[loop_var] = rows
+            ctx[loop_var] = _filter_records_for_project(rows, project)
         for loop_var in runtime.template_loops:
             ctx.setdefault(loop_var, [])
         for legacy in ("lab_results", "drilling_waste", "storage_tanks"):
@@ -334,6 +512,7 @@ class ReportEngine:
         *,
         excel_filename: str = "",
         template_filename: str = "",
+        project_row_index: int = 0,
     ) -> tuple[dict[str, Any], list[str], "GenerationRecord"]:
         """
         Build context and manifest without rendering Word (preview / QA pattern).
@@ -342,10 +521,19 @@ class ReportEngine:
         from field_validation import contract_warnings
         from provenance import GenerationRecord, build_generation_record
 
-        context = self.build_context(meta)
+        context = self.build_context(meta, project_row_index=project_row_index)
         auto_exec = context.pop("_executive_summary_auto_generated", False)
+        phrase_warnings = context.pop("_phrase_warnings", [])
+        row_count = int(context.pop("_project_row_count", 1))
+        context.pop("_project_row_index", None)
+        excel_row = int(context.pop("_excel_row_number", _excel_row_number(project_row_index)))
         context, clamp_warnings = clamp_context(context)
-        warnings: list[str] = list(clamp_warnings)
+        warnings: list[str] = list(clamp_warnings) + list(phrase_warnings)
+        if row_count > 1:
+            warnings.append(
+                f"ProjectData has {row_count} site row(s) (Excel rows 2+); "
+                f"this preview uses Excel row {excel_row} only."
+            )
         if auto_exec:
             warnings.append(
                 "Executive summary auto-generated from ProjectData (Signum-style structure)."
@@ -386,16 +574,27 @@ class ReportEngine:
         *,
         excel_filename: str = "",
         template_filename: str = "",
+        project_row_index: int = 0,
+        parsed_excel: tuple[list[dict[str, Any]], dict[str, list]] | None = None,
+        include_coverage: bool = True,
     ) -> tuple[bytes, list[str], dict[str, Any], "GenerationRecord"]:
         """
         Returns (docx_bytes, warnings, context).
         Warnings include template variables not supplied by Excel/meta
         (filled with empty string for render).
         """
-        context = self.build_context(meta)
+        context = self.build_context(
+            meta,
+            project_row_index=project_row_index,
+            parsed_excel=parsed_excel,
+        )
         auto_exec = context.pop("_executive_summary_auto_generated", False)
+        phrase_warnings = context.pop("_phrase_warnings", [])
+        context.pop("_project_row_count", None)
+        context.pop("_project_row_index", None)
+        context.pop("_excel_row_number", None)
         context, clamp_warnings = clamp_context(context)
-        warnings: list[str] = list(clamp_warnings)
+        warnings: list[str] = list(clamp_warnings) + list(phrase_warnings)
         if auto_exec:
             warnings.append(
                 "Executive summary auto-generated from ProjectData (Signum-style structure). "
@@ -428,10 +627,12 @@ class ReportEngine:
         validate_rendered_output(docx_bytes)
         from provenance import build_generation_record
 
-        try:
-            coverage = self.coverage(meta)
-        except (ValueError, SecurityError):
-            coverage = None
+        coverage = None
+        if include_coverage:
+            try:
+                coverage = self.coverage(meta)
+            except (ValueError, SecurityError):
+                coverage = None
         record = build_generation_record(
             excel_bytes=self.excel_bytes,
             template_bytes=self.template_bytes,
@@ -447,20 +648,81 @@ class ReportEngine:
         )
         return docx_bytes, warnings, context, record
 
+    def render_batch(
+        self,
+        meta: dict[str, str] | None = None,
+        *,
+        excel_filename: str = "",
+        template_filename: str = "",
+    ) -> list[BatchReportResult]:
+        """Render one .docx per non-blank ProjectData row."""
+        runtime = self.resolve_config(meta)
+        project_rows, list_data = self._get_parsed_excel(runtime)
+        n = len(project_rows)
+        if n > MAX_BATCH_REPORTS:
+            raise ValueError(
+                f"Too many ProjectData rows ({n}). Maximum batch size is "
+                f"{MAX_BATCH_REPORTS} reports per run."
+            )
+        labels = _labels_from_project_rows(project_rows)
+        parsed = (project_rows, list_data)
+        results: list[BatchReportResult] = []
+        for i in range(n):
+            excel_row = int(
+                project_rows[i].get("_excel_row_number", _excel_row_number(i))
+            )
+            docx_bytes, warnings, context, record = self.render(
+                meta,
+                excel_filename=excel_filename,
+                template_filename=template_filename,
+                project_row_index=i,
+                parsed_excel=parsed,
+                include_coverage=(i == n - 1),
+            )
+            filename = suggested_download_name(
+                context, meta or {}, project_row_index=i, batch_size=n
+            )
+            record.output_filename = filename
+            results.append(
+                BatchReportResult(
+                    project_row_index=i,
+                    excel_row_number=excel_row,
+                    docx_bytes=docx_bytes,
+                    warnings=list(warnings),
+                    context=context,
+                    record=record,
+                    filename=filename,
+                    row_label=labels[i] if i < len(labels) else f"Excel row {excel_row}",
+                )
+            )
+        return results
 
-def suggested_download_name(context: dict[str, Any], meta: dict[str, str]) -> str:
-    """Build a safe .docx filename from site/phase/date."""
+
+def suggested_download_name(
+    context: dict[str, Any],
+    meta: dict[str, str],
+    *,
+    project_row_index: int | None = None,
+    batch_size: int = 1,
+) -> str:
+    """Build a safe .docx filename from site/phase/date (unique per batch row)."""
     site = (
         str(context.get("site_name") or context.get("client_name") or "")
         .strip()
     )
+    proj = str(context.get("project_number") or "").strip()
     phase = str(meta.get("report_phase") or "ESA").strip().replace(" ", "_")
-    date = str(meta.get("date_of_issue") or "")[:10]
-    base = site or "ESA"
+    date = str(meta.get("date_of_issue") or context.get("report_month_year") or "")[:10]
+    base = site or proj or "ESA"
     safe = re.sub(r"[^\w\-]+", "_", base).strip("_") or "ESA"
-    parts = [safe, phase]
+    parts = [safe]
+    if proj and proj not in site:
+        parts.append(re.sub(r"[^\w\-]+", "_", proj).strip("_"))
+    parts.append(phase)
     if date:
-        parts.append(date)
+        parts.append(re.sub(r"[^\w\-]+", "_", date).strip("_"))
+    if batch_size > 1 and project_row_index is not None:
+        parts.append(f"row{project_row_index + 1}")
     return sanitize_download_filename("_".join(parts) + ".docx")
 
 
@@ -729,8 +991,21 @@ def generate_phase1_alberta_excel(path: str) -> None:
         "conclusions_recommendations": (
             "Investigate well centre and production areas. Phase II ESA recommended."
         ),
+        "drilling_waste_intro_selected": "option_1_aer",
+        "site_recon_intro_selected": "not_completed",
+        "phase2_recommendation_selected": "recommended",
     }
     row["executive_summary"] = build_phase1_executive_summary(row)
+    from phrase_resolver import list_phrase_definitions, resolve_phrase_text
+
+    for phrase_key, option_id in [
+        ("drilling_waste_intro", row["drilling_waste_intro_selected"]),
+        ("site_recon_intro", row["site_recon_intro_selected"]),
+        ("phase2_recommendation", row["phase2_recommendation_selected"]),
+    ]:
+        text = resolve_phrase_text(phrase_key, option_id)
+        if text:
+            row[phrase_key] = text
     project = pd.DataFrame([row])
     waste = pd.DataFrame(
         [
@@ -752,10 +1027,26 @@ def generate_phase1_alberta_excel(path: str) -> None:
             },
         ]
     )
+    from phrase_resolver import PHRASE_CATALOG_SHEET, list_phrase_definitions
+
+    catalog_rows: list[dict[str, str]] = []
+    for phrase_key, spec in sorted(list_phrase_definitions().items()):
+        for opt in spec.get("options", []):
+            catalog_rows.append(
+                {
+                    "phrase_key": phrase_key,
+                    "option_id": str(opt.get("id", "")),
+                    "text": str(opt.get("text", "")),
+                }
+            )
+    phrase_catalog = pd.DataFrame(catalog_rows)
+
     with pd.ExcelWriter(path, engine="openpyxl") as w:
         project.to_excel(w, sheet_name=PROJECT_SHEET, index=False)
         waste.to_excel(w, sheet_name=DRILLING_WASTE_SHEET, index=False)
         tanks.to_excel(w, sheet_name=STORAGE_TANKS_SHEET, index=False)
+        if not phrase_catalog.empty:
+            phrase_catalog.to_excel(w, sheet_name=PHRASE_CATALOG_SHEET, index=False)
 
 
 def generate_phase1_alberta_template_docx(path: str) -> None:
@@ -777,11 +1068,14 @@ def generate_phase1_alberta_template_docx(path: str) -> None:
     doc.add_paragraph("Spud: {{ spud_date }} | Final drill: {{ final_drill_date }} | TD: {{ well_depth_m }} m")
     doc.add_paragraph("Status: {{ well_status }} | Re-entry: {{ reentry }} | Fluid: {{ production_fluid }}")
     doc.add_paragraph("Drilling waste (AER): {{ aer_waste_compliance_option }}")
+    doc.add_paragraph("{{ drilling_waste_intro }}")
     doc.add_paragraph("{{ drilling_waste_summary }}")
+    doc.add_paragraph("{{ site_recon_intro }}")
     doc.add_paragraph("Infrastructure: {{ infrastructure_summary }}")
     doc.add_paragraph("Spills/releases: {{ spills_releases }}")
     doc.add_paragraph("Site visit completed: {{ site_visit_completed }}")
     doc.add_paragraph("Phase II ESA required: {{ phase2_esa_required }}")
+    doc.add_paragraph("{{ phase2_recommendation }}")
     doc.add_heading("Conclusions and Recommendations", level=1)
     doc.add_paragraph("{{ conclusions_recommendations }}")
     doc.add_paragraph("Prepared by: {{ prepared_by }} | Date: {{ date_of_issue }}")

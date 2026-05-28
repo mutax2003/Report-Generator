@@ -19,6 +19,11 @@ from engine import (  # noqa: E402
     generate_sample_template_docx,
 )
 
+try:
+    from scripts.create_phase1_site_samples import main as create_phase1_site_samples  # noqa: E402
+except ImportError:
+    create_phase1_site_samples = None
+
 
 def main() -> None:
     samples = ROOT / "samples"
@@ -54,6 +59,9 @@ def main() -> None:
     print(f"Wrote: {p1_tpl}")
     print(f"Wrote: {custom_xlsx}")
     print(f"Wrote: {custom_tpl}")
+
+    if create_phase1_site_samples is not None:
+        create_phase1_site_samples()
 
 
 if __name__ == "__main__":

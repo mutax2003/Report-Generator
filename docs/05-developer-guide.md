@@ -133,9 +133,12 @@ ctx["report_year_short"] = ctx.get("report_year", "")[:4]
 
 Extend `_lab_frame_to_records` in `engine.py`.
 
-### Batch reports (not in V1)
+### Batch reports
 
-Would require: multiple ProjectData rows → list in context, template redesign, UI batch selector. Significant scope.
+- Multiple non-blank `ProjectData` rows (row 1 = headers).
+- `ReportEngine.render_batch()` / Streamlit **All N reports (batch)** / `render_cli.py --all-rows`.
+- Table sheets can link per site via `site_name`, `project_number`, `uwi`, `well_name`, or `project_id`.
+- Limits: `MAX_PROJECT_ROWS` (100), `MAX_BATCH_REPORTS` (50).
 
 ## Coding conventions
 

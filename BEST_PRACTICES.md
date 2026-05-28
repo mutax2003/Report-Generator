@@ -19,7 +19,7 @@ Non-developers maintain Word design; developers maintain the merge engine. Same 
 - Document recommended fields in **`schemas/report_profiles.json`** per profile (`phase1_alberta`, `phase2_esa`, `template_driven`). Update **`schemas/field_contract.json`** only if the AI tagger or legacy docs need the same names.
 - List layout in [EXCEL_LAYOUT.txt](EXCEL_LAYOUT.txt).
 - **Row 1** of `ProjectData` = headers → normalized keys (`Site Name` → `site_name`).
-- **Row 2** = single project record (this tool is single-report, not batch).
+- **Row 2+** = one project per row; use batch mode in the app or `render_cli.py --all-rows` for multiple reports.
 - Phase 2: require **`LabResults`** with analyte rows; loop in Word with `{%tr for item in lab_results %}`.
 
 The app warns when **recommended** contract fields are empty; pre-flight warns when **template** tags lack Excel/sidebar values.

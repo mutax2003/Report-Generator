@@ -105,6 +105,14 @@ def _tab_template_tagger(template_bytes: bytes | None) -> None:
         "Suggests `{{ jinja }}` replacements for bracket placeholders and common phrases. "
         "Apply changes manually in Word (single formatting run per tag)."
     )
+    report_type = st.session_state.get("report_type", "")
+    use_phase1 = report_type == "phase1_alberta"
+    if use_phase1:
+        st.caption(
+            "**Alberta Phase I:** Uses `schemas/report_profiles.json` fields. "
+            "For PDF layouts, run `python scripts\\phase1_pdf_to_markup.py` locally, "
+            "then upload the `-markup.docx`."
+        )
     if not template_bytes:
         st.info("Upload a Word template in the **Report** tab to analyze.")
         return
@@ -112,7 +120,9 @@ def _tab_template_tagger(template_bytes: bytes | None) -> None:
         with st.spinner("Scanning document..."):
             try:
                 suggestions, audit = suggest_template_tags(
-                    template_bytes, use_llm=_use_llm()
+                    template_bytes,
+                    use_llm=_use_llm(),
+                    report_type="phase1_alberta" if use_phase1 else None,
                 )
                 st.session_state["tag_suggestions"] = suggestions
                 _merge_audit(audit)

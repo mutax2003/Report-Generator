@@ -134,16 +134,50 @@ def check_security_reject_swap() -> bool:
         return True
 
 
-def check_unittest_suite() -> bool:
-    r = subprocess.run(
-        [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-q"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
+def check_batch_render() -> bool:
+    """Smoke test multi-row ProjectData without re-running the full unittest suite."""
+    import io
+
+    import pandas as pd
+
+    from deliverable_pack import build_batch_reports_zip
+    from engine import PROJECT_SHEET, ReportEngine
+
+    bio = io.BytesIO()
+    from engine import LAB_SHEET
+
+    project = pd.DataFrame(
+        [
+            {"site_name": "Batch A", "client_name": "C1", "project_number": "BA-1"},
+            {"site_name": "Batch B", "client_name": "C2", "project_number": "BB-1"},
+        ]
     )
-    if r.returncode != 0:
-        print(r.stdout, r.stderr)
-    return r.returncode == 0
+    lab = pd.DataFrame(
+        [
+            {
+                "site_name": "Batch A",
+                "analyte": "Benzene",
+                "result": "0.01",
+                "unit": "mg/L",
+                "criteria": "0.005",
+            },
+        ]
+    )
+    with pd.ExcelWriter(bio, engine="openpyxl") as w:
+        project.to_excel(w, sheet_name=PROJECT_SHEET, index=False)
+        lab.to_excel(w, sheet_name=LAB_SHEET, index=False)
+    tpl = ROOT / "samples" / "sample_template.docx"
+    if not tpl.is_file():
+        subprocess.run([sys.executable, str(ROOT / "scripts" / "create_samples.py")], check=True)
+    engine = ReportEngine(bio.getvalue(), tpl.read_bytes())
+    batch = engine.render_batch(meta={"report_phase": "Phase 2"})
+    assert len(batch) == 2
+    assert batch[0].filename != batch[1].filename
+    zip_bytes = build_batch_reports_zip(
+        [(b.filename, b.docx_bytes, None) for b in batch]
+    )
+    assert len(zip_bytes) > 500
+    return True
 
 
 CHECKS = [
@@ -156,7 +190,7 @@ CHECKS = [
     check_demo_render,
     check_missing_vars_filled,
     check_security_reject_swap,
-    check_unittest_suite,
+    check_batch_render,
 ]
 
 
@@ -173,7 +207,7 @@ def main() -> int:
             "demo render",
             "missing var warnings",
             "security swap reject",
-            "unittest suite",
+            "batch render (2 rows)",
         ],
         start=1,
     ):

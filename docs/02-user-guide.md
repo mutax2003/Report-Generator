@@ -62,9 +62,10 @@ Sidebar also provides **download buttons** for sample Excel and Word files when 
 2. **Pre-flight checks** — Sheet names, errors, warnings, matched/missing template variables (profile-aware checklist), split-tag lint; download **missing-fields checklist** or **ReportConfig sheet (Excel)**.
 3. **Workflow step indicator** — Visual checklist: Excel → Template → Pre-flight OK → Output.
 4. **Preview data (dry run)** — Builds merge context and manifest **without** rendering Word (fast QA); top scalar keys and table row counts.
-5. **Appendices (optional)** — Upload PDFs labeled **A–F** (Alberta Phase I); included in deliverable zip.
-6. **Generate Report** — Primary action; disabled until uploads valid and pre-flight has no **errors**.
-7. **Download section** — Report `.docx`, warnings, context preview, manifest JSON, **Download deliverable package (.zip)** when report or appendices exist.
+5. **Standard phrases (optional)** — Select preset paragraphs (drilling waste intro, site recon, Phase II recommendation, etc.); overrides Excel for those keys.
+6. **Appendices (optional)** — Upload PDFs labeled **A–F** (Alberta Phase I); included in deliverable zip.
+7. **Generate Report** — Primary action; disabled until uploads valid and pre-flight has no **errors**.
+8. **Download section** — Report `.docx`, warnings, context preview, manifest JSON, **Download deliverable package (.zip)** when report or appendices exist.
 
 #### AI assistant
 
@@ -111,15 +112,25 @@ Expander **Preview data (dry run)**:
 
 ### Step 4 — Generate Report
 
-- Spinner shows while `ReportEngine` renders.
-- Success message includes warning count and suggested filename.
+When Excel has more than one populated `ProjectData` row, choose:
+
+| Mode | Use when |
+|------|----------|
+| **Single report** | One site (uses row 2 only) |
+| **All N reports (batch)** | Multiple sites — one `.docx` per row (max 50 per run) |
+
+- Spinner shows while `ReportEngine` renders (or batch loop).
+- Success message includes warning count and suggested filename (or batch count).
 - Hard failures show a user-safe error and **Common fixes** expander.
+
+For batch runs, link shared table sheets with `site_name`, `project_number`, `uwi`, `well_name`, or `project_id` on `LabResults` / `DrillingWaste` rows. See [03-excel-data-guide.md](03-excel-data-guide.md).
 
 ### Step 5 — Download and archive
 
 | Download | Use |
 |----------|-----|
 | **Download Report** | Client-ready `.docx` |
+| **Download batch reports (.zip)** | When batch mode was used — all generated `.docx` files |
 | **Download generation manifest (JSON)** | Audit: SHA-256 hashes, timestamps, missing variables, template source (`docx`/`pdf`), appendix hashes, AI audit entries |
 | **Download deliverable package (.zip)** | `report.docx`, manifest JSON, `appendices/` folder (and converted template if PDF was uploaded) |
 

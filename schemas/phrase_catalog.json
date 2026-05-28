@@ -1,0 +1,51 @@
+{
+  "version": "1.0.0",
+  "description": "Standard phrase options for Streamlit picker and Excel PhraseCatalog sheet (phrase_key, option_id, text).",
+  "phrases": {
+    "drilling_waste_intro": {
+      "label": "Drilling waste — compliance opening",
+      "options": [
+        {
+          "id": "option_1_aer",
+          "label": "Option 1 (AER, 2014)",
+          "text": "Drilling waste was managed in accordance with AER requirements. Option 1 (AER, 2014) applies to this well."
+        },
+        {
+          "id": "option_2",
+          "label": "Option 2 — alternative disposal",
+          "text": "Drilling waste was managed under an approved alternative disposal pathway. Details are summarized in the drilling waste table."
+        }
+      ]
+    },
+    "site_recon_intro": {
+      "label": "Site reconnaissance — opening",
+      "options": [
+        {
+          "id": "not_completed",
+          "label": "Site visit not completed",
+          "text": "A site visit was not completed as part of this Phase I ESA. Findings are based on available records, regulatory databases, and historical air photo review."
+        },
+        {
+          "id": "completed",
+          "label": "Site visit completed",
+          "text": "A site visit was completed as part of this Phase I ESA. Observations from the visit are summarized below and in the site visit checklist."
+        }
+      ]
+    },
+    "phase2_recommendation": {
+      "label": "Phase II ESA recommendation",
+      "options": [
+        {
+          "id": "recommended",
+          "label": "Phase II recommended",
+          "text": "Based on the findings of this Phase I ESA, a Phase II Environmental Site Assessment is recommended to further evaluate identified areas of potential environmental concern."
+        },
+        {
+          "id": "not_required",
+          "label": "Phase II not required at this time",
+          "text": "Based on the findings of this Phase I ESA, a Phase II Environmental Site Assessment is not recommended at this time, subject to client direction and future land use."
+        }
+      ]
+    }
+  }
+}

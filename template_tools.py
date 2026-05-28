@@ -159,7 +159,7 @@ def missing_fields_checklist(
     from report_profile import get_recommended_fields
 
     lines = [
-        "# Add these columns to sheet 'ProjectData' (row 1 headers, row 2 values)",
+        "# Add these columns to sheet 'ProjectData' (row 1 = headers, row 2+ = one site per row)",
         "",
     ]
     if coverage.missing_in_data:

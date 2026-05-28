@@ -7,8 +7,12 @@ Defaults to Alberta Phase I Ecoventure samples. Use --excel and --template for y
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
+
+# Large Phase 1 templates converted from PDF may exceed default upload cap.
+os.environ.setdefault("ESA_ALLOW_LARGE_TEMPLATE", "1")
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:

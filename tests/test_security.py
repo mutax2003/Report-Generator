@@ -90,7 +90,7 @@ class TestSecurity(unittest.TestCase):
     def test_user_safe_error_redacts_internal_value_error(self) -> None:
         msg = user_safe_error(ValueError("openpyxl.internal.parser failed at offset 99"))
         self.assertNotIn("openpyxl", msg)
-        self.assertIn("failed", msg.lower())
+        self.assertIn("excel", msg.lower())
 
     def test_user_safe_error_allows_missing_sheet(self) -> None:
         msg = user_safe_error(ValueError("Missing sheet 'ProjectData'. Found: ['Sheet1']"))

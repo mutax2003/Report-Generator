@@ -4,6 +4,7 @@ import hashlib
 
 import streamlit as st
 
+from phrase_resolver import build_phrase_catalog_workbook_bytes
 from report_profile import build_report_config_workbook_bytes
 from template_tools import PreflightResult, missing_fields_checklist, run_preflight
 
@@ -115,6 +116,13 @@ def render_preflight_panel(
                 "Download ReportConfig sheet (Excel)",
                 data=build_report_config_workbook_bytes(rt),
                 file_name=f"report_config_{rt}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+            st.download_button(
+                "Download PhraseCatalog sheet (Excel)",
+                data=build_phrase_catalog_workbook_bytes(),
+                file_name="phrase_catalog.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )

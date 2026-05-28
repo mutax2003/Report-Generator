@@ -42,6 +42,11 @@ def main() -> int:
         default="",
         help="Profile id: phase1_alberta, phase2_esa, template_driven (default from --phase)",
     )
+    parser.add_argument(
+        "--all-rows",
+        action="store_true",
+        help="Render one .docx per ProjectData row; writes --out as a .zip",
+    )
     args = parser.parse_args()
 
     if not args.excel.is_file():
@@ -69,12 +74,34 @@ def main() -> int:
         excel_bytes=args.excel.read_bytes(),
         template_bytes=prepared.docx_bytes,
     )
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    if args.all_rows:
+        from deliverable_pack import build_batch_reports_zip
+
+        batch = engine.render_batch(
+            meta=meta,
+            excel_filename=args.excel.name,
+            template_filename=args.template.name,
+        )
+        zip_path = args.out if args.out.suffix.lower() == ".zip" else args.out.with_suffix(".zip")
+        zip_bytes = build_batch_reports_zip(
+            [
+                (item.filename, item.docx_bytes, item.record.to_json_bytes())
+                for item in batch
+            ]
+        )
+        zip_path.write_bytes(zip_bytes)
+        print(f"Wrote batch zip ({len(batch)} reports): {zip_path}")
+        for item in batch:
+            for w in item.warnings[:3]:
+                print(f"  WARN [{item.filename}]: {w}")
+        return 0
+
     docx_bytes, warnings, _context, record = engine.render(
         meta=meta,
         excel_filename=args.excel.name,
         template_filename=args.template.name,
     )
-    args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(docx_bytes)
     manifest_path = args.out.with_name(args.out.stem + "_manifest.json")
     record.output_filename = args.out.name

@@ -83,6 +83,65 @@ Appendix content here.
 
 Only use variables present in Excel, sidebar, or added by custom engine changes.
 
+## Multiple-choice phrases
+
+Consultants can insert **one of several standard paragraphs** into a tagged slot. The engine resolves the chosen text into a single context key (e.g. `{{ drilling_waste_intro }}`). Three supported patterns:
+
+### Approach A — Excel column holds the final text (no extra code)
+
+1. Tag the Word slot: `{{ drilling_waste_summary }}` or a dedicated key `{{ drilling_waste_intro }}`.
+2. In `ProjectData` row 2, paste the **full paragraph** the QP selected.
+3. Generate.
+
+Use when each project needs custom wording or phrases are maintained in a shared Excel cheat sheet.
+
+### Approach B — Excel `PhraseCatalog` sheet + selection column
+
+**Sheet `PhraseCatalog`** (optional):
+
+| phrase_key | option_id | text |
+|------------|-----------|------|
+| `drilling_waste_intro` | `option_1_aer` | Full paragraph A… |
+| `drilling_waste_intro` | `option_2` | Full paragraph B… |
+
+**`ProjectData`** row 2 includes selection columns:
+
+| drilling_waste_intro_selected | site_recon_intro_selected |
+|-----------------------------|---------------------------|
+| `option_1_aer` | `not_completed` |
+
+The engine sets `{{ drilling_waste_intro }}` from the catalog. Sample workbook includes this sheet (run `python scripts\create_samples.py`).
+
+Definitions are also in [`schemas/phrase_catalog.json`](../schemas/phrase_catalog.json).
+
+### Approach C — Streamlit “Standard phrases” pickers
+
+On the **Report generation** tab, use the **Standard phrases** selectboxes (from `phrase_catalog.json`). Choices override Excel for the same keys and are merged into the report like sidebar fields.
+
+Pre-flight may warn if a phrase `option_id` in Excel does not match the catalog.
+
+### Approach D — Fixed variants in Word (`{% if %}`)
+
+Keep all variants in the template; Excel only stores a **flag** that must match the `{% if %}` test exactly:
+
+```jinja2
+{% if aer_waste_compliance_option == "Option 1 (AER, 2014)" %}
+Drilling waste was disposed of via LWD to the well centre...
+{% elif aer_waste_compliance_option == "Option 2" %}
+Alternative paragraph text.
+{% else %}
+Not applicable.
+{% endif %}
+```
+
+Alberta Phase I samples already use `aer_waste_compliance_option` this way. Prefer **one** `{{ paragraph_key }}` when you have long text; use `{% if %}` only for short branches.
+
+### Tips
+
+- Type each `{{ tag }}` and `{% if %}` in **one** Word formatting run.
+- Sidebar **Override executive summary** is the same pattern for a single long field.
+- See [03-excel-data-guide.md](03-excel-data-guide.md) for sheet names.
+
 ## Jinja filters (optional)
 
 ```jinja2

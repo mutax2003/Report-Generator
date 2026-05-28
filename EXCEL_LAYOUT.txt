@@ -7,8 +7,8 @@ Alberta Phase I: docs/11-alberta-phase1-esa.md
 Sheet: ProjectData (required name)
 ----------------------------------
 - Row 1: column headers (each header becomes a Jinja2 context key).
-- Row 2: ONLY this data row is used for the report (single-project mode).
-- Row 3+: ignored.
+- Row 2+: one site per row (batch mode in app or CLI --all-rows). Blank rows skipped.
+- Single-report mode: pick one row in the app, or default to row 1.
 
   Example headers: site_name, client_name, project_number, address,
   consultant_name, company, well_name, uwi, executive_summary
@@ -43,6 +43,13 @@ Sheet: StorageTanks (optional — Alberta Phase I)
 - Example: tank_type, content, location, capacity_m3
 
   Template: {%tr for item in storage_tanks %} ... {%tr endfor %}
+
+Sheet: PhraseCatalog (optional — multiple-choice phrases)
+------------------------------------------------------------
+- Columns: phrase_key, option_id, text (one row per option).
+- In ProjectData row 2, set {phrase_key}_selected to option_id (e.g. drilling_waste_intro_selected = option_1_aer).
+- Or paste full text in ProjectData column matching the Word tag (Approach A).
+- Catalog source: schemas/phrase_catalog.json; Streamlit pickers on Report tab.
 
 Sheet: ReportConfig (optional)
 --------------------------------

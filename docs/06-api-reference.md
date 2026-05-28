@@ -21,6 +21,8 @@ Validates uploads unless `ESA_VALIDATION_BYPASS=1`.
 | `build_context(meta)` | `dict` | Excel + sidebar merged; no render |
 | `dry_run(meta, excel_filename=..., template_filename=...)` | `(context, warnings, GenerationRecord)` | Context + manifest; no Word file |
 | `render(meta, excel_filename=..., template_filename=...)` | `(docx_bytes, warnings, context, GenerationRecord)` | Full merge |
+| `render_batch(meta, excel_filename=..., template_filename=...)` | `list[BatchReportResult]` | One `.docx` per non-blank `ProjectData` row (max 50) |
+| `project_row_count(meta)` | `int` | Non-blank data rows on `ProjectData` |
 | `coverage(meta)` | `TemplateCoverage` | Tag match analysis |
 | `template_root_vars()` | `set[str]` | Root `{{ var }}` names from template |
 | `missing_template_vars(context)` | `list[str]` | Sorted missing keys |
@@ -32,7 +34,16 @@ Validates uploads unless `ESA_VALIDATION_BYPASS=1`.
 | `prepared_by` | `"Jane Doe"` | Sanitized, max 500 chars |
 | `date_of_issue` | `"2026-05-20"` | ISO date string |
 | `report_phase` | `"Phase 2"` | `"Phase 1"` skips required lab sheet |
+| `report_type` | `"phase1_alberta"` | Profile ID; maps sheets to template loops |
 | `template_version` | `"2.1.0"` | Stored in manifest |
+| `executive_summary` | `"..."` | Sidebar override; wins over Excel / auto Phase I text |
+| `template_source_format` | `"pdf"` or `"docx"` | Set by UI when template was PDF vs Word |
+| `drilling_waste_intro` | `"..."` | Phrase text (UI / Excel / `PhraseCatalog`) |
+| `drilling_waste_intro_option_id` | `"option_1_aer"` | Selected phrase option id |
+| `site_recon_intro` / `*_option_id` | (same pattern) | From `schemas/phrase_catalog.json` |
+| `phase2_recommendation` / `*_option_id` | (same pattern) | Phase II recommendation phrase |
+
+Phrase keys mirror catalog entries in [`schemas/phrase_catalog.json`](../schemas/phrase_catalog.json). Excel may use `PhraseCatalog` sheet or `{phrase_key}_selected` columns on `ProjectData`; resolution is in `phrase_resolver.apply_phrase_resolution`.
 
 ### Example
 

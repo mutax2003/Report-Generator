@@ -58,7 +58,7 @@ Design goals:
 
 1. **Validate uploads** — File type, ZIP structure, size (see [07-security-and-deployment.md](07-security-and-deployment.md)).
 2. **Prepare template** — `.docx` as-is; `.pdf` → DOCX via `template_attachments.py` (cached in UI).
-3. **Read Excel** — Sheet `ProjectData` → flat dict (first data row only). Optional `ReportConfig`, `LabResults`, table sheets per [report profile](13-flexible-report-profiles.md).
+3. **Read Excel** — Sheet `ProjectData` → flat dict per row (batch: one report per data row). Optional `ReportConfig`, `LabResults`, table sheets per [report profile](13-flexible-report-profiles.md).
 4. **Merge metadata** — Sidebar (`report_type`, `report_phase`, `prepared_by`, `date_of_issue`, `template_version`, `executive_summary`) normalized and merged; sidebar overrides Excel on key collision.
 5. **Build Jinja context** — Keys are lowercased headers with spaces → underscores (`Site Name` → `site_name`).
 6. **Pre-flight / coverage** — Profile-aware checklist; compare template `{{ root_vars }}` to context keys; lint split Word runs.

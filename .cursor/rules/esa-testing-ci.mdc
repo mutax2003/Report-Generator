@@ -1,0 +1,31 @@
+---
+description: Unit tests, E2E scripts, and CI parity for ESA Report Generator
+globs: tests/**/*.py,scripts/**/*.py,.github/workflows/*.yml
+alwaysApply: false
+---
+
+# Testing and CI
+
+## Commands (match CI and [docs/08-testing.md](docs/08-testing.md))
+
+```powershell
+python scripts\create_samples.py
+python scripts\tag_production_template.py
+python -m unittest discover -s tests -v
+python scripts\render_cli.py
+python scripts\production_e2e.py
+python scripts\phase1_alberta_e2e.py
+python scripts\test_with_your_documents.py
+python scripts\health_check.py
+```
+
+## Conventions
+
+- Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates. Current count: **93 tests** (`test_phrase_resolver`, `test_batch_render`, `test_phase1_markup`, `test_phase1_pdf_text`, etc.).
+- Prefer **real fixtures** in `samples/` over huge inline ZIP bytes; use `unittest.SkipTest` when optional large files are absent.
+- **`ESA_VALIDATION_BYPASS=1`**: tests only — never document for production.
+- **`ESA_RUN_HEALTH_CHECK=1`**: enables the slow `test_smoke_integration` health path; CI runs `health_check.py` separately.
+
+## Before merging template/engine changes
+
+Run `health_check.py` and full `unittest discover`. If you change `.github/workflows/ci.yml`, keep step order aligned with [docs/08-testing.md](docs/08-testing.md).

@@ -9,12 +9,14 @@ from engine import ReportEngine, suggested_download_name
 from security import (
     MAX_EXCEL_BYTES,
     MAX_TEMPLATE_BYTES,
+    _template_size_limit,
     user_safe_error,
 )
 from provenance import sha256_hex
 from ui.ai_panel import render_ai_panel, render_ai_settings_sidebar
 from ui.appendix_panel import render_appendix_uploader, render_deliverable_downloads
 from ui.helpers import (
+    get_cached_report_engine,
     parse_template_version_from_filename,
     prepare_uploaded_template,
     render_converted_template_download,
@@ -23,7 +25,8 @@ from ui.helpers import (
 )
 from ui.preflight import render_preflight_panel, run_preflight_check
 from ui.preview import render_preview_panel
-from ui.results import render_download_section
+from ui.results import render_batch_download_section, render_download_section
+from ui.phrase_panel import render_phrase_panel
 from ui.sidebar import render_sidebar
 from ui.workflow import render_workflow_step
 
@@ -41,6 +44,7 @@ def _init_state() -> None:
         "ai_audit_log": [],
         "template_prep_warnings": [],
         "last_prepared_template": None,
+        "generated_batch": None,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -87,6 +91,8 @@ def main() -> None:
 
     render_ai_settings_sidebar()
     meta = render_sidebar()
+    phrase_meta = render_phrase_panel()
+    meta_render = {**meta, **phrase_meta}
 
     col1, col2 = st.columns(2)
     with col1:
@@ -112,10 +118,9 @@ def main() -> None:
         render_converted_template_download(prepared_tpl)
 
     excel_bytes = excel_file.getvalue() if excel_file else None
-    meta_render = dict(meta)
     if prepared_tpl:
         meta_render["template_source_format"] = prepared_tpl.source_format
-    preflight = run_preflight_check(excel_bytes, template_bytes, meta)
+    preflight = run_preflight_check(excel_bytes, template_bytes, meta_render)
 
     tab_report, tab_ai = st.tabs(["Report generation", "AI assistant"])
 
@@ -123,7 +128,7 @@ def main() -> None:
         render_ai_panel(
             excel_bytes=excel_bytes,
             template_bytes=template_bytes,
-            meta=meta,
+            meta=meta_render,
             preflight=preflight,
         )
 
@@ -177,6 +182,48 @@ def _render_report_tab(
 
     st.divider()
 
+    project_row_count = 1
+    project_row_labels: list[str] = []
+    batch_mode = False
+    project_row_index = 0
+    if excel_bytes and template_bytes:
+        try:
+            _row_engine = get_cached_report_engine(excel_bytes, template_bytes)
+            project_row_count = _row_engine.project_row_count(meta_render)
+            project_row_labels = _row_engine.project_row_labels(meta_render)
+        except Exception:
+            project_row_count = 1
+            project_row_labels = []
+
+    if project_row_count > 1:
+        st.caption(
+            f"**{project_row_count}** site(s) on ProjectData — "
+            "**row 1 = headers**; **rows 2+** = one report each."
+        )
+        gen_mode = st.radio(
+            "Generation mode",
+            ["Single report", f"All {project_row_count} reports (batch)"],
+            horizontal=True,
+            key="projectdata_gen_mode",
+        )
+        batch_mode = gen_mode.startswith("All")
+        if not batch_mode:
+            project_row_index = st.selectbox(
+                "Site (Excel row on ProjectData)",
+                options=list(range(project_row_count)),
+                format_func=lambda i: (
+                    project_row_labels[i]
+                    if i < len(project_row_labels)
+                    else f"Excel row {i + 2}"
+                ),
+                key="projectdata_row_select",
+            )
+    else:
+        st.caption(
+            "ProjectData: row 1 = headers; row 2 = single site "
+            "(add rows 3+ for batch reports)."
+        )
+
     generate_disabled = (
         st.session_state.rendering
         or excel_file is None
@@ -184,8 +231,13 @@ def _render_report_tab(
         or not can_generate
     )
 
+    btn_label = (
+        f"Generate {project_row_count} Reports"
+        if batch_mode and project_row_count > 1
+        else "Generate Report"
+    )
     generate_clicked = st.button(
-        "Generate Report",
+        btn_label,
         type="primary",
         use_container_width=True,
         disabled=generate_disabled,
@@ -203,6 +255,7 @@ def _render_report_tab(
         st.session_state.warnings = []
         st.session_state.last_context = None
         st.session_state.generation_record = None
+        st.session_state.generated_batch = None
 
         if not _file_ext_ok(excel_file.name, ".xlsx"):
             st.error("Excel file must have a .xlsx extension.")
@@ -214,51 +267,93 @@ def _render_report_tab(
         if getattr(excel_file, "size", None) and excel_file.size > MAX_EXCEL_BYTES:
             st.error(f"Excel file too large (max {MAX_EXCEL_BYTES // (1024 * 1024)} MB).")
             st.stop()
-        if getattr(template_file, "size", None) and template_file.size > MAX_TEMPLATE_BYTES:
+        tpl_limit = _template_size_limit()
+        prepared_size = len(template_bytes) if template_bytes else 0
+        upload_size = getattr(template_file, "size", None) or prepared_size
+        if prepared_size > tpl_limit or upload_size > tpl_limit:
+            shown_mb = max(prepared_size, upload_size) / (1024 * 1024)
             st.error(
-                f"Template file too large (max {MAX_TEMPLATE_BYTES // (1024 * 1024)} MB)."
+                f"Template too large (max {tpl_limit // (1024 * 1024)} MB). "
+                f"Prepared Word file is {shown_mb:.1f} MB."
+            )
+            st.info(
+                "For PDF-derived layouts, build a smaller upload template: "
+                "`python scripts\\phase1_pdf_to_markup.py --for-streamlit` "
+                "then upload the `*-markup-upload.docx` file (cover + executive summary pages)."
             )
             st.stop()
 
         st.session_state.rendering = True
         try:
-            engine = ReportEngine(
-                excel_bytes=excel_bytes or b"",
-                template_bytes=template_bytes or b"",
-            )
-            with st.spinner("Rendering report..."):
-                docx_bytes, warnings, context, record = engine.render(
-                    meta=meta_render,
-                    excel_filename=excel_file.name,
-                    template_filename=template_file.name,
-                )
-            out_name = suggested_download_name(context, meta)
-            record.output_filename = out_name
-            record.output_sha256 = sha256_hex(docx_bytes)
-            record.template_source_format = (
-                prepared_tpl.source_format if prepared_tpl else ""
+            engine = get_cached_report_engine(
+                excel_bytes or b"",
+                template_bytes or b"",
             )
             from deliverable_pack import appendix_manifest_entries
 
             appendices = list(st.session_state.get("appendix_files", {}).values())
-            if appendices:
-                record.appendix_files = appendix_manifest_entries(appendices)
-            record.ai_audit = list(st.session_state.get("ai_audit_log") or [])
-            st.session_state.generated_docx = docx_bytes
-            st.session_state.warnings = warnings
-            st.session_state.last_context = context
-            st.session_state.generation_record = record
-            st.session_state.generated_filename = out_name
-            all_warnings = list(template_prep_warnings) + list(warnings)
-            st.success(
-                f"Report generated ({len(all_warnings)} warning(s)). "
-                f"File: **{st.session_state.generated_filename}**"
-            )
-            logger.info(
-                "Rendered %s with %d warnings",
-                st.session_state.generated_filename,
-                len(warnings),
-            )
+            ai_audit = list(st.session_state.get("ai_audit_log") or [])
+
+            if batch_mode and project_row_count > 1:
+                with st.spinner(f"Rendering {project_row_count} reports..."):
+                    batch = engine.render_batch(
+                        meta=meta_render,
+                        excel_filename=excel_file.name,
+                        template_filename=template_file.name,
+                    )
+                for item in batch:
+                    item.record.output_sha256 = sha256_hex(item.docx_bytes)
+                    item.record.template_source_format = (
+                        prepared_tpl.source_format if prepared_tpl else ""
+                    )
+                    if appendices:
+                        item.record.appendix_files = appendix_manifest_entries(
+                            appendices
+                        )
+                    item.record.ai_audit = ai_audit
+                st.session_state.generated_batch = batch
+                st.session_state.warnings = [
+                    w for item in batch for w in item.warnings
+                ]
+                all_warnings = list(template_prep_warnings) + st.session_state.warnings
+                st.success(
+                    f"Generated **{len(batch)}** reports "
+                    f"({len(all_warnings)} warning(s) total). "
+                    "Download the zip below."
+                )
+                logger.info("Batch rendered %d reports", len(batch))
+            else:
+                with st.spinner("Rendering report..."):
+                    docx_bytes, warnings, context, record = engine.render(
+                        meta=meta_render,
+                        excel_filename=excel_file.name,
+                        template_filename=template_file.name,
+                        project_row_index=project_row_index,
+                    )
+                out_name = suggested_download_name(context, meta_render)
+                record.output_filename = out_name
+                record.output_sha256 = sha256_hex(docx_bytes)
+                record.template_source_format = (
+                    prepared_tpl.source_format if prepared_tpl else ""
+                )
+                if appendices:
+                    record.appendix_files = appendix_manifest_entries(appendices)
+                record.ai_audit = ai_audit
+                st.session_state.generated_docx = docx_bytes
+                st.session_state.warnings = warnings
+                st.session_state.last_context = context
+                st.session_state.generation_record = record
+                st.session_state.generated_filename = out_name
+                all_warnings = list(template_prep_warnings) + list(warnings)
+                st.success(
+                    f"Report generated ({len(all_warnings)} warning(s)). "
+                    f"File: **{st.session_state.generated_filename}**"
+                )
+                logger.info(
+                    "Rendered %s with %d warnings",
+                    st.session_state.generated_filename,
+                    len(warnings),
+                )
         except Exception as e:
             logger.exception("Report generation failed")
             st.error(user_safe_error(e))
@@ -275,6 +370,7 @@ def _render_report_tab(
         finally:
             st.session_state.rendering = False
 
+    render_batch_download_section(st.session_state.get("generated_batch"))
     render_download_section(
         st.session_state.generated_docx,
         st.session_state.generated_filename,
@@ -303,7 +399,7 @@ def _render_report_tab(
 | Power Automate | [docs/15-power-automate-guide.md](docs/15-power-automate-guide.md) |
 | FAQ | [docs/10-glossary-faq.md](docs/10-glossary-faq.md) |
 
-**Excel** — `ProjectData` row 1 headers, row 2 values; `LabResults` for Phase 2.
+**Excel** — `ProjectData` row 1 headers, row 2+ one site per row (batch mode); `LabResults` for Phase 2. Link table rows with `site_name` or `project_number` when sheets are shared.
 
 **Table loop** — static header row, then `{%tr for item in lab_results %}`, data row, `{%tr endfor %}`.
 """
