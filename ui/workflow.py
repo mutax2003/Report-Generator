@@ -1,8 +1,8 @@
-"""Guided workflow steps (pattern from wizard-style merge tools)."""
+"""Guided workflow step index (no separate UI — sections in layout.py)."""
 
 from __future__ import annotations
 
-import streamlit as st
+from ui.layout import compute_workflow_step
 
 
 def render_workflow_step(
@@ -12,23 +12,10 @@ def render_workflow_step(
     preflight_ok: bool | None,
     has_output: bool,
 ) -> int:
-    """
-    Show 1–4 progress. Returns current step index (1-based).
-    """
-    if has_output:
-        step = 4
-    elif preflight_ok is True and has_excel and has_template:
-        step = 3
-    elif has_excel and has_template:
-        step = 2
-    else:
-        step = 1
-
-    labels = [
-        "1. Upload Excel + Word template",
-        "2. Pre-flight review",
-        "3. Generate report",
-        "4. Download + manifest",
-    ]
-    st.progress(step / 4, text=labels[step - 1])
-    return step
+    """Return current 1-based step (upload → pre-flight → generate → download)."""
+    return compute_workflow_step(
+        has_excel=has_excel,
+        has_template=has_template,
+        preflight_ok=preflight_ok,
+        has_output=has_output,
+    )

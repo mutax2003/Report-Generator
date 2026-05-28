@@ -89,6 +89,10 @@ class AiFeatureTests(unittest.TestCase):
             "drilling_waste_summary": "Option 1 disposal.",
         }
         self.assertIn("drilling_waste", sections_for_phase("Phase 1"))
+        self.assertIn(
+            "hydrogeologic_setting",
+            sections_for_phase("Phase 1", "groundwater_monitoring"),
+        )
         drafts, audit = draft_narratives(ctx, use_llm=False)
         self.assertGreaterEqual(len(drafts), 3)
         exec_d = next(d for d in drafts if d.section == "executive_summary")

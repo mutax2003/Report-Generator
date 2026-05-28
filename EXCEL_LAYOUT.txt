@@ -37,6 +37,32 @@ Sheet: DrillingWaste (optional — Alberta Phase I)
 
   Template: {%tr for item in drilling_waste %} ... {%tr endfor %}
 
+Sheet: MonitoringWells (groundwater_monitoring profile)
+-------------------------------------------------------
+- Row 1: headers; each row -> monitoring_wells list.
+- Columns: well_id, easting, northing, screen_top_m, screen_bottom_m, construction_notes
+
+  Template: {%tr for item in monitoring_wells %} ... {%tr endfor %}
+
+Sheet: WaterLevels (groundwater_monitoring profile)
+---------------------------------------------------
+- well_id, measurement_date, depth_to_water_m, water_level_masl
+
+  Template: {%tr for item in water_levels %} ... {%tr endfor %}
+
+Sheet: GroundwaterLab (groundwater_monitoring profile)
+------------------------------------------------------
+- Same exceedance rules as LabResults; tier1_limit / background_limit as Criteria.
+
+  Template: {%tr for item in groundwater_results %} ... {%tr endfor %}
+
+Sheet: FieldNotes (optional)
+----------------------------
+- field_events loop: well_id, event_date, purge_volume_l, field_observation
+
+Profile IDs: groundwater_monitoring, reclamation_certificate, phase3_remediation
+  See docs/18-groundwater-reports.md
+
 Sheet: StorageTanks (optional — Alberta Phase I)
 ------------------------------------------------
 - Row 1: headers; each data row -> storage_tanks list.

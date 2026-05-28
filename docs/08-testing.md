@@ -22,6 +22,10 @@ Framework: Python `unittest` (stdlib).
 | `test_batch_render.py` | Multi-row `ProjectData` batch render |
 | `test_phase1_markup.py` | Phase I markup / tag repair helpers |
 | `test_phase1_pdf_text.py` | PDF text extraction for markup pipeline |
+| `test_groundwater_monitoring.py` | Groundwater profile render + context |
+| `test_groundwater_narrative.py` | GW executive summary enrichment |
+| `test_gw_trends.py` | Groundwater trend notes |
+| `test_well_log_extract.py` | Well log PDF heuristics |
 
 ## Ten-step health check
 
@@ -41,7 +45,7 @@ python scripts\create_samples.py
 python -m unittest discover -s tests -v
 ```
 
-Expected: **93 tests OK** (includes phrase resolver, batch render, deliverable pack, report profile export, smoke integration, template attachments, Phase I markup/PDF helpers).
+Expected: **99 tests OK** (includes groundwater monitoring profile, GW AI helpers, phrase resolver, batch render, deliverable pack, smoke integration).
 
 Optional slow check: `ESA_RUN_HEALTH_CHECK=1 python -m unittest tests.test_smoke_integration.SmokeIntegrationTests.test_health_check_script`
 
@@ -106,8 +110,9 @@ On push/PR to `main` or `master`:
 6. `render_cli.py`
 7. `production_e2e.py`
 8. `phase1_alberta_e2e.py`
-9. `health_check.py` (10-step regression)
-10. `test_with_your_documents.py` (default Alberta sample pair)
+9. `health_check.py` (12-step regression, incl. groundwater + phrases)
+10. `scripts/groundwater_e2e.py` (groundwater profile preflight + render)
+11. `test_with_your_documents.py` (default Alberta sample pair)
 
 ## Test environment bypass
 

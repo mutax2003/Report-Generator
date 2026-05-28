@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 from typing import Any
 
+import pandas as pd
 import streamlit as st
 
 from ai import ai_status_message
@@ -11,8 +13,10 @@ from ai.config import ai_available
 from ai.consistency import check_consistency
 from ai.copilot import explain_preflight
 from ai.exceedance_notes import notes_for_lab_rows
-from ai.excel_builder import lab_rows_to_xlsx_bytes
+from ai.excel_builder import lab_rows_to_groundwater_xlsx_bytes, lab_rows_to_xlsx_bytes
+from ai.gw_trends import analyze_groundwater_trends
 from ai.lab_extract import extract_lab_from_pdf
+from ai.well_log_extract import extract_wells_from_pdf
 from ai.models import AiAudit
 from ai.narrative import draft_narratives
 from ai.template_tagger import suggest_template_tags, suggestions_to_markdown
@@ -61,14 +65,14 @@ def _build_context_from_excel(excel_bytes: bytes, meta: dict[str, str]) -> dict[
 
 
 def render_ai_settings_sidebar() -> None:
-    st.sidebar.header("AI assistant")
-    st.sidebar.caption(ai_status_message())
-    st.session_state.setdefault("ai_use_llm", ai_available())
-    st.sidebar.checkbox(
-        "Use cloud LLM when available",
-        key="ai_use_llm",
-        help="Requires OPENAI_API_KEY. Falls back to rules if off or unavailable.",
-    )
+    with st.sidebar.expander("AI options", expanded=False):
+        st.caption(ai_status_message())
+        st.session_state.setdefault("ai_use_llm", ai_available())
+        st.checkbox(
+            "Use cloud LLM when available",
+            key="ai_use_llm",
+            help="Requires OPENAI_API_KEY. Offline rules used otherwise.",
+        )
 
 
 def render_ai_panel(
@@ -78,23 +82,27 @@ def render_ai_panel(
     meta: dict[str, str],
     preflight: PreflightResult | None,
 ) -> None:
-    st.header("AI assistant")
-    st.caption(
-        "Tier 1–2 tools: template tagging, lab PDF import, narratives, copilot, QA. "
-        "All outputs require human review before client use."
+    st.subheader("AI tools")
+    st.info(
+        "Optional helpers for tagging, lab PDF import, narratives, and QA. "
+        "**All AI output requires QP review** before client delivery."
     )
 
-    t1, t2 = st.tabs(["Tier 1 — Data & templates", "Tier 2 — QA & narratives"])
+    t1, t2 = st.tabs(["Data & templates", "QA & narratives"])
 
     with t1:
         _tab_template_tagger(template_bytes)
         st.divider()
         _tab_lab_pdf(excel_bytes, meta)
         st.divider()
+        _tab_well_log_pdf(excel_bytes)
+        st.divider()
         _tab_narratives(excel_bytes, meta)
 
     with t2:
         _tab_copilot(preflight, meta)
+        st.divider()
+        _tab_gw_trends(excel_bytes, meta)
         st.divider()
         _tab_quality(excel_bytes, template_bytes, meta)
 
@@ -105,8 +113,11 @@ def _tab_template_tagger(template_bytes: bytes | None) -> None:
         "Suggests `{{ jinja }}` replacements for bracket placeholders and common phrases. "
         "Apply changes manually in Word (single formatting run per tag)."
     )
-    report_type = st.session_state.get("report_type", "")
+    report_type = st.session_state.get("report_type_sel", "") or st.session_state.get(
+        "report_type", ""
+    )
     use_phase1 = report_type == "phase1_alberta"
+    use_gw = report_type == "groundwater_monitoring"
     if use_phase1:
         st.caption(
             "**Alberta Phase I:** Uses `schemas/report_profiles.json` fields. "
@@ -122,7 +133,7 @@ def _tab_template_tagger(template_bytes: bytes | None) -> None:
                 suggestions, audit = suggest_template_tags(
                     template_bytes,
                     use_llm=_use_llm(),
-                    report_type="phase1_alberta" if use_phase1 else None,
+                    report_type=report_type if (use_phase1 or use_gw) else None,
                 )
                 st.session_state["tag_suggestions"] = suggestions
                 _merge_audit(audit)
@@ -149,7 +160,13 @@ def _tab_template_tagger(template_bytes: bytes | None) -> None:
 
 
 def _tab_lab_pdf(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
-    st.subheader("2. Lab PDF → Excel LabResults")
+    st.subheader("2. Lab PDF → Excel (LabResults / GroundwaterLab)")
+    target = st.radio(
+        "Target sheet",
+        ["LabResults (Phase II)", "GroundwaterLab (monitoring)"],
+        horizontal=True,
+        key="ai_lab_target_sheet",
+    )
     pdf = st.file_uploader("Lab certificate / COA (PDF)", type=["pdf"], key="ai_lab_pdf")
     if pdf and st.button("Extract lab table", key="ai_lab_extract", use_container_width=True):
         with st.spinner("Parsing PDF..."):
@@ -176,14 +193,24 @@ def _tab_lab_pdf(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
             use_container_width=True,
             hide_index=True,
         )
-        xlsx = lab_rows_to_xlsx_bytes(
-            result.rows,
-            existing_excel=excel_bytes,
-        )
+        if target.startswith("Groundwater"):
+            xlsx = lab_rows_to_groundwater_xlsx_bytes(
+                result.rows,
+                existing_excel=excel_bytes,
+            )
+            dl_name = "gw_lab_import.xlsx"
+            dl_label = "Download Excel with GroundwaterLab"
+        else:
+            xlsx = lab_rows_to_xlsx_bytes(
+                result.rows,
+                existing_excel=excel_bytes,
+            )
+            dl_name = "lab_import.xlsx"
+            dl_label = "Download Excel with LabResults"
         st.download_button(
-            "Download Excel with LabResults",
+            dl_label,
             data=xlsx,
-            file_name="lab_import.xlsx",
+            file_name=dl_name,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
@@ -191,8 +218,82 @@ def _tab_lab_pdf(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
         st.text(result.raw_text_preview or "(empty)")
 
 
+def _tab_well_log_pdf(excel_bytes: bytes | None) -> None:
+    st.subheader("3. Well log PDF → MonitoringWells")
+    pdf = st.file_uploader(
+        "Borehole / well construction PDF",
+        type=["pdf"],
+        key="ai_well_log_pdf",
+    )
+    if pdf and st.button("Extract monitoring wells", key="ai_well_extract", use_container_width=True):
+        with st.spinner("Parsing well log..."):
+            try:
+                rows, warnings, audit = extract_wells_from_pdf(
+                    pdf.getvalue(), use_llm=_use_llm()
+                )
+                st.session_state["well_extract_rows"] = rows
+                st.session_state["well_extract_warnings"] = warnings
+                _merge_audit(audit)
+            except Exception as e:
+                st.error(user_safe_error(e))
+
+    rows = st.session_state.get("well_extract_rows")
+    if not rows:
+        return
+    for w in st.session_state.get("well_extract_warnings") or []:
+        st.warning(w)
+    st.dataframe(
+        [r.to_excel_dict() for r in rows],
+        use_container_width=True,
+        hide_index=True,
+    )
+    from engine import MONITORING_WELLS_SHEET, PROJECT_SHEET
+
+    well_dicts = [r.to_excel_dict() for r in rows]
+    sheets: dict = {
+        PROJECT_SHEET: pd.DataFrame([{}]),
+        MONITORING_WELLS_SHEET: pd.DataFrame(well_dicts),
+    }
+    if excel_bytes:
+        bio = io.BytesIO(excel_bytes)
+        with pd.ExcelFile(bio, engine="openpyxl") as xl:
+            for name in xl.sheet_names:
+                if name != MONITORING_WELLS_SHEET:
+                    sheets[name] = xl.parse(name)
+    out = io.BytesIO()
+    with pd.ExcelWriter(out, engine="openpyxl") as w:
+        for name, df in sheets.items():
+            df.to_excel(w, sheet_name=name, index=False)
+    st.download_button(
+        "Download Excel with MonitoringWells",
+        data=out.getvalue(),
+        file_name="monitoring_wells_import.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
+
+
+def _tab_gw_trends(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
+    st.subheader("5. Groundwater trend notes")
+    ctx = st.session_state.get("last_context") or (
+        _build_context_from_excel(excel_bytes, meta) if excel_bytes else None
+    )
+    if not ctx:
+        st.info("Upload groundwater Excel on the **Report** tab or generate a report first.")
+        return
+    if st.button("Analyze trends", key="ai_gw_trends_btn", use_container_width=True):
+        notes, audit = analyze_groundwater_trends(ctx, use_llm=_use_llm())
+        st.session_state["gw_trend_notes"] = notes
+        _merge_audit(audit)
+    for note in st.session_state.get("gw_trend_notes") or []:
+        if note.severity == "warning":
+            st.warning(note.message)
+        else:
+            st.info(note.message)
+
+
 def _tab_narratives(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
-    st.subheader("3. Narrative drafts (RAG-assisted)")
+    st.subheader("4. Narrative drafts (RAG-assisted)")
     ctx = st.session_state.get("last_context") or (
         _build_context_from_excel(excel_bytes, meta) if excel_bytes else None
     )

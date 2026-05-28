@@ -6,6 +6,12 @@ All notable changes to the ESA Report Generator. Manifest schema and profile IDs
 
 ### Added
 
+- **Groundwater monitoring:** profile `groundwater_monitoring`, samples, `groundwater_narrative.py`, [docs/18-groundwater-reports.md](docs/18-groundwater-reports.md), GW phrases and RAG corpus.
+- **Remediation / reclamation profiles:** `reclamation_certificate`, `phase3_remediation` (scaffold sheet mappings).
+- **AI:** well log PDF extract, groundwater trend notes, Lab PDF → `GroundwaterLab`; GW consistency checks.
+- [docs/19-charts-and-gis-embed.md](docs/19-charts-and-gis-embed.md) — Power BI / QGIS PNG workflow.
+- Team rollout: [docs/16-team-rollout.md](docs/16-team-rollout.md), [docs/17-server-update-runbook.md](docs/17-server-update-runbook.md), [sharepoint/PUBLISH_CHECKLIST.md](sharepoint/PUBLISH_CHECKLIST.md), `scripts/package_team_sharepoint.ps1`, `docker-compose.yml`, `.streamlit/config.production.toml.example`; expanded [docs/14-deployment.md](docs/14-deployment.md) (Entra ID, Azure, Compose).
+
 - Report profiles with `recommended_fields` in `schemas/report_profiles.json` (canonical field lists).
 - PDF template upload with cached conversion and **Download converted Word template**.
 - Pre-flight: profile-aware missing-field checklist; **Download ReportConfig sheet (Excel)**.

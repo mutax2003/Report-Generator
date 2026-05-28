@@ -1,0 +1,32 @@
+[
+  {
+    "file": "rockies_lake.jpg",
+    "caption": "Rocky Mountains, Alberta",
+    "credit": "Photo: Unsplash",
+    "source_url": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "file": "prairie_sky.jpg",
+    "caption": "Prairie sky, western Canada",
+    "credit": "Photo: Unsplash",
+    "source_url": "https://images.unsplash.com/photo-1465146633011-14f8e0781093?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "file": "boreal_stream.jpg",
+    "caption": "Boreal forest and stream",
+    "credit": "Photo: Unsplash",
+    "source_url": "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "file": "wetland_reeds.jpg",
+    "caption": "Mist over wetland and forest",
+    "credit": "Photo: Unsplash",
+    "source_url": "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "file": "prairie_wheat.jpg",
+    "caption": "Prairie cropland, Alberta basin",
+    "credit": "Photo: Unsplash",
+    "source_url": "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=1200&q=80"
+  }
+]

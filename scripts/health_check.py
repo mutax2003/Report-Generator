@@ -1,4 +1,4 @@
-"""Ten automated health checks (run after changes: python scripts/health_check.py)."""
+"""Automated health checks (run after changes: python scripts/health_check.py)."""
 
 from __future__ import annotations
 
@@ -12,10 +12,11 @@ if str(ROOT) not in sys.path:
 
 
 def _ok(n: int, name: str) -> tuple[bool, str]:
+    total = len(CHECKS)
     try:
-        return CHECKS[n - 1](), f"Check {n}/10: {name}"
+        return CHECKS[n - 1](), f"Check {n}/{total}: {name}"
     except Exception as e:
-        return False, f"Check {n}/10: {name} — {e}"
+        return False, f"Check {n}/{total}: {name} — {e}"
 
 
 def check_imports() -> bool:
@@ -180,6 +181,35 @@ def check_batch_render() -> bool:
     return True
 
 
+def check_groundwater_monitoring() -> bool:
+    from engine import ReportEngine, generate_groundwater_monitoring_excel, generate_groundwater_monitoring_template_docx
+
+    xlsx = ROOT / "samples" / "groundwater_monitoring_data.xlsx"
+    tpl = ROOT / "samples" / "groundwater_monitoring_template.docx"
+    if not xlsx.is_file() or not tpl.is_file():
+        generate_groundwater_monitoring_excel(str(xlsx))
+        generate_groundwater_monitoring_template_docx(str(tpl))
+    engine = ReportEngine(xlsx.read_bytes(), tpl.read_bytes())
+    ctx = engine.build_context(
+        {"report_type": "groundwater_monitoring", "report_phase": "Phase 1"}
+    )
+    assert int(ctx.get("well_count", 0)) >= 1
+    assert ctx.get("groundwater_results")
+    docx, _, _, _ = engine.render(
+        meta={"report_type": "groundwater_monitoring", "date_of_issue": "2026-05-28"},
+    )
+    return len(docx) > 5000
+
+
+def check_phrase_catalog_gw() -> bool:
+    from phrase_resolver import list_phrase_definitions
+
+    phrases = list_phrase_definitions()
+    for key in ("gw_program_intro", "gw_recommendations", "remediation_status"):
+        assert key in phrases, f"missing phrase {key}"
+    return True
+
+
 CHECKS = [
     check_imports,
     check_phase1_context,
@@ -191,31 +221,35 @@ CHECKS = [
     check_missing_vars_filled,
     check_security_reject_swap,
     check_batch_render,
+    check_groundwater_monitoring,
+    check_phrase_catalog_gw,
+]
+
+CHECK_NAMES = [
+    "imports",
+    "phase1 context",
+    "phase1 render",
+    "phase2 lab guard",
+    "preflight phase1",
+    "narrative phase1",
+    "demo render",
+    "missing var warnings",
+    "security swap reject",
+    "batch render (2 rows)",
+    "groundwater monitoring render",
+    "phrase catalog GW keys",
 ]
 
 
 def main() -> int:
     failed = 0
-    for i, name in enumerate(
-        [
-            "imports",
-            "phase1 context",
-            "phase1 render",
-            "phase2 lab guard",
-            "preflight phase1",
-            "narrative phase1",
-            "demo render",
-            "missing var warnings",
-            "security swap reject",
-            "batch render (2 rows)",
-        ],
-        start=1,
-    ):
+    total = len(CHECKS)
+    for i, name in enumerate(CHECK_NAMES, start=1):
         ok, msg = _ok(i, name)
         print(f"{'PASS' if ok else 'FAIL'} — {msg}")
         if not ok:
             failed += 1
-    print(f"\n{10 - failed}/10 passed")
+    print(f"\n{total - failed}/{total} passed")
     return 1 if failed else 0
 
 

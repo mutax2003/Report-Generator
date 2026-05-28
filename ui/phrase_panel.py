@@ -16,7 +16,7 @@ def _init_phrase_state() -> None:
         st.session_state.phrase_option_ids = {}
 
 
-def render_phrase_panel() -> dict[str, str]:
+def render_phrase_panel(*, compact: bool = False) -> dict[str, str]:
     """
     Show selectboxes for each phrase in phrase_catalog.json.
     Returns meta fields to merge (phrase_key -> text, phrase_key_option_id -> id).
@@ -26,11 +26,12 @@ def render_phrase_panel() -> dict[str, str]:
     if not phrases:
         return {}
 
-    st.subheader("Standard phrases (optional)")
-    st.caption(
-        "Choose wording for tagged template fields. Selections override Excel "
-        f"when the template uses `{{{{ phrase_key }}}}` or `{{phrase_key}}_selected` in ProjectData."
-    )
+    if not compact:
+        st.subheader("Standard phrases (optional)")
+        st.caption(
+            "Choose wording for tagged template fields. Selections override Excel "
+            f"when the template uses `{{{{ phrase_key }}}}` or `{{phrase_key}}_selected` in ProjectData."
+        )
 
     meta_out: dict[str, str] = {}
     selections: dict[str, str] = st.session_state.phrase_selections

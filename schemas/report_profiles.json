@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ESA Report Generator — report type profiles",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "config_sheet": "ReportConfig",
   "primary_sheet_default": "ProjectData",
   "profiles": {
@@ -65,6 +65,106 @@
         "lab_name",
         "consultant_name",
         "company"
+      ]
+    },
+    "groundwater_monitoring": {
+      "label": "Groundwater monitoring (Ecoventure)",
+      "description": "Monitoring wells, water levels, and GroundwaterLab results.",
+      "default_phase": "Phase 1",
+      "primary_sheet": "ProjectData",
+      "required_sheets": ["ProjectData", "MonitoringWells", "WaterLevels", "GroundwaterLab"],
+      "sheet_mappings": {
+        "MonitoringWells": "monitoring_wells",
+        "WaterLevels": "water_levels",
+        "GroundwaterLab": "groundwater_results",
+        "FieldNotes": "field_events"
+      },
+      "lab_loop_variable": "groundwater_results",
+      "narrative_profile": "groundwater_monitoring",
+      "recommended_fields": [
+        "site_name",
+        "client_name",
+        "project_number",
+        "address",
+        "prepared_by",
+        "date_of_issue",
+        "consultant_name",
+        "company",
+        "report_title",
+        "monitoring_program",
+        "qp_names",
+        "lab_name",
+        "executive_summary",
+        "hydrogeologic_setting",
+        "conclusions_recommendations",
+        "hydrograph_image_path",
+        "site_map_image_path"
+      ]
+    },
+    "reclamation_certificate": {
+      "label": "Reclamation certificate (AER Schedule Two)",
+      "description": "Phase I style fields plus reclamation task and soil placement tables.",
+      "default_phase": "Phase 1",
+      "primary_sheet": "ProjectData",
+      "required_sheets": ["ProjectData"],
+      "sheet_mappings": {
+        "DrillingWaste": "drilling_waste",
+        "StorageTanks": "storage_tanks",
+        "ReclamationTasks": "reclamation_tasks",
+        "SoilPlacement": "soil_placement",
+        "Vegetation": "vegetation",
+        "GroundwaterLab": "groundwater_results",
+        "MonitoringWells": "monitoring_wells",
+        "WaterLevels": "water_levels"
+      },
+      "lab_loop_variable": null,
+      "narrative_profile": "phase1_alberta",
+      "recommended_fields": [
+        "site_name",
+        "client_name",
+        "project_number",
+        "well_name",
+        "uwi",
+        "consultant_name",
+        "company",
+        "prepared_by",
+        "date_of_issue",
+        "executive_summary",
+        "conclusions_recommendations",
+        "certificate_status"
+      ]
+    },
+    "phase3_remediation": {
+      "label": "Phase III / remediation",
+      "description": "Remediation objectives, treatment events, confirmatory sampling; shares GW lab sheets.",
+      "default_phase": "Phase 2",
+      "primary_sheet": "ProjectData",
+      "required_sheets": ["ProjectData", "RemediationObjectives"],
+      "sheet_mappings": {
+        "RemediationObjectives": "remediation_objectives",
+        "TreatmentEvents": "treatment_events",
+        "ConfirmatorySampling": "confirmatory_sampling",
+        "WasteManifests": "waste_manifests",
+        "GroundwaterLab": "groundwater_results",
+        "MonitoringWells": "monitoring_wells",
+        "WaterLevels": "water_levels",
+        "LabResults": "lab_results"
+      },
+      "lab_loop_variable": "groundwater_results",
+      "narrative_profile": "groundwater_monitoring",
+      "recommended_fields": [
+        "site_name",
+        "client_name",
+        "project_number",
+        "prepared_by",
+        "date_of_issue",
+        "consultant_name",
+        "company",
+        "report_title",
+        "rap_status",
+        "remediation_status",
+        "executive_summary",
+        "conclusions_recommendations"
       ]
     },
     "template_driven": {

@@ -35,7 +35,7 @@ Use venv `python` or `.\.venv\Scripts\python.exe` — system `python` lacks `pan
 
 **Report profiles:** `phase1_alberta`, `phase2_esa`, `template_driven` — see [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md). Recommended fields per profile in `schemas/report_profiles.json`. Optional Excel `ReportConfig` sheet for overrides.
 
-**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (93 tests)
+**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (99 tests)
 
 **Multiple-choice phrases:** [`schemas/phrase_catalog.json`](schemas/phrase_catalog.json) · Excel `PhraseCatalog` sheet · Streamlit **Standard phrases** panel · see [docs/04-template-authoring.md](docs/04-template-authoring.md)
 

@@ -24,6 +24,10 @@ Web application for generating **Phase 1** and **Phase 2 Environmental Site Asse
 | [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md) | Report profiles and `ReportConfig` sheet |
 | [docs/14-deployment.md](docs/14-deployment.md) | Docker and production deployment |
 | [docs/15-power-automate-guide.md](docs/15-power-automate-guide.md) | M365 / Power Automate integration |
+| [docs/16-team-rollout.md](docs/16-team-rollout.md) | **Sharing with coworkers** (~50 users, SharePoint + internal app) |
+| [docs/17-server-update-runbook.md](docs/17-server-update-runbook.md) | Server release updates |
+| [docs/18-groundwater-reports.md](docs/18-groundwater-reports.md) | Groundwater monitoring (Ecoventure) |
+| [docs/19-charts-and-gis-embed.md](docs/19-charts-and-gis-embed.md) | Hydrographs and GIS maps workflow |
 
 **Consultants (non-developer):** [docs/00-start-here.md](docs/00-start-here.md)
 
@@ -95,6 +99,7 @@ See [docs/12-testing-with-your-documents.md](docs/12-testing-with-your-documents
 | `python scripts\prepare_user_test_pack.py` | Copy Alberta samples to `user_test/` for editing |
 | `python scripts\test_with_your_documents.py` | Pre-flight + dry run + render (no browser) |
 | `.\run.ps1 scripts\test_with_your_documents.py` | Same, via venv Python (Windows) |
+| `.\scripts\package_team_sharepoint.ps1` | Build `dist\team-sharepoint\` for SharePoint upload |
 | `python -m unittest discover -s tests -v` | Full test suite |
 
 ## Automation
@@ -128,13 +133,23 @@ scripts/                CLI utilities
 schemas/                report_profiles.json, field_contract.json
 samples/                Demo and production fixtures
 docs/                   Full documentation
-tests/                  Unit and integration tests (93 tests)
+tests/                  Unit and integration tests (99 tests)
 Dockerfile              Container image for Streamlit
 ```
 
+## Sharing with your team
+
+For ~50 Phase I/II authors, use **one internal app** + **SharePoint** for templates (easiest to maintain). See [docs/16-team-rollout.md](docs/16-team-rollout.md).
+
+```powershell
+.\scripts\package_team_sharepoint.ps1   # build dist\team-sharepoint\ for upload
+```
+
+Checklist: [sharepoint/PUBLISH_CHECKLIST.md](sharepoint/PUBLISH_CHECKLIST.md) · Deploy: [docs/14-deployment.md](docs/14-deployment.md) · Updates: [docs/17-server-update-runbook.md](docs/17-server-update-runbook.md)
+
 ## Security
 
-Run on **localhost** for internal use. See [docs/07-security-and-deployment.md](docs/07-security-and-deployment.md) for limits (15 MB Excel, 30 MB template, zip-bomb guards, sandboxed Jinja).
+Run on **localhost** for single-user dev. For team hosting, use HTTPS + Entra ID ([docs/14-deployment.md](docs/14-deployment.md)). See [docs/07-security-and-deployment.md](docs/07-security-and-deployment.md) for limits (15 MB Excel, 30 MB template, zip-bomb guards, sandboxed Jinja).
 
 ## Troubleshooting
 

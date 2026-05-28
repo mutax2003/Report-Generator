@@ -24,7 +24,16 @@ PHASE1_SECTIONS = [
 ]
 
 
-def sections_for_phase(report_phase: str) -> list[str]:
+GW_SECTIONS = [
+    "executive_summary",
+    "hydrogeologic_setting",
+    "conclusions_recommendations",
+]
+
+
+def sections_for_phase(report_phase: str, report_type: str = "") -> list[str]:
+    if report_type == "groundwater_monitoring":
+        return list(GW_SECTIONS)
     if str(report_phase).strip() == "Phase 1":
         return list(PHASE1_SECTIONS)
     return list(DEFAULT_SECTIONS)
@@ -50,10 +59,19 @@ def _rule_section(section: str, context: dict[str, Any]) -> str:
     )
 
     if section == "executive_summary":
+        existing = str(context.get("executive_summary", "")).strip()
+        if existing:
+            return existing
+        if str(context.get("_report_type", "")) == "groundwater_monitoring":
+            from groundwater_narrative import (
+                build_groundwater_executive_summary,
+                enrich_groundwater_context,
+            )
+
+            ctx_copy = dict(context)
+            enrich_groundwater_context(ctx_copy)
+            return build_groundwater_executive_summary(ctx_copy)
         if phase == "Phase 1":
-            existing = str(context.get("executive_summary", "")).strip()
-            if existing:
-                return existing
             from phase1_narrative import build_phase1_executive_summary
 
             return build_phase1_executive_summary(context)
@@ -82,6 +100,17 @@ def _rule_section(section: str, context: dict[str, Any]) -> str:
             f"The subject property ({site}) is located at {addr or '[address from field data]'}. "
             "Site conditions were assessed in accordance with applicable Alberta guidance."
         )
+    if section == "hydrogeologic_setting":
+        existing = str(context.get("hydrogeologic_setting", "")).strip()
+        if existing:
+            return existing
+        program = context.get("monitoring_program") or "groundwater monitoring"
+        return (
+            f"The subject area ({site}) was assessed in the context of a {program}. "
+            "Hydrostratigraphic units and local groundwater flow are described based on "
+            "available borehole logs, monitoring well construction, and regional mapping. "
+            "[Complete with site-specific geology from field files.]"
+        )
     if section == "conclusions_recommendations":
         existing = str(context.get("conclusions_recommendations", "")).strip()
         if existing:
@@ -99,7 +128,10 @@ def draft_narratives(
     sections: list[str] | None = None,
     use_llm: bool = True,
 ) -> tuple[list[NarrativeDraft], AiAudit]:
-    sections = sections or sections_for_phase(str(context.get("report_phase", "")))
+    sections = sections or sections_for_phase(
+        str(context.get("report_phase", "")),
+        str(context.get("_report_type", "")),
+    )
     audit = AiAudit(features=["narrative_draft"], prompt_version=prompt_version())
     drafts: list[NarrativeDraft] = []
 

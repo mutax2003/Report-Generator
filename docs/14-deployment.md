@@ -1,8 +1,8 @@
-# Deployment guide
+# 14 — Deployment guide (team / production)
 
-Run the ESA Report Generator on a workstation, VM, or container for your team.
+Run one shared instance for ~50 report authors. See [16-team-rollout.md](16-team-rollout.md) for rollout phases and [17-server-update-runbook.md](17-server-update-runbook.md) for updates.
 
-## Local (recommended for consultants)
+## Local (single user / developer)
 
 ```powershell
 cd "Report Generator"
@@ -12,35 +12,139 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Open http://localhost:8501. Bind to localhost only unless you add authentication (see [07-security-and-deployment.md](07-security-and-deployment.md)).
+Open http://localhost:8501. Default config binds to localhost ([`.streamlit/config.toml`](../.streamlit/config.toml)).
 
-## Docker
+## Windows deployment package (executable / portable folder)
 
-```bash
-docker build -t esa-report-generator .
-docker run -p 8501:8501 esa-report-generator
+Build a self-contained folder for Ecoventure PCs or a network share:
+
+```powershell
+cd "Report Generator"
+.\scripts\build_windows_deploy.ps1 -BuildExe
 ```
 
-Set environment variables for AI features (`OPENAI_API_KEY`) if using the AI tab.
+Output: `dist\ESA-Report-Generator\`
 
-## Azure Container Apps / VM (outline)
+| Artifact | Purpose |
+|----------|---------|
+| `ESA-Report-Generator.exe` | Double-click launcher (starts Streamlit) |
+| `Start-ESA-Report-Generator.bat` | Same, opens browser first |
+| `runtime\.venv\` | Portable Python dependencies (created by build) |
+| `Install-Dependencies.ps1` | Re-run on target PC if venv missing (needs Python 3.11+ once) |
+| `README-DEPLOY.txt` | Quick instructions |
 
-1. Build and push the image to Azure Container Registry.
-2. Deploy a Container App with port **8501**, min replicas 0–1.
-3. Place the app behind **HTTPS** with Microsoft Entra ID or an authenticated reverse proxy.
-4. Store secrets (API keys) in Key Vault / Container App secrets — not in the image.
-5. Mount or sync SharePoint/OneDrive paths only if using file-based automation; prefer the HTTP API in [15-power-automate-guide.md](15-power-automate-guide.md).
+**Target PC:** Copy the whole `ESA-Report-Generator` folder. First run: `Install-Dependencies.ps1` only if `runtime\.venv` was not included in the zip.
+
+**Internal server:** Set environment variable `ESA_BIND_ALL=1` before launching to listen on all interfaces (use with firewall + HTTPS proxy).
+
+```powershell
+$env:ESA_BIND_ALL = "1"
+.\ESA-Report-Generator.exe
+```
+
+Faster rebuild without re-installing pip packages: `.\scripts\build_windows_deploy.ps1 -BuildExe -SkipVenvInstall`
+
+## Docker (recommended for internal team host)
+
+### Build and run
+
+```bash
+docker build -t esa-report-generator:latest .
+docker run -d --name esa-reports -p 8501:8501 \
+  -e OPENAI_API_KEY=optional \
+  esa-report-generator:latest
+```
+
+Or use Compose (includes restart policy and config mount):
+
+```bash
+docker compose up -d --build
+```
+
+### docker-compose.yml
+
+The repo includes [`docker-compose.yml`](../docker-compose.yml):
+
+- Port **8501** published to the host
+- Binds `0.0.0.0` inside the container — **must** sit behind firewall + HTTPS proxy with authentication
+- Optional `.streamlit/secrets.toml` mount for `OPENAI_API_KEY`
+
+## Production Streamlit settings
+
+Copy [`.streamlit/config.production.toml.example`](../.streamlit/config.production.toml.example) to `.streamlit/config.toml` on the server (or mount in Docker):
+
+- `headless = true`
+- `enableXsrfProtection = true`
+- `maxUploadSize` aligned with `security.py` (30 MB)
+
+Do **not** set `enableCORS = false` while XSRF protection is on.
+
+## HTTPS and Microsoft Entra ID (required for ~50 users)
+
+Streamlit has no built-in Entra SSO. Use one of these patterns:
+
+### Option A — Azure Application Proxy (common for M365 tenants)
+
+1. Deploy the container/VM on a private network or with no public IP.
+2. Register an **Enterprise application** in Entra ID for the Streamlit URL.
+3. Publish `https://esa-reports.yourcompany.com` via **Application Proxy** with pre-authentication **Entra ID**.
+4. Users reach the app only after sign-in; backend stays on `http://localhost:8501` on the VM.
+
+### Option B — Reverse proxy (nginx / IIS / Azure Front Door)
+
+1. Terminate TLS at the proxy (`https://` → `http://127.0.0.1:8501`).
+2. Enable **OAuth2/OIDC** at the proxy (e.g. `oauth2-proxy` with Entra, or IIS with Windows/Entra auth).
+3. Restrict source IPs to corporate VPN if possible.
+
+### Option C — VPN only (minimum)
+
+- Host listens on internal IP only; users connect via corporate VPN.
+- Weaker than per-user auth; acceptable only on a trusted flat network.
+
+**Never** expose `docker run -p 8501:8501` directly to the internet without a proxy and authentication ([07-security-and-deployment.md](07-security-and-deployment.md)).
+
+## Azure Container Apps (outline)
+
+1. Build image → push to **Azure Container Registry**.
+2. Create Container App:
+   - Ingress: external or internal, target port **8501**
+   - Min replicas: **1** (cold start avoids user timeouts)
+   - CPU/memory: start with 1 vCPU / 2 GiB; scale if PDF conversion is heavy
+3. Place **Front Door** or **Application Gateway** in front with Entra authentication, or use internal ingress + VPN.
+4. Secrets: `OPENAI_API_KEY` in Container App secrets or Key Vault reference.
+5. Deploy updates: new revision from image tag; run smoke test from [17-server-update-runbook.md](17-server-update-runbook.md).
+
+## Windows Server VM (outline)
+
+1. Install Git, Python 3.11+, or Docker Desktop.
+2. Clone `https://github.com/mutax2003/Report-Generator.git` to `C:\Apps\Report-Generator`.
+3. Follow [17-server-update-runbook.md](17-server-update-runbook.md) for venv + `streamlit run`.
+4. Run Streamlit as a **Windows Service** (NSSM) or scheduled task at logon.
+5. IIS or Application Proxy in front for HTTPS + Entra.
+
+## HTTP render API (optional, same host)
+
+For future Power Automate ([15-power-automate-guide.md](15-power-automate-guide.md)):
+
+```powershell
+python -m automate.http_server --host 127.0.0.1 --port 8765
+```
+
+Bind to **127.0.0.1** only; do not expose port 8765 without the same auth layer as Streamlit.
 
 ## Production checklist
 
-- [ ] Streamlit not exposed on `0.0.0.0` without auth
-- [ ] `ESA_SKIP_VALIDATION` unset in production
+- [ ] Streamlit not reachable on the public internet without Entra/VPN/proxy auth
+- [ ] `ESA_VALIDATION_BYPASS` and `ESA_SKIP_VALIDATION` **unset**
 - [ ] Templates versioned in filenames (`phase1_ecoventure_v2.1.docx`)
+- [ ] SharePoint library published per [sharepoint/PUBLISH_CHECKLIST.md](../sharepoint/PUBLISH_CHECKLIST.md)
 - [ ] Generation manifests saved next to issued reports on SharePoint
-- [ ] Run `python scripts/health_check.py` after template or dependency changes
+- [ ] `python scripts\health_check.py` after each deploy
+- [ ] Update process documented and tested ([17-server-update-runbook.md](17-server-update-runbook.md))
 
 ## Related
 
 - [07-security-and-deployment.md](07-security-and-deployment.md)
+- [16-team-rollout.md](16-team-rollout.md)
 - [15-power-automate-guide.md](15-power-automate-guide.md)
 - [AUTOMATE.md](../AUTOMATE.md)

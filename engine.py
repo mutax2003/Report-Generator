@@ -45,6 +45,9 @@ from security import (
 
 PROJECT_SHEET = "ProjectData"
 LAB_SHEET = "LabResults"
+GROUNDWATER_LAB_SHEET = "GroundwaterLab"
+MONITORING_WELLS_SHEET = "MonitoringWells"
+WATER_LEVELS_SHEET = "WaterLevels"
 DRILLING_WASTE_SHEET = "DrillingWaste"
 STORAGE_TANKS_SHEET = "StorageTanks"
 
@@ -226,7 +229,15 @@ def _lab_frame_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
         analyte = get(row, "analyte", "parameter", "constituent")
         result = get(row, "result", "value")
         unit = get(row, "unit", "units")
-        criteria = get(row, "criteria", "standard", "screening_level")
+        criteria = get(
+            row,
+            "criteria",
+            "standard",
+            "screening_level",
+            "tier1_limit",
+            "background_limit",
+            "guideline",
+        )
         exc_col = get(row, "exceedance", "exceeds", "flag")
 
         exceed = _truthy_exceedance(exc_col) or _numeric_compare_exceeds(
@@ -418,7 +429,10 @@ class ReportEngine:
                 if sheet_name == primary or sheet_name not in names:
                     continue
                 df = xl.parse(sheet_name, header=0)
-                if loop_var == lab_var or loop_var == "lab_results":
+                if (
+                    loop_var in (lab_var, "lab_results", "groundwater_results")
+                    or sheet_name in (LAB_SHEET, GROUNDWATER_LAB_SHEET)
+                ):
                     lists[loop_var] = _lab_frame_to_records(df)
                 else:
                     lists[loop_var] = _dataframe_to_records(df)
@@ -483,11 +497,36 @@ class ReportEngine:
             ctx[loop_var] = _filter_records_for_project(rows, project)
         for loop_var in runtime.template_loops:
             ctx.setdefault(loop_var, [])
-        for legacy in ("lab_results", "drilling_waste", "storage_tanks"):
+        for legacy in (
+            "lab_results",
+            "drilling_waste",
+            "storage_tanks",
+            "monitoring_wells",
+            "water_levels",
+            "groundwater_results",
+            "field_events",
+            "reclamation_tasks",
+            "soil_placement",
+            "vegetation",
+            "remediation_objectives",
+            "treatment_events",
+            "confirmatory_sampling",
+            "waste_manifests",
+        ):
             ctx.setdefault(legacy, [])
         ctx["_report_type"] = runtime.report_type
         phase = str(ctx.get("report_phase", "")).strip()
-        if (
+        if runtime.narrative_profile == "groundwater_monitoring":
+            from groundwater_narrative import (
+                build_groundwater_executive_summary,
+                enrich_groundwater_context,
+            )
+
+            enrich_groundwater_context(ctx)
+            if not _s(ctx.get("executive_summary")):
+                ctx["executive_summary"] = build_groundwater_executive_summary(ctx)
+                ctx["_executive_summary_auto_generated"] = True
+        elif (
             runtime.narrative_profile == "phase1_alberta"
             and phase == "Phase 1"
             and not _s(ctx.get("executive_summary"))
@@ -1129,6 +1168,167 @@ def generate_custom_demo_excel(path: str) -> None:
         project.to_excel(w, sheet_name=PROJECT_SHEET, index=False)
         observations.to_excel(w, sheet_name="Observations", index=False)
         config.to_excel(w, sheet_name="ReportConfig", index=False)
+
+
+def generate_groundwater_monitoring_excel(path: str) -> None:
+    """Ecoventure groundwater monitoring sample workbook."""
+    project = pd.DataFrame(
+        [
+            {
+                "site_name": "Example Wellsite GW Program",
+                "client_name": "Example Energy Ltd.",
+                "project_number": "GW-2026-001",
+                "address": "NE 1/4-1-1-1W5M, Alberta",
+                "consultant_name": ECOVENTURE_CONSULTANT,
+                "company": ECOVENTURE_CONSULTANT,
+                "report_title": "Groundwater Monitoring Report",
+                "monitoring_program": "Annual groundwater monitoring",
+                "lab_name": "Accredited Environmental Laboratory",
+                "hydrogeologic_setting": "",
+                "executive_summary": "",
+                "conclusions_recommendations": (
+                    "Continue annual monitoring. Investigate chloride exceedance at MW-2."
+                ),
+                "hydrograph_image_path": "",
+                "site_map_image_path": "",
+            }
+        ]
+    )
+    wells = pd.DataFrame(
+        [
+            {
+                "well_id": "MW-1",
+                "easting": "500123",
+                "northing": "6000456",
+                "ground_elevation_m": "985.2",
+                "screen_top_m": "12.0",
+                "screen_bottom_m": "18.0",
+                "construction_notes": "2-inch PVC monitoring well",
+            },
+            {
+                "well_id": "MW-2",
+                "easting": "500145",
+                "northing": "6000462",
+                "ground_elevation_m": "984.8",
+                "screen_top_m": "10.0",
+                "screen_bottom_m": "16.0",
+                "construction_notes": "2-inch PVC monitoring well",
+            },
+        ]
+    )
+    levels = pd.DataFrame(
+        [
+            {
+                "well_id": "MW-1",
+                "measurement_date": "2026-04-15",
+                "depth_to_water_m": "8.45",
+                "water_level_masl": "976.75",
+            },
+            {
+                "well_id": "MW-2",
+                "measurement_date": "2026-04-15",
+                "depth_to_water_m": "7.90",
+                "water_level_masl": "976.90",
+            },
+        ]
+    )
+    gw_lab = pd.DataFrame(
+        [
+            {
+                "well_id": "MW-1",
+                "sample_date": "2026-04-15",
+                "analyte": "Chloride",
+                "result": "120",
+                "unit": "mg/L",
+                "tier1_limit": "250",
+                "Exceedance": "N",
+            },
+            {
+                "well_id": "MW-2",
+                "sample_date": "2026-04-15",
+                "analyte": "Chloride",
+                "result": "380",
+                "unit": "mg/L",
+                "tier1_limit": "250",
+                "Exceedance": "Y",
+            },
+            {
+                "well_id": "MW-2",
+                "sample_date": "2026-04-15",
+                "analyte": "Benzene",
+                "result": "0.0005",
+                "unit": "mg/L",
+                "tier1_limit": "0.005",
+                "Exceedance": "N",
+            },
+        ]
+    )
+    field_notes = pd.DataFrame(
+        [
+            {
+                "well_id": "MW-1",
+                "event_date": "2026-04-15",
+                "purge_volume_l": "3",
+                "field_observation": "Clear after purge",
+            },
+        ]
+    )
+    with pd.ExcelWriter(path, engine="openpyxl") as w:
+        project.to_excel(w, sheet_name=PROJECT_SHEET, index=False)
+        wells.to_excel(w, sheet_name=MONITORING_WELLS_SHEET, index=False)
+        levels.to_excel(w, sheet_name=WATER_LEVELS_SHEET, index=False)
+        gw_lab.to_excel(w, sheet_name=GROUNDWATER_LAB_SHEET, index=False)
+        field_notes.to_excel(w, sheet_name="FieldNotes", index=False)
+
+
+def generate_groundwater_monitoring_template_docx(path: str) -> None:
+    """Ecoventure groundwater monitoring Word template."""
+    doc = Document()
+    doc.add_heading("{{ report_title }}", level=0)
+    doc.add_paragraph("Client: {{ client_name }}")
+    doc.add_paragraph("Site: {{ site_name }}")
+    doc.add_paragraph("Project: {{ project_number }}")
+    doc.add_paragraph("Program: {{ monitoring_program }}")
+    doc.add_paragraph("Prepared by: {{ prepared_by }} | {{ consultant_name }}")
+    doc.add_paragraph("Date of issue: {{ date_of_issue }}")
+    doc.add_heading("Executive Summary", level=1)
+    doc.add_paragraph("{{ executive_summary }}")
+    doc.add_paragraph("{{ gw_program_intro }}")
+    doc.add_paragraph("Wells: {{ well_count }} | Events: {{ monitoring_event_count }}")
+    doc.add_paragraph("{{ exceedance_summary }}")
+    doc.add_paragraph("{{ data_gap_note }}")
+    doc.add_heading("Hydrogeologic Setting", level=1)
+    doc.add_paragraph("{{ hydrogeologic_setting }}")
+    doc.add_paragraph("{{ gw_sampling_methods }}")
+    doc.add_heading("Figures", level=1)
+    doc.add_paragraph("Hydrograph: {{ hydrograph_image_path }}")
+    doc.add_paragraph("Site map: {{ site_map_image_path }}")
+    _add_docx_table_loop(
+        doc,
+        "Monitoring wells:",
+        "monitoring_wells",
+        ["Well ID", "Easting", "Northing", "Screen top (m)", "Screen bottom (m)"],
+        ["well_id", "easting", "northing", "screen_top_m", "screen_bottom_m"],
+    )
+    _add_docx_table_loop(
+        doc,
+        "Water levels:",
+        "water_levels",
+        ["Well ID", "Date", "Depth to water (m)", "Water level (m asl)"],
+        ["well_id", "measurement_date", "depth_to_water_m", "water_level_masl"],
+    )
+    _add_docx_table_loop(
+        doc,
+        "Groundwater analytical results:",
+        "groundwater_results",
+        ["Well ID", "Analyte", "Result", "Unit", "Exceedance"],
+        ["well_id", "analyte", "result_display", "unit", "exceedance_flag"],
+    )
+    doc.add_heading("Conclusions", level=1)
+    doc.add_paragraph("{{ conclusions_recommendations }}")
+    doc.add_paragraph("{{ gw_recommendations }}")
+    doc.add_paragraph("{{ gw_data_usability }}")
+    doc.save(path)
 
 
 def generate_custom_demo_template_docx(path: str) -> None:

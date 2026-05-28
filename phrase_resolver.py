@@ -19,7 +19,7 @@ PHRASE_CATALOG_SHEET = "PhraseCatalog"
 SELECTED_SUFFIX = "_selected"
 _CATALOG_JSON = Path(__file__).resolve().parent / "schemas" / "phrase_catalog.json"
 _cached_json: dict[str, Any] | None = None
-_cached_definitions: dict[str, dict[str, Any]] | None = None
+_catalog_mtime: float | None = None
 
 
 def _norm_key(name: str) -> str:
@@ -30,21 +30,20 @@ def _norm_key(name: str) -> str:
 
 def load_phrase_catalog_json() -> dict[str, Any]:
     """Return parsed phrase_catalog.json (phrases dict)."""
-    global _cached_json
-    if _cached_json is None:
+    global _cached_json, _catalog_mtime
+    mtime = _CATALOG_JSON.stat().st_mtime if _CATALOG_JSON.is_file() else 0.0
+    if _cached_json is None or _catalog_mtime != mtime:
         with _CATALOG_JSON.open(encoding="utf-8") as f:
             _cached_json = json.load(f)
+        _catalog_mtime = mtime
     return _cached_json
 
 
 def list_phrase_definitions() -> dict[str, dict[str, Any]]:
     """phrase_key -> {label, options: [{id, label, text}, ...]}."""
-    global _cached_definitions
-    if _cached_definitions is None:
-        data = load_phrase_catalog_json()
-        raw = data.get("phrases", {})
-        _cached_definitions = {str(k): dict(v) for k, v in raw.items()}
-    return _cached_definitions
+    data = load_phrase_catalog_json()
+    raw = data.get("phrases", {})
+    return {str(k): dict(v) for k, v in raw.items()}
 
 
 @lru_cache(maxsize=16)

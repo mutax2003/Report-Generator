@@ -6,6 +6,7 @@ import streamlit as st
 
 from security import MAX_META_VALUE_LEN, sanitize_meta
 from report_profile import get_profile_default_phase, list_report_profiles
+from ui.branding import render_sidebar_branding
 from ui.helpers import render_download_helpers
 
 
@@ -24,9 +25,10 @@ def _on_profile_change() -> None:
 
 
 def render_sidebar() -> dict[str, str]:
-    render_download_helpers()
+    render_sidebar_branding()
+    st.sidebar.divider()
+    st.sidebar.subheader("Settings")
 
-    st.sidebar.header("Report type")
     profiles = list_report_profiles()
     profile_ids = [p[0] for p in profiles]
     profile_labels = {p[0]: p[1] for p in profiles}
@@ -39,51 +41,55 @@ def render_sidebar() -> dict[str, str]:
             st.session_state.report_type_sel
         )
 
-    phase = st.sidebar.selectbox(
-        "Report phase",
-        options=["Phase 1", "Phase 2"],
-        key="report_phase_sel",
-        on_change=_on_phase_change,
-        help="Phase II auto-selects the Phase II profile.",
-    )
-    report_type = st.sidebar.selectbox(
-        "Profile",
-        options=profile_ids,
-        format_func=lambda x: profile_labels.get(x, x),
-        key="report_type_sel",
-        on_change=_on_profile_change,
-        help="Maps Excel sheets to Word template fields. Use 'Custom' for your own tagged template.",
-    )
-    if phase != get_profile_default_phase(report_type) and report_type != "template_driven":
-        st.sidebar.caption(
-            f"Profile **{profile_labels.get(report_type, report_type)}** "
-            f"typically uses **{get_profile_default_phase(report_type)}**."
+    with st.sidebar.expander("Report profile", expanded=True):
+        phase = st.selectbox(
+            "Report phase",
+            options=["Phase 1", "Phase 2"],
+            key="report_phase_sel",
+            on_change=_on_phase_change,
+            help="Phase II selects the Phase II profile automatically.",
         )
-    st.sidebar.caption(
-        "Optional: add a **ReportConfig** sheet in Excel (columns key, value) to override "
-        "`report_type` and sheet-to-loop mappings (`map_LabResults` = lab_results)."
-    )
+        report_type = st.selectbox(
+            "Profile",
+            options=profile_ids,
+            format_func=lambda x: profile_labels.get(x, x),
+            key="report_type_sel",
+            on_change=_on_profile_change,
+        )
+        if (
+            phase != get_profile_default_phase(report_type)
+            and report_type != "template_driven"
+        ):
+            st.caption(
+                f"Tip: **{profile_labels.get(report_type, report_type)}** is usually "
+                f"**{get_profile_default_phase(report_type)}**."
+            )
 
-    st.sidebar.header("Project meta-data")
-    prepared_by = st.sidebar.text_input(
-        "Prepared by", value="", max_chars=MAX_META_VALUE_LEN
-    )
-    date_of_issue = st.sidebar.date_input("Date of issue", value=dt.date.today())
-    st.sidebar.caption("Phase 1 skips required LabResults sheet.")
-    template_version = st.sidebar.text_input(
-        "Template version (optional)",
-        value=st.session_state.get("suggested_template_version", ""),
-        max_chars=32,
-        help="Semantic version of the Word file, e.g. 2.1.0 — recorded in the generation manifest.",
-    )
+    with st.sidebar.expander("Project metadata", expanded=True):
+        prepared_by = st.text_input(
+            "Prepared by", value="", max_chars=MAX_META_VALUE_LEN
+        )
+        date_of_issue = st.date_input("Date of issue", value=dt.date.today())
+        template_version = st.text_input(
+            "Template version (optional)",
+            value=st.session_state.get("suggested_template_version", ""),
+            max_chars=32,
+            help="Recorded in the generation manifest, e.g. 2.1.0",
+        )
 
-    st.sidebar.header("Executive summary (optional)")
-    executive_summary = st.sidebar.text_area(
-        "Override executive summary",
-        value="",
-        height=120,
-        help="Replaces Excel and auto-generated Phase I text when filled.",
-    )
+    with st.sidebar.expander("Executive summary override", expanded=False):
+        executive_summary = st.text_area(
+            "Custom executive summary",
+            value="",
+            height=100,
+            help="Replaces Excel and auto-generated Phase I text when filled.",
+            label_visibility="collapsed",
+        )
+        st.caption("Leave blank to use Excel or auto-generated text.")
+
+    with st.sidebar.expander("Sample templates", expanded=False):
+        st.caption("Starter Excel/Word pairs for testing.")
+        render_download_helpers()
 
     return sanitize_meta(
         {

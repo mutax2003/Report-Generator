@@ -22,8 +22,12 @@ Complete documentation for the Environmental Site Assessment (ESA) report genera
 | [11-alberta-phase1-esa.md](11-alberta-phase1-esa.md) | Alberta O&G Phase I — **Ecoventure Inc.** |
 | [12-testing-with-your-documents.md](12-testing-with-your-documents.md) | **Test with your Excel + Word templates** |
 | [13-flexible-report-profiles.md](13-flexible-report-profiles.md) | **Report types / custom templates + Excel mapping** |
-| [14-deployment.md](14-deployment.md) | IT — Docker, Azure Container Apps, production checklist |
+| [14-deployment.md](14-deployment.md) | IT — Docker, Azure, Entra ID, production checklist |
 | [15-power-automate-guide.md](15-power-automate-guide.md) | M365 — SharePoint trigger → HTTP render flow |
+| [16-team-rollout.md](16-team-rollout.md) | **Team lead / IT** — ~50 users, SharePoint, pilot, central app |
+| [17-server-update-runbook.md](17-server-update-runbook.md) | **Ops** — git pull, health check, restart, Teams announce |
+| [18-groundwater-reports.md](18-groundwater-reports.md) | **Groundwater monitoring** — wells, levels, GroundwaterLab |
+| [19-charts-and-gis-embed.md](19-charts-and-gis-embed.md) | Power BI / QGIS figures in Word reports |
 
 ## Quick start
 

@@ -10,6 +10,8 @@ if str(ROOT) not in sys.path:
 from engine import (  # noqa: E402
     generate_custom_demo_excel,
     generate_custom_demo_template_docx,
+    generate_groundwater_monitoring_excel,
+    generate_groundwater_monitoring_template_docx,
     generate_phase1_alberta_excel,
     generate_phase1_alberta_template_docx,
     generate_production_excel,
@@ -39,6 +41,8 @@ def main() -> None:
     p1_tpl = samples / "phase1_alberta_template.docx"
     custom_xlsx = samples / "custom_demo_data.xlsx"
     custom_tpl = samples / "custom_demo_template.docx"
+    gw_xlsx = samples / "groundwater_monitoring_data.xlsx"
+    gw_tpl = samples / "groundwater_monitoring_template.docx"
 
     generate_sample_excel(str(xlsx))
     generate_production_excel(str(prod_xlsx))
@@ -49,6 +53,8 @@ def main() -> None:
     generate_phase1_alberta_template_docx(str(p1_tpl))
     generate_custom_demo_excel(str(custom_xlsx))
     generate_custom_demo_template_docx(str(custom_tpl))
+    generate_groundwater_monitoring_excel(str(gw_xlsx))
+    generate_groundwater_monitoring_template_docx(str(gw_tpl))
 
     print(f"Wrote: {xlsx}")
     print(f"Wrote: {prod_xlsx}")
@@ -59,6 +65,8 @@ def main() -> None:
     print(f"Wrote: {p1_tpl}")
     print(f"Wrote: {custom_xlsx}")
     print(f"Wrote: {custom_tpl}")
+    print(f"Wrote: {gw_xlsx}")
+    print(f"Wrote: {gw_tpl}")
 
     if create_phase1_site_samples is not None:
         create_phase1_site_samples()

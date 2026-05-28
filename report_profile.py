@@ -103,6 +103,10 @@ def get_recommended_fields(report_type: str) -> list[str]:
         out.extend(project.get("recommended_phase_1_alberta_og", []))
     elif report_type == "phase2_esa":
         out.extend(project.get("recommended_phase_2", []))
+    elif report_type == "groundwater_monitoring":
+        pass
+    elif report_type in ("reclamation_certificate", "phase3_remediation"):
+        pass
     return out
 
 

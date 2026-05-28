@@ -1,0 +1,23 @@
+# Internal team host — use behind HTTPS + Entra ID / VPN (see docs/14-deployment.md).
+services:
+  esa-reports:
+    build: .
+    image: esa-report-generator:latest
+    container_name: esa-reports
+    ports:
+      - "8501:8501"
+    environment:
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      # Optional: mount secrets for AI tab (do not commit secrets.toml)
+      # - ./.streamlit/secrets.toml:/app/.streamlit/secrets.toml:ro
+      - ./.streamlit/config.toml:/app/.streamlit/config.toml:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

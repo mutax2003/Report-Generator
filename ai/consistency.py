@@ -78,6 +78,67 @@ def check_consistency(
                     )
                 )
 
+    def _well_ids(rows: list) -> set[str]:
+        from ai.well_log_extract import normalize_well_id
+
+        out: set[str] = set()
+        for row in rows:
+            if isinstance(row, dict):
+                raw = str(row.get("well_id") or row.get("well") or "").strip()
+                if raw:
+                    out.add(normalize_well_id(raw))
+        return out
+
+    mw = context.get("monitoring_wells")
+    wl = context.get("water_levels")
+    gw = context.get("groundwater_results")
+    if isinstance(mw, list) and isinstance(wl, list):
+        ids_mw = _well_ids(mw)
+        ids_wl = _well_ids(wl)
+        if ids_mw and ids_wl and ids_wl - ids_mw:
+            findings.append(
+                ConsistencyFinding(
+                    severity="warning",
+                    code="water_level_unknown_well",
+                    message=(
+                        "WaterLevels contains well IDs not on MonitoringWells: "
+                        + ", ".join(sorted(ids_wl - ids_mw)[:5])
+                    ),
+                    suggestion="Align well_id values across sheets.",
+                )
+            )
+    if isinstance(mw, list) and isinstance(gw, list):
+        ids_mw = _well_ids(mw)
+        ids_gw = _well_ids(gw)
+        if ids_mw and ids_gw and ids_gw - ids_mw:
+            findings.append(
+                ConsistencyFinding(
+                    severity="warning",
+                    code="gw_lab_unknown_well",
+                    message=(
+                        "GroundwaterLab results include well IDs not on MonitoringWells: "
+                        + ", ".join(sorted(ids_gw - ids_mw)[:5])
+                    ),
+                    suggestion="Add missing wells or correct well_id spelling.",
+                )
+            )
+
+    field_events = context.get("field_events")
+    if isinstance(field_events, list):
+        for i, row in enumerate(field_events):
+            if not isinstance(row, dict):
+                continue
+            purge = str(row.get("purge_volume_l") or row.get("purge_volume") or "").strip()
+            if not purge:
+                findings.append(
+                    ConsistencyFinding(
+                        severity="info",
+                        code="missing_purge_volume",
+                        message=f"FieldNotes row {i + 1} has no purge volume recorded.",
+                        suggestion="Add purge_volume_l for QA traceability.",
+                    )
+                )
+
     if template_bytes:
         doc_text = extract_docx_full_text(template_bytes).lower()
         if site and site not in doc_text and "{{ site_name }}" not in doc_text:

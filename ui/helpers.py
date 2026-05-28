@@ -9,6 +9,8 @@ import streamlit as st
 
 from engine import (
     ReportEngine,
+    generate_groundwater_monitoring_excel,
+    generate_groundwater_monitoring_template_docx,
     generate_phase1_alberta_excel,
     generate_phase1_alberta_template_docx,
     generate_production_excel,
@@ -28,6 +30,8 @@ PRODUCTION_STARTER_DOCX = ROOT / "samples" / "production_starter_template.docx"
 PRODUCTION_TEMPLATE_DOCX = ROOT / "samples" / "production_template.docx"
 PHASE1_ALBERTA_XLSX = ROOT / "samples" / "phase1_alberta_data.xlsx"
 PHASE1_ALBERTA_DOCX = ROOT / "samples" / "phase1_alberta_template.docx"
+GW_MONITORING_XLSX = ROOT / "samples" / "groundwater_monitoring_data.xlsx"
+GW_MONITORING_DOCX = ROOT / "samples" / "groundwater_monitoring_template.docx"
 
 
 def format_size(num_bytes: int | None) -> str:
@@ -42,10 +46,10 @@ def format_size(num_bytes: int | None) -> str:
 
 def show_upload_status(label: str, uploaded: Any, *, extra: str = "") -> None:
     if uploaded is None:
-        st.caption(f"{label}: not selected")
+        st.caption(f"{label}: not selected yet")
         return
-    suffix = f" — {extra}" if extra else ""
-    st.caption(f"{label}: **{uploaded.name}** ({format_size(uploaded.size)}){suffix}")
+    suffix = f" · {extra}" if extra else ""
+    st.success(f"**{uploaded.name}** ({format_size(uploaded.size)}){suffix}")
 
 
 def _template_cache_key(data: bytes, filename: str) -> str:
@@ -143,10 +147,14 @@ def _ensure_samples() -> None:
         generate_phase1_alberta_excel(str(PHASE1_ALBERTA_XLSX))
     if not PHASE1_ALBERTA_DOCX.is_file():
         generate_phase1_alberta_template_docx(str(PHASE1_ALBERTA_DOCX))
+    if not GW_MONITORING_XLSX.is_file():
+        generate_groundwater_monitoring_excel(str(GW_MONITORING_XLSX))
+    if not GW_MONITORING_DOCX.is_file():
+        generate_groundwater_monitoring_template_docx(str(GW_MONITORING_DOCX))
 
 
 def render_download_helpers() -> None:
-    st.sidebar.header("Templates")
+    """Sample downloads (render inside sidebar expander)."""
     _ensure_samples()
 
     if SAMPLE_XLSX.is_file():
@@ -202,6 +210,22 @@ def render_download_helpers() -> None:
             "Download Alberta Phase I template (Ecoventure)",
             data=PHASE1_ALBERTA_DOCX.read_bytes(),
             file_name="phase1_alberta_template.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True,
+        )
+    if GW_MONITORING_XLSX.is_file():
+        st.sidebar.download_button(
+            "Download groundwater monitoring Excel",
+            data=GW_MONITORING_XLSX.read_bytes(),
+            file_name="groundwater_monitoring_data.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
+    if GW_MONITORING_DOCX.is_file():
+        st.sidebar.download_button(
+            "Download groundwater monitoring template",
+            data=GW_MONITORING_DOCX.read_bytes(),
+            file_name="groundwater_monitoring_template.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True,
         )

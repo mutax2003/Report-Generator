@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Standard phrase options for Streamlit picker and Excel PhraseCatalog sheet (phrase_key, option_id, text).",
   "phrases": {
     "drilling_waste_intro": {
@@ -44,6 +44,111 @@
           "id": "not_required",
           "label": "Phase II not required at this time",
           "text": "Based on the findings of this Phase I ESA, a Phase II Environmental Site Assessment is not recommended at this time, subject to client direction and future land use."
+        }
+      ]
+    },
+    "gw_program_intro": {
+      "label": "Groundwater — program purpose",
+      "options": [
+        {
+          "id": "annual",
+          "label": "Annual compliance monitoring",
+          "text": "This report presents results of the annual groundwater monitoring program conducted to assess groundwater quality and water levels relative to applicable Alberta guidelines and site-specific objectives."
+        },
+        {
+          "id": "baseline",
+          "label": "Baseline characterization",
+          "text": "This report summarizes baseline groundwater quality and static water levels following installation of the monitoring well network."
+        }
+      ]
+    },
+    "gw_sampling_methods": {
+      "label": "Groundwater — sampling methods",
+      "options": [
+        {
+          "id": "low_flow",
+          "label": "Low-flow sampling",
+          "text": "Groundwater samples were collected using low-flow purging and sampling methods in accordance with project-specific sampling procedures and laboratory requirements."
+        },
+        {
+          "id": "bailer",
+          "label": "Bailer / standard purge",
+          "text": "Groundwater samples were collected after purging each monitoring well until field parameters stabilized, using dedicated sampling equipment."
+        }
+      ]
+    },
+    "gw_data_usability": {
+      "label": "Groundwater — data usability",
+      "options": [
+        {
+          "id": "usable",
+          "label": "Data suitable for interpretation",
+          "text": "Field notes and laboratory quality control indicate that the groundwater data are suitable for comparison to applicable guidelines, subject to the limitations noted herein."
+        },
+        {
+          "id": "qualified",
+          "label": "Qualified usability",
+          "text": "Some data limitations are noted in the field log and tables below; interpreted trends should be considered qualified where purge volumes or hold times were atypical."
+        }
+      ]
+    },
+    "gw_recommendations": {
+      "label": "Groundwater — recommendations",
+      "options": [
+        {
+          "id": "continue",
+          "label": "Continue monitoring",
+          "text": "Ecoventure recommends continued groundwater monitoring at the established frequency to evaluate temporal trends and confirm stability of exceedances."
+        },
+        {
+          "id": "investigate",
+          "label": "Investigation recommended",
+          "text": "Ecoventure recommends additional investigation of exceedances identified in this reporting period, including potential source areas and downgradient wells."
+        }
+      ]
+    },
+    "remediation_status": {
+      "label": "Remediation — status opening",
+      "options": [
+        {
+          "id": "ongoing",
+          "label": "Remediation ongoing",
+          "text": "Remediation activities are ongoing at the site under an approved remedial action plan. This report summarizes confirmatory sampling and progress toward remedial objectives."
+        },
+        {
+          "id": "confirmatory",
+          "label": "Confirmatory sampling",
+          "text": "This report documents confirmatory groundwater and soil sampling conducted to verify achievement of remedial objectives."
+        }
+      ]
+    },
+    "confirmatory_summary": {
+      "label": "Remediation — confirmatory summary",
+      "options": [
+        {
+          "id": "met",
+          "label": "Objectives met",
+          "text": "Confirmatory sampling results indicate that remedial objectives were met for the parameters and media evaluated."
+        },
+        {
+          "id": "not_met",
+          "label": "Further work required",
+          "text": "Confirmatory sampling results indicate that additional remedial action or monitoring is required for one or more parameters."
+        }
+      ]
+    },
+    "closure_recommendation": {
+      "label": "Remediation — closure recommendation",
+      "options": [
+        {
+          "id": "support_closure",
+          "label": "Support closure",
+          "text": "Based on the data presented, Ecoventure supports proceeding with regulatory closure documentation, subject to agency review."
+        },
+        {
+          "id": "defer",
+          "label": "Defer closure",
+          "text": "Ecoventure recommends deferring closure until additional monitoring or remedial work is completed."
         }
       ]
     }

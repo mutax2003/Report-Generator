@@ -51,87 +51,94 @@ def render_preflight_panel(
     report_phase: str = "Phase 2",
     report_type: str = "",
 ) -> bool:
-    """Show pre-flight checklist. Returns True if Generate should be allowed."""
+    """Pre-flight checklist. Returns True if Generate should be allowed."""
     if preflight is None:
-        st.info("Upload Excel and Word template to see pre-flight checks.")
+        st.info("Upload both files in **step 1** to run pre-flight.")
         return False
-
-    st.subheader("Pre-flight checks")
 
     if preflight.errors:
-        for err in preflight.errors:
-            st.error(err)
+        with st.status("Pre-flight failed", expanded=True, state="error"):
+            for err in preflight.errors:
+                st.error(err)
         return False
-
-    if preflight.sheet_names:
-        st.success(f"Excel sheets: {', '.join(preflight.sheet_names)}")
 
     cov = preflight.coverage
     missing_n = len(cov.missing_in_data) if cov else 0
-    if missing_n == 0 and cov:
-        st.success("All template variables have Excel or sidebar values.")
-    elif missing_n:
-        st.warning(
-            f"{missing_n} template variable(s) will render **blank** — you can still generate."
-        )
+    status_label = "Pre-flight passed" if missing_n == 0 else "Pre-flight passed with warnings"
+    status_state = "complete" if missing_n == 0 else "warning"
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Template tags", preflight.template_var_count)
-    with col2:
-        st.metric("Matched", len(cov.matched) if cov else 0)
-    with col3:
-        st.metric("Missing", missing_n)
-    with col4:
-        if cov and cov.table_row_counts:
-            parts = [
-                f"{k}: {n}"
-                for k, n in sorted(cov.table_row_counts.items())
-                if n > 0
-            ]
-            st.metric("Table rows", ", ".join(parts) if parts else "0")
-        elif report_phase.strip() == "Phase 1" and cov:
-            st.metric(
-                "Drilling / tank rows",
-                f"{cov.drilling_waste_row_count} / {cov.storage_tanks_row_count}",
+    with st.status(status_label, expanded=missing_n > 0, state=status_state):
+        if preflight.sheet_names:
+            st.write("**Sheets:** " + ", ".join(preflight.sheet_names))
+        if missing_n == 0 and cov:
+            st.write("All template tags have data from Excel or the sidebar.")
+        elif missing_n:
+            st.write(
+                f"**{missing_n}** tag(s) will render empty — you can still generate."
             )
-        else:
-            st.metric("Lab rows", cov.lab_row_count if cov else 0)
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Tags", preflight.template_var_count)
+        with col2:
+            st.metric("Matched", len(cov.matched) if cov else 0)
+        with col3:
+            st.metric("Missing", missing_n)
+        with col4:
+            if cov and cov.table_row_counts:
+                parts = [
+                    f"{k}: {n}"
+                    for k, n in sorted(cov.table_row_counts.items())
+                    if n > 0
+                ]
+                st.metric("Table rows", ", ".join(parts) if parts else "0")
+            elif report_phase.strip() == "Phase 1" and cov:
+                st.metric(
+                    "Drill / tanks",
+                    f"{cov.drilling_waste_row_count} / {cov.storage_tanks_row_count}",
+                )
+            else:
+                st.metric("Lab rows", cov.lab_row_count if cov else 0)
 
     if cov:
         if cov.matched:
             with st.expander("Matched variables", expanded=False):
                 st.write(", ".join(cov.matched))
         if cov.missing_in_data:
-            st.code(", ".join(cov.missing_in_data), language=None)
+            with st.expander("Missing variables (will be blank)", expanded=False):
+                st.code(", ".join(cov.missing_in_data), language=None)
             rt = report_type or "phase1_alberta"
-            st.download_button(
-                "Download missing-fields checklist",
-                data=missing_fields_checklist(cov, report_type=rt),
-                file_name="missing_excel_columns.txt",
-                mime="text/plain",
-                use_container_width=True,
-            )
-            st.download_button(
-                "Download ReportConfig sheet (Excel)",
-                data=build_report_config_workbook_bytes(rt),
-                file_name=f"report_config_{rt}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-            )
-            st.download_button(
-                "Download PhraseCatalog sheet (Excel)",
-                data=build_phrase_catalog_workbook_bytes(),
-                file_name="phrase_catalog.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-            )
+            d1, d2, d3 = st.columns(3)
+            with d1:
+                st.download_button(
+                    "Missing-fields checklist",
+                    data=missing_fields_checklist(cov, report_type=rt),
+                    file_name="missing_excel_columns.txt",
+                    mime="text/plain",
+                    use_container_width=True,
+                )
+            with d2:
+                st.download_button(
+                    "ReportConfig sheet",
+                    data=build_report_config_workbook_bytes(rt),
+                    file_name=f"report_config_{rt}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
+            with d3:
+                st.download_button(
+                    "PhraseCatalog sheet",
+                    data=build_phrase_catalog_workbook_bytes(),
+                    file_name="phrase_catalog.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
         if cov.unused_in_template:
             with st.expander("Excel columns not used in template", expanded=False):
                 st.caption(", ".join(cov.unused_in_template))
 
     if preflight.split_tag_issues:
-        with st.expander("Split Jinja tags (fix in Word)", expanded=True):
+        with st.expander("Split Jinja tags — fix in Word", expanded=True):
             for issue in preflight.split_tag_issues:
                 st.text(issue)
 

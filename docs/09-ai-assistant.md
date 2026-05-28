@@ -22,7 +22,9 @@ Dependencies: `openai`, `pypdf` in `requirements.txt`.
 ```
 ui/ai_panel.py
     ├── ai/template_tagger.py   → bracket → Jinja suggestions
-    ├── ai/lab_extract.py       → PDF COA → LabResults rows
+    ├── ai/lab_extract.py       → PDF COA → LabResults / GroundwaterLab rows
+    ├── ai/well_log_extract.py  → PDF → MonitoringWells rows
+    ├── ai/gw_trends.py         → trend notes from GW context
     ├── ai/narrative.py         → section drafts + RAG
     ├── ai/copilot.py           → pre-flight explanations
     ├── ai/consistency.py       → data QA rules
@@ -46,10 +48,24 @@ ui/ai_panel.py
 ### Lab PDF → Excel
 
 - Input: Certificate of Analysis PDF (max 10 MB)
-- Output: Excel with `LabResults` rows (merged with existing upload if present)
+- Output: Excel with `LabResults` or **`GroundwaterLab`** rows (select target sheet in UI)
 - Heuristic parsing offline; LLM improves extraction when enabled
 
 **Use when:** Rapidly building lab sheet from lab PDF.
+
+### Well log PDF → MonitoringWells
+
+- Input: Borehole / well construction PDF
+- Output: Excel with `MonitoringWells` rows (well ID, optional screen interval heuristics)
+
+**Use when:** Bootstrapping the well network table from contractor logs.
+
+### Groundwater trend notes
+
+- Input: merge context with `monitoring_wells`, `groundwater_results`, `water_levels`
+- Output: rule-based trend messages and well ID cross-checks
+
+**Use when:** QA before issuing a groundwater monitoring report.
 
 ### Narrative drafts
 

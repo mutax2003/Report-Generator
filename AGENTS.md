@@ -18,6 +18,9 @@ Start here when working in this repo with Cursor or other coding agents.
 | [`docs/13-flexible-report-profiles.md`](docs/13-flexible-report-profiles.md) | Custom report types + sheet mapping |
 | [`docs/14-deployment.md`](docs/14-deployment.md) | Docker, Azure, production checklist |
 | [`docs/15-power-automate-guide.md`](docs/15-power-automate-guide.md) | SharePoint → HTTP render flow |
+| [`docs/16-team-rollout.md`](docs/16-team-rollout.md) | Team rollout (~50 users), SharePoint, pilot |
+| [`docs/17-server-update-runbook.md`](docs/17-server-update-runbook.md) | Server deploy / update steps |
+| [`sharepoint/PUBLISH_CHECKLIST.md`](sharepoint/PUBLISH_CHECKLIST.md) | SharePoint upload checklist |
 | [`schemas/report_profiles.json`](schemas/report_profiles.json) | **Canonical** recommended fields per profile |
 | [`schemas/field_contract.json`](schemas/field_contract.json) | Legacy reference + AI tagger |
 
@@ -41,11 +44,13 @@ Or: `.\run.ps1 scripts\create_samples.py` (uses venv Python on Windows).
 | Phase 1 site E2E (251106R + 260109R) | `$env:ESA_ALLOW_LARGE_TEMPLATE="1"; python scripts\phase1_site_e2e.py` |
 | User test folder | `python scripts\prepare_user_test_pack.py` then edit `user_test/` |
 | Regression | `python scripts\health_check.py` |
+| SharePoint bundle | `.\scripts\package_team_sharepoint.ps1` |
+| Team Docker host | `docker compose up -d --build` (see [docs/14-deployment.md](docs/14-deployment.md)) |
 | Unit tests | `python -m unittest discover -s tests -v` (see [docs/08-testing.md](docs/08-testing.md) for current count) |
 | Slow health in smoke test | `$env:ESA_RUN_HEALTH_CHECK="1"` then run `tests.test_smoke_integration` |
 
 ## Key modules
 
-`app.py` · `engine.py` (`ReportEngine`, `render_batch`) · `phrase_resolver.py` · `report_profile.py` · `template_attachments.py` · `template_size.py` · `deliverable_pack.py` · `phase1_narrative.py` · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `ui/` (`sidebar`, `phrase_panel`, `preflight`, `appendix_panel`, `results`, `helpers`) · `schemas/phrase_catalog.json` · `scripts/` · `automate/`
+`app.py` · `engine.py` (`ReportEngine`, `render_batch`) · `phrase_resolver.py` · `groundwater_narrative.py` · `phase1_narrative.py` · `report_profile.py` · `template_attachments.py` · `template_size.py` · `deliverable_pack.py` · `phase1_narrative.py` · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `ui/` (`sidebar`, `phrase_panel`, `preflight`, `appendix_panel`, `results`, `helpers`) · `schemas/phrase_catalog.json` · `scripts/` · `automate/`
 
 Do not put Streamlit imports in `engine.py`. Extend **`schemas/report_profiles.json`** `recommended_fields` when adding production fields; update `field_contract.json` if the AI tagger or legacy docs need the same names. For phrase fields, update **`schemas/phrase_catalog.json`** and [docs/04-template-authoring.md](docs/04-template-authoring.md). For multi-site Excel, use **`ProjectData` rows 3+** and batch mode or `render_cli.py --all-rows`.

@@ -1,0 +1,16 @@
+# Copy to config.toml on the team server (or mount in docker-compose).
+# Use behind HTTPS + Entra ID / Application Proxy — see docs/14-deployment.md.
+
+[server]
+headless = true
+enableXsrfProtection = true
+# Match security.MAX_TEMPLATE_BYTES (30 MB)
+maxUploadSize = 30
+# Container Dockerfile uses 0.0.0.0; proxy terminates TLS in front.
+port = 8501
+address = "0.0.0.0"
+
+[browser]
+gatherUsageStats = false
+# Set to your public hostname after Application Proxy is configured:
+# serverAddress = "esa-reports.yourcompany.com"

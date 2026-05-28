@@ -1,3 +1,11 @@
+# Ecoventure brand (https://www.ecoventure.ca — slate #2e3540, magenta #b24292)
+[theme]
+primaryColor = "#b24292"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f4f6f8"
+textColor = "#2e3540"
+font = "sans serif"
+
 # Align with security.MAX_* limits (values in MB)
 [server]
 maxUploadSize = 30

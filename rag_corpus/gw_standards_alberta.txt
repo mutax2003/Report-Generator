@@ -1,0 +1,7 @@
+Ecoventure compares groundwater analytical results to Alberta Tier 1 soil and groundwater guidelines and to site-specific background or remedial objectives when approved for the project.
+
+---
+Screening levels must be cited from the current guideline tables or the approved RAP — do not invent numeric limits in narrative drafts.
+
+---
+When both Tier 1 and background limits apply, state which criterion governed the exceedance determination in the results tables.

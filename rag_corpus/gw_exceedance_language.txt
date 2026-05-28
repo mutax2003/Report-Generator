@@ -1,0 +1,7 @@
+When a groundwater result exceeds the applicable screening or site-specific guideline, Ecoventure describes the exceedance by parameter, well ID, and comparison value without speculating on source until supporting evidence is documented.
+
+---
+Increasing chloride or conductivity trends over multiple events may indicate upward migration of brine or surface influence; decreasing trends may reflect dilution or seasonal effects — note that professional judgment is required.
+
+---
+Report language should distinguish between exceedances of Alberta Tier 1 guidelines and exceedances relative to site-specific background or remedial objectives.
