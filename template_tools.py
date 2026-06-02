@@ -4,14 +4,12 @@ Template analysis: coverage vs Excel context, tag inventory, split-run lint.
 
 from __future__ import annotations
 
-import io
 import re
 from dataclasses import dataclass, field
-
-import pandas as pd
+from typing import Any
 
 from engine import LAB_SHEET, PROJECT_SHEET, ReportEngine
-from report_profile import resolve_report_config
+from report_profile import loops_from_block_tags, resolve_report_config, _read_excel_meta
 from security import SecurityError, ZipReadBudget, open_docx_zip, read_docx_xml_member
 
 
@@ -55,6 +53,7 @@ class PreflightResult:
     split_tag_issues: list[str] = field(default_factory=list)
     template_var_count: int = 0
     block_tag_count: int = 0
+    sed002: Any = None  # Sed002ComplianceResult | None
 
     @property
     def can_generate(self) -> bool:
@@ -202,41 +201,6 @@ def run_preflight(
     result = PreflightResult()
     meta = meta or {}
 
-    try:
-        runtime = resolve_report_config(excel_bytes, template_bytes, meta)
-    except Exception as e:
-        result.errors.append(f"Could not resolve report profile: {e}")
-        return result
-
-    result.warnings.append(f"Report type: {runtime.label} (`{runtime.report_type}`)")
-
-    try:
-        engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=template_bytes)
-    except SecurityError as e:
-        result.errors.append(str(e))
-        return result
-    except ValueError as e:
-        result.errors.append(str(e))
-        return result
-
-    try:
-        bio = io.BytesIO(excel_bytes)
-        with pd.ExcelFile(bio, engine="openpyxl") as xl:
-            result.sheet_names = list(xl.sheet_names)
-            for req in runtime.required_sheets:
-                if req not in result.sheet_names:
-                    result.errors.append(
-                        f"Report type requires sheet '{req}'. "
-                        f"Found: {result.sheet_names}"
-                    )
-            if runtime.primary_sheet not in result.sheet_names:
-                result.errors.append(
-                    f"Missing primary sheet '{runtime.primary_sheet}'. "
-                    f"Found: {result.sheet_names}"
-                )
-    except Exception as e:
-        result.errors.append(f"Could not read Excel: {e}")
-
     scan: TemplateScan | None = None
     try:
         scan = scan_template(template_bytes)
@@ -252,6 +216,53 @@ def run_preflight(
     except Exception as e:
         result.errors.append(f"Could not read template: {e}")
 
+    excel_meta: tuple[list[str], dict[str, str]] | None = None
+    try:
+        excel_meta = _read_excel_meta(excel_bytes)
+        result.sheet_names = excel_meta[0]
+    except Exception as e:
+        result.errors.append(f"Could not read Excel: {e}")
+
+    try:
+        template_loops = loops_from_block_tags(scan.block_tags) if scan else None
+        runtime = resolve_report_config(
+            excel_bytes,
+            template_bytes,
+            meta,
+            template_loops=template_loops,
+            excel_meta=excel_meta,
+        )
+    except Exception as e:
+        result.errors.append(f"Could not resolve report profile: {e}")
+        return result
+
+    result.warnings.append(f"Report type: {runtime.label} (`{runtime.report_type}`)")
+
+    if excel_meta:
+        for req in runtime.required_sheets:
+            if req not in result.sheet_names:
+                result.errors.append(
+                    f"Report type requires sheet '{req}'. "
+                    f"Found: {result.sheet_names}"
+                )
+        if runtime.primary_sheet not in result.sheet_names:
+            result.errors.append(
+                f"Missing primary sheet '{runtime.primary_sheet}'. "
+                f"Found: {result.sheet_names}"
+            )
+
+    try:
+        engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=template_bytes)
+        if scan:
+            engine._root_vars_cache = scan.root_vars
+            engine._template_loops_cache = loops_from_block_tags(scan.block_tags)
+    except SecurityError as e:
+        result.errors.append(str(e))
+        return result
+    except ValueError as e:
+        result.errors.append(str(e))
+        return result
+
     if scan and runtime.template_loops:
         for loop_var in sorted(runtime.template_loops):
             has_sheet = loop_var in runtime.sheet_to_loop.values()
@@ -263,7 +274,8 @@ def run_preflight(
 
     if not result.errors:
         try:
-            result.coverage = engine.coverage(meta)
+            ctx = engine.build_context(meta)
+            result.coverage = engine.coverage(meta, context=ctx)
             cov = result.coverage
             if runtime.require_lab_sheet and cov and cov.lab_row_count == 0:
                 result.warnings.append(
@@ -277,6 +289,36 @@ def run_preflight(
                         result.warnings.append(
                             f"Table loop '{loop_var}' has 0 rows in Excel."
                         )
+            if runtime.narrative_profile == "phase1_alberta":
+                from sed002_compliance import evaluate_sed002_compliance
+
+                sheet_counts = (
+                    dict(cov.table_row_counts)
+                    if cov and cov.table_row_counts
+                    else {}
+                )
+                sed = evaluate_sed002_compliance(
+                    ctx,
+                    meta,
+                    report_type=runtime.report_type,
+                    sheet_row_counts=sheet_counts,
+                )
+                result.sed002 = sed
+                if sed:
+                    result.warnings.append(
+                        f"SED 002 §10 completeness: {sed.completeness_pct}% "
+                        f"({sed.satisfied_count}/{sed.total_items})"
+                    )
+                    for ir in sed.required_missing[:8]:
+                        result.warnings.append(
+                            f"SED 002 required: {ir.section_id} — {ir.label}"
+                        )
+                    if len(sed.required_missing) > 8:
+                        result.warnings.append(
+                            f"... and {len(sed.required_missing) - 8} more SED 002 required items"
+                        )
+                    for pw in sed.phase2_warnings[:5]:
+                        result.warnings.append(f"Phase 2 hint: {pw}")
         except ValueError as e:
             result.errors.append(str(e))
         except Exception as e:

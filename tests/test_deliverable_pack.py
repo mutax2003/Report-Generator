@@ -34,6 +34,7 @@ class DeliverablePackTests(unittest.TestCase):
             appendices=[ap],
         )
         zbytes = build_deliverable_zip(pkg)
+        self.assertGreater(len(zbytes), 10)
         with zipfile.ZipFile(BytesIO(zbytes)) as zf:
             names = zf.namelist()
         self.assertIn("report.docx", names)

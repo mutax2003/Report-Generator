@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AER SED 002 Phase 1 ESA checklist (Section 10)",
+  "version": "1.0.0",
+  "source": "Specified Enactment Direction 002 (July 2025), Section 10",
+  "profile_ids": [
+    "phase1_alberta",
+    "phase1_devon",
+    "reclamation_certificate"
+  ],
+  "appendix_catalog": {
+    "A": "AER Phase I form and QP declaration",
+    "B": "ABADATA, pipeline, spill search",
+    "C": "Air photos and construction sketch",
+    "D": "Drilling waste notification and compliance Option 1/2 checklists",
+    "E": "Survey plan and proximity map",
+    "F": "Land title search",
+    "G": "Drilling waste calculation tables (Option 1/2)",
+    "H": "Operations- or construction-phase site sketch"
+  },
+  "sections": [
+    {
+      "id": "10.1",
+      "title": "Asset information",
+      "items": [
+        {
+          "id": "10.1.asset_type",
+          "label": "Current asset / activity type identified",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "asset_activity_type"
+        },
+        {
+          "id": "10.1.well_identifiers",
+          "label": "Well name and UWI on cover",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "uwi"
+        },
+        {
+          "id": "10.1.prior_cert",
+          "label": "Prior reclamation certificate (if re-certified site)",
+          "requirement": "recommended",
+          "source": "projectdata",
+          "field": "prior_reclamation_cert_number"
+        }
+      ]
+    },
+    {
+      "id": "10.2",
+      "title": "Drilling information",
+      "items": [
+        {
+          "id": "10.2.spud",
+          "label": "Spud and final drill dates",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "spud_date"
+        },
+        {
+          "id": "10.2.reentry",
+          "label": "Re-entry / re-drill narrative",
+          "requirement": "recommended",
+          "source": "projectdata",
+          "field": "reentry_detail"
+        }
+      ]
+    },
+    {
+      "id": "10.4",
+      "title": "Drilling waste disposal",
+      "items": [
+        {
+          "id": "10.4.compliance_option",
+          "label": "AER drilling waste compliance option documented",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "aer_waste_compliance_option"
+        },
+        {
+          "id": "10.4.waste_summary",
+          "label": "Drilling waste disposal summary narrative",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "drilling_waste_summary"
+        },
+        {
+          "id": "10.4.waste_table",
+          "label": "Drilling waste disposal table (per event/location)",
+          "requirement": "required",
+          "source": "sheet",
+          "sheet": "DrillingWaste",
+          "min_rows": 1
+        },
+        {
+          "id": "10.4.appendix_checklist",
+          "label": "Compliance Option 1/2 checklist (appendix)",
+          "requirement": "required",
+          "source": "appendix",
+          "appendix": "D"
+        },
+        {
+          "id": "10.4.no_waste_flag",
+          "label": "No on-site drilling waste (if applicable)",
+          "requirement": "recommended",
+          "source": "projectdata",
+          "field": "no_drilling_waste_on_site"
+        }
+      ]
+    },
+    {
+      "id": "10.5",
+      "title": "Production, storage, and environmental information",
+      "items": [
+        {
+          "id": "10.5.infrastructure",
+          "label": "Infrastructure summary",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "infrastructure_summary"
+        },
+        {
+          "id": "10.5.flare_pit",
+          "label": "Flare pit use documented",
+          "requirement": "recommended",
+          "source": "projectdata",
+          "field": "flare_pit_used"
+        },
+        {
+          "id": "10.5.tanks",
+          "label": "Storage tanks table or N/A",
+          "requirement": "recommended",
+          "source": "sheet",
+          "sheet": "StorageTanks",
+          "min_rows": 0
+        }
+      ]
+    },
+    {
+      "id": "10.6",
+      "title": "Phase 1 ESA site visit",
+      "items": [
+        {
+          "id": "10.6.visit_status",
+          "label": "Site visit completed or deferred with rationale",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "site_visit_completed"
+        },
+        {
+          "id": "10.6.visit_date",
+          "label": "Site visit date (when completed)",
+          "requirement": "recommended",
+          "source": "projectdata",
+          "field": "site_visit_date"
+        },
+        {
+          "id": "10.6.sketch",
+          "label": "Operations/construction site sketch",
+          "requirement": "required",
+          "source": "appendix",
+          "appendix": "H"
+        },
+        {
+          "id": "10.6.photos",
+          "label": "Site visit photographs",
+          "requirement": "recommended",
+          "source": "manual",
+          "field": "site_visit_photo_notes"
+        }
+      ]
+    },
+    {
+      "id": "10.7",
+      "title": "Records review",
+      "items": [
+        {
+          "id": "10.7.records",
+          "label": "Regulatory and company records review summary",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "records_review_summary"
+        },
+        {
+          "id": "10.7.air_photo",
+          "label": "Historical air photo observations",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "air_photo_observations"
+        },
+        {
+          "id": "10.7.appendix_abadata",
+          "label": "ABADATA / spill search (appendix B)",
+          "requirement": "required",
+          "source": "appendix",
+          "appendix": "B"
+        }
+      ]
+    },
+    {
+      "id": "10.8",
+      "title": "Interviews",
+      "items": [
+        {
+          "id": "10.8.operator",
+          "label": "Operator / knowledgeable person interview",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "interview_operator_summary"
+        },
+        {
+          "id": "10.8.landowner",
+          "label": "Landowner interview (when applicable)",
+          "requirement": "recommended",
+          "source": "projectdata",
+          "field": "interview_landowner_summary"
+        }
+      ]
+    },
+    {
+      "id": "5.1",
+      "title": "Phase 1 ESA summary (OneStop module)",
+      "items": [
+        {
+          "id": "5.1.executive",
+          "label": "Executive summary / contamination likelihood",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "executive_summary"
+        },
+        {
+          "id": "5.1.phase2_flag",
+          "label": "Phase II ESA recommendation documented",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "phase2_esa_required"
+        }
+      ]
+    },
+    {
+      "id": "qp",
+      "title": "Professional sign-off",
+      "items": [
+        {
+          "id": "qp.names",
+          "label": "Qualified person names on report",
+          "requirement": "required",
+          "source": "projectdata",
+          "field": "qp_names"
+        },
+        {
+          "id": "qp.prepared_by",
+          "label": "Prepared by (sidebar / cover)",
+          "requirement": "required",
+          "source": "meta",
+          "field": "prepared_by"
+        },
+        {
+          "id": "qp.declaration_date",
+          "label": "Report / declaration date",
+          "requirement": "required",
+          "source": "meta",
+          "field": "date_of_issue"
+        }
+      ]
+    }
+  ]
+}

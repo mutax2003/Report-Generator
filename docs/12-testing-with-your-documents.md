@@ -26,7 +26,8 @@ python scripts\test_with_your_documents.py
 |------|-------|----------------|
 | Quick demo | `samples/sample_data.xlsx` | `samples/sample_template.docx` |
 | **Alberta Phase I (Ecoventure)** | `samples/phase1_alberta_data.xlsx` | `samples/phase1_alberta_template.docx` |
-| **Devon Phase I (short, 2017 reference)** | `samples/phase1_devon_data.xlsx` | `samples/Devon phase 1 - short.docx` |
+| **Devon Phase I (2017 reference, 04-04-049-04W4M)** | `samples/phase1_devon_data.xlsx` | `samples/phase1_devon_template.docx` |
+| **Devon Phase I (short scaffold)** | `samples/phase1_devon_data.xlsx` | `samples/Devon phase 1 - short.docx` |
 | **Phase I — 251106R (Base Element, WM 153)** | `samples/phase1_251106R_data.xlsx` | `samples/251106R - 15-20-049-10 W5M - Phase 1 ESA_Final_Secure-markup-upload.docx` (≤30 MB for app) |
 | **Phase I — 260109R (Caltex Trilogy)** | `samples/phase1_260109R_data.xlsx` | `samples/260109R - 16-34-055-02W4M Phase 1 ESA_Final_Secure-markup-upload.docx` (≤30 MB for app) |
 | Phase I — 260109R (full layout, CLI) | same Excel | `samples/260109R - 16-34-055-02W4M Phase 1 ESA_Final_Secure-markup.docx` |

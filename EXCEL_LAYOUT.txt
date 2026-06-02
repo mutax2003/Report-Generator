@@ -15,6 +15,14 @@ Sheet: ProjectData (required name)
 
   Tip: Match Word placeholders, e.g. {{ site_name }}.
   Phase I: set consultant_name and company to Ecoventure Inc.
+  Devon 2017 reference pair: phase1_devon_data.xlsx + phase1_devon_template.docx
+    (regenerate: python scripts/create_phase1_devon_pair.py)
+
+SED 002 Section 10 (reclamation Phase I) — see docs/20-aer-sed002-phase1-esa.md
+  ProjectData: asset_activity_type, records_review_summary, interview_*,
+    site_visit_date, flare_pit_used, no_drilling_waste_on_site
+  DrillingWaste: disposal_type, gps_coordinates, sump_depth_m, cover_depth_m,
+    remote_cert_number, waste_manifest_refs
 
 Sheet: LabResults (exact name)
 ------------------------------

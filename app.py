@@ -191,6 +191,8 @@ def _render_report_tab(
         st.session_state.generated_filename,
         st.session_state.generation_record,
         prepared_template=prepared_tpl or st.session_state.get("last_prepared_template"),
+        render_context=st.session_state.get("last_context"),
+        render_meta=meta_render,
     )
 
     with st.expander("Optional tools", expanded=False):

@@ -28,6 +28,7 @@ Complete documentation for the Environmental Site Assessment (ESA) report genera
 | [17-server-update-runbook.md](17-server-update-runbook.md) | **Ops** — git pull, health check, restart, Teams announce |
 | [18-groundwater-reports.md](18-groundwater-reports.md) | **Groundwater monitoring** — wells, levels, GroundwaterLab |
 | [19-charts-and-gis-embed.md](19-charts-and-gis-embed.md) | Power BI / QGIS figures in Word reports |
+| [20-aer-sed002-phase1-esa.md](20-aer-sed002-phase1-esa.md) | **AER SED 002** — Phase 1 §10 checklist, OneStop export |
 
 ## Quick start
 

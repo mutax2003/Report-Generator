@@ -138,6 +138,15 @@ def build_report_config_workbook_bytes(
     return bio.getvalue()
 
 
+def loops_from_block_tags(block_tags: set[str]) -> set[str]:
+    """Extract loop variable names from Jinja block tags (e.g. ``tr for item in lab_results``)."""
+    loops: set[str] = set()
+    for tag in block_tags:
+        for m in LOOP_FOR_ITEM_RE.finditer(tag):
+            loops.add(m.group(1))
+    return loops
+
+
 def discover_template_loops(template_bytes: bytes) -> set[str]:
     """Find ``{%tr for item in var %}`` (and similar) loop variables in the Word template."""
     from security import ZipReadBudget, open_docx_zip, read_docx_xml_member
@@ -173,18 +182,24 @@ def _read_report_config_sheet(df: pd.DataFrame) -> dict[str, str]:
     return out
 
 
-def read_excel_report_config(excel_bytes: bytes) -> dict[str, str]:
-    """Load optional ReportConfig sheet from workbook bytes."""
+def _read_excel_meta(excel_bytes: bytes) -> tuple[list[str], dict[str, str]]:
+    """One openpyxl pass: sheet names and optional ReportConfig key/value rows."""
     import io
 
     catalog = load_profiles_catalog()
     config_sheet = catalog.get("config_sheet", "ReportConfig")
     bio = io.BytesIO(excel_bytes)
     with pd.ExcelFile(bio, engine="openpyxl") as xl:
-        if config_sheet not in xl.sheet_names:
-            return {}
+        names = list(xl.sheet_names)
+        if config_sheet not in names:
+            return names, {}
         df = xl.parse(config_sheet, header=0)
-    return _read_report_config_sheet(df)
+    return names, _read_report_config_sheet(df)
+
+
+def read_excel_report_config(excel_bytes: bytes) -> dict[str, str]:
+    """Load optional ReportConfig sheet from workbook bytes."""
+    return _read_excel_meta(excel_bytes)[1]
 
 
 def _profile_id_from_meta(meta: dict[str, str] | None) -> str:
@@ -222,6 +237,9 @@ def resolve_report_config(
     excel_bytes: bytes,
     template_bytes: bytes,
     meta: dict[str, str] | None,
+    *,
+    template_loops: set[str] | None = None,
+    excel_meta: tuple[list[str], dict[str, str]] | None = None,
 ) -> ReportRuntimeConfig:
     """
     Merge profile defaults, Excel ReportConfig sheet, template loop discovery, and sidebar meta.
@@ -231,7 +249,10 @@ def resolve_report_config(
     config_sheet = catalog.get("config_sheet", "ReportConfig")
     primary_default = catalog.get("primary_sheet_default", PROJECT_SHEET)
 
-    excel_cfg = read_excel_report_config(excel_bytes)
+    if excel_meta is None:
+        sheet_names, excel_cfg = _read_excel_meta(excel_bytes)
+    else:
+        sheet_names, excel_cfg = excel_meta
     report_type = excel_cfg.get("report_type") or _profile_id_from_meta(meta)
     if report_type not in profiles:
         report_type = "template_driven"
@@ -246,7 +267,6 @@ def resolve_report_config(
     for sheet, var in (spec.get("sheet_mappings") or {}).items():
         sheet_to_loop[str(sheet)] = str(var)
 
-    sheet_names = _excel_sheet_names(excel_bytes)
     for key, val in excel_cfg.items():
         if not val:
             continue
@@ -259,7 +279,8 @@ def resolve_report_config(
             else:
                 sheet_to_loop[sheet_key] = val
 
-    template_loops = discover_template_loops(template_bytes)
+    if template_loops is None:
+        template_loops = discover_template_loops(template_bytes)
 
     for loop in template_loops:
         if loop in sheet_to_loop.values():
@@ -308,12 +329,9 @@ def resolve_report_config(
     )
 
 
-def _excel_sheet_names(excel_bytes: bytes) -> list[str]:
-    import io
-
-    bio = io.BytesIO(excel_bytes)
-    with pd.ExcelFile(bio, engine="openpyxl") as xl:
-        return list(xl.sheet_names)
+def excel_sheet_names(excel_bytes: bytes) -> list[str]:
+    """Return workbook sheet names (single openpyxl pass)."""
+    return _read_excel_meta(excel_bytes)[0]
 
 
 def list_keys_from_context(context: dict[str, Any]) -> set[str]:

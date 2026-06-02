@@ -22,6 +22,11 @@ from engine import (  # noqa: E402
 )
 
 try:
+    from scripts.create_phase1_devon_pair import main as create_phase1_devon_pair  # noqa: E402
+except ImportError:
+    create_phase1_devon_pair = None
+
+try:
     from scripts.create_phase1_site_samples import main as create_phase1_site_samples  # noqa: E402
 except ImportError:
     create_phase1_site_samples = None
@@ -68,6 +73,8 @@ def main() -> None:
     print(f"Wrote: {gw_xlsx}")
     print(f"Wrote: {gw_tpl}")
 
+    if create_phase1_devon_pair is not None:
+        create_phase1_devon_pair()
     if create_phase1_site_samples is not None:
         create_phase1_site_samples()
 

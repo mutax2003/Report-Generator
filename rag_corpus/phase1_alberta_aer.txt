@@ -9,12 +9,14 @@ Executive summary structure (Signum Consulting Ltd. sample reports, Ecoventure v
 4. Phase II for drilling waste if applicable; historical air photo observations; site visit status.
 5. Closing: "After reviewing regulatory information and records, and conducting informational interviews; it is recommended that well centre and the production areas be investigated. The {Client} keyword is Phase II."
 
-Ecoventure Inc. prepares Phase I Environmental Site Assessments for upstream oil and gas facilities in Alberta in support of AER Schedule Two and reclamation certificate applications. The assessment is non-intrusive and does not include subsurface sampling unless otherwise stated.
+Ecoventure Inc. prepares Phase I Environmental Site Assessments for upstream oil and gas facilities in Alberta in support of AER SED 002 Section 10 and reclamation certificate applications submitted through OneStop. The assessment is non-intrusive and does not include subsurface sampling unless otherwise stated.
 
-The scope includes review of regulatory records (AER, Alberta Environment and Protected Areas databases where applicable), historical land use, available aerial photography, and interviews with knowledgeable persons. Drilling waste management is documented against AER (2014) compliance options. Production infrastructure such as access roads, wellheads, berms, and storage tanks is described from file information and site reconnaissance when completed.
+The scope includes review of regulatory records (AER, Alberta Environment and Protected Areas databases where applicable), historical land use, available aerial photography, and interviews with knowledgeable persons. Drilling waste management is documented against AER Assessing Drilling Waste Disposal Areas compliance options (Option 1/2 checklists and calculation tables as appendices). Production infrastructure such as access roads, wellheads, berms, flare pits, and storage tanks is described from file information and site reconnaissance when completed.
 
-Where records or imagery indicate potential contamination or stressed vegetation near the well centre or production footprint, the report may recommend a Phase II ESA for delineation. Limitations include access constraints, completeness of third-party databases, and conditions at the time of the site visit only.
+SED 002 Section 10.6 requires a site visit when practicable, with photographs and operations- or construction-phase sketches showing facilities and spill locations. Section 10.7 records review should reference ABADATA, pipeline and spill searches, and air photo years. Section 10.8 interviews document operator and landowner knowledge.
 
-Qualified persons signing on behalf of Ecoventure Inc. must review all draft text before issuance to the client.
+Where records or imagery indicate potential contamination or stressed vegetation near the well centre or production footprint, the report may recommend a Phase II ESA for delineation. If site visit is deferred or drilling waste disposal locations are unknown, state limitations clearly and recommend Phase II per SED 002.
+
+Qualified persons signing on behalf of Ecoventure Inc. must review all draft text before issuance and before OneStop professional declaration (R&R/12-05).
 
 ---

@@ -10,7 +10,7 @@ from deliverable_pack import AppendixFile, DeliverablePackage, build_deliverable
 from deliverable_pack import enrich_manifest_dict
 from provenance import GenerationRecord, record_filename
 
-APPENDIX_LABELS = ("A", "B", "C", "D", "E", "F")
+APPENDIX_LABELS = ("A", "B", "C", "D", "E", "F", "G", "H")
 PDF_MIME = "application/pdf"
 ZIP_MIME = "application/zip"
 
@@ -25,7 +25,7 @@ def render_appendix_uploader() -> list[AppendixFile]:
     _init_appendix_state()
     st.subheader("Appendices (optional)")
     st.caption(
-        "Upload PDF appendices A–F (Alberta Phase I). Included in the deliverable zip; "
+        "Upload PDF appendices A–H (Alberta Phase I / SED 002). Included in the deliverable zip; "
         "optional combined PDF merges report + appendices when report is PDF."
     )
     store: dict[str, AppendixFile] = st.session_state.appendix_files
@@ -57,6 +57,8 @@ def render_deliverable_downloads(
     generation_record: GenerationRecord | None,
     *,
     prepared_template: Any = None,
+    render_context: dict | None = None,
+    render_meta: dict | None = None,
 ) -> None:
     if not docx_bytes:
         return
@@ -88,6 +90,9 @@ def render_deliverable_downloads(
         manifest_bytes=manifest_bytes,
         manifest_filename=manifest_name,
         appendices=appendices,
+        render_context=render_context,
+        render_meta=render_meta,
+        include_onestop_export=bool(render_context),
         converted_template_docx=(
             prepared_template.docx_bytes if prepared_template and prepared_template.source_format == "pdf" else None
         ),
@@ -104,7 +109,7 @@ def render_deliverable_downloads(
         file_name=(filename or "esa_report").rsplit(".", 1)[0] + "_package.zip",
         mime=ZIP_MIME,
         use_container_width=True,
-        help="Contains report .docx, manifest JSON, and appendices/ folder.",
+        help="Contains report .docx, manifest JSON, appendices/, and onestop/ summary export.",
     )
 
     if appendices:

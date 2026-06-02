@@ -1,6 +1,6 @@
 # 11 — Alberta oil & gas Phase I ESA (Ecoventure)
 
-Primary use case for this tool: **Alberta upstream oil and gas Phase I Environmental Site Assessments**, prepared by **Ecoventure Inc.**, aligned with AER **Schedule Two** / reclamation certificate Phase 1 ESA workflows.
+Primary use case for this tool: **Alberta upstream oil and gas Phase I Environmental Site Assessments**, prepared by **Ecoventure Inc.**, aligned with **AER SED 002 Section 10** and reclamation certificate Phase 1 ESA workflows. See [20-aer-sed002-phase1-esa.md](20-aer-sed002-phase1-esa.md).
 
 ## Reference structure
 
@@ -24,7 +24,7 @@ Client name, UWI, and well identifiers come from project Excel data per engageme
 
 ### Optional (no lab sheet for Phase 1)
 
-- **`DrillingWaste`** — mud type, volume (m³), disposal method, location → `drilling_waste` loop in Word.
+- **`DrillingWaste`** — mud type, volume (m³), disposal method, location, disposal type, GPS, sump dimensions, manifests → `drilling_waste` loop in Word.
 - **`StorageTanks`** — tank type, content, location, capacity → `storage_tanks` loop.
 - **`ReportConfig`** — key/value rows to override profile or sheet mappings (see [13-flexible-report-profiles.md](13-flexible-report-profiles.md)).
 
@@ -36,17 +36,18 @@ Do **not** require **`LabResults`** when sidebar **Report phase** is **Phase 1**
 
 1. Cover — prepared for / **prepared by Ecoventure Inc.** / UWI / QP names / date  
 2. **Executive summary** — `{{ executive_summary }}` (Signum Consulting–style multi-paragraph structure; Ecoventure voice). If blank in Excel, the engine auto-generates from ProjectData fields. Override in sidebar **Override executive summary** before generate.  
-3. AER Schedule Two highlights — drilling, production, site visit, conclusions (scalar tags)  
+3. **SED 002 §10** sections (10.1–10.8) — asset, drilling, waste, production, site visit, records, interviews  
 4. Table loops for drilling waste and storage tanks  
-5. Static appendix list (A–F) — client PDFs uploaded in the app and packaged in the deliverable zip  
+5. Appendices **A–H** — client PDFs uploaded in the app; **onestop/** summary JSON in deliverable zip  
 
 ## Workflow
 
 1. Sidebar: **Phase 1**, profile **Alberta Phase I ESA**, **Prepared by**, date, template version.  
 2. Upload `phase1_alberta_data.xlsx` + `phase1_alberta_template.docx` (or `.pdf` layout reference—convert and tag in Word if needed).  
 3. Pre-flight → optional dry run → **Generate Report**.  
-4. Upload appendix PDFs **A–F** (air photos, ABADATA, land title, etc.) in the **Appendices** section.  
-5. Download **Report (.docx)**, **manifest JSON**, and **Download deliverable package (.zip)** for SharePoint / client delivery.
+4. Upload appendix PDFs **A–H** (air photos, ABADATA, drilling waste checklists, site sketch, etc.).  
+5. Review **SED 002 §10** completeness in pre-flight; download QP checklist if needed.  
+6. Download **Report (.docx)**, **manifest JSON**, and **deliverable package (.zip)** (includes `onestop/` summary for OneStop).
 
 Combined **Final_Report.pdf** (Word + appendices in one file) is not merged in-app; export the `.docx` to PDF in Word and combine appendices with your PDF tool if required.
 
@@ -64,3 +65,4 @@ python scripts\render_cli.py --excel samples\phase1_alberta_data.xlsx --template
 - [04-template-authoring.md](04-template-authoring.md)  
 - [09-ai-assistant.md](09-ai-assistant.md) — Phase 1 narrative drafts (Alberta/AER tone when RAG loaded)  
 - [13-flexible-report-profiles.md](13-flexible-report-profiles.md)  
+- [20-aer-sed002-phase1-esa.md](20-aer-sed002-phase1-esa.md) — SED 002 checklist and OneStop export  

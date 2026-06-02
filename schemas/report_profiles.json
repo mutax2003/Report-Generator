@@ -7,7 +7,7 @@
   "profiles": {
     "phase1_alberta": {
       "label": "Alberta Phase I ESA (Ecoventure)",
-      "description": "AER Schedule Two style; optional drilling waste and tank tables.",
+      "description": "AER SED 002 Phase 1 ESA (Section 10); drilling waste and tank tables.",
       "default_phase": "Phase 1",
       "primary_sheet": "ProjectData",
       "required_sheets": ["ProjectData"],
@@ -38,8 +38,49 @@
         "aer_waste_compliance_option",
         "air_photo_observations",
         "site_visit_completed",
+        "site_visit_date",
         "executive_summary",
-        "conclusions_recommendations"
+        "conclusions_recommendations",
+        "asset_activity_type",
+        "prior_reclamation_cert_number",
+        "records_review_summary",
+        "interview_operator_summary",
+        "interview_landowner_summary",
+        "flare_pit_used",
+        "no_drilling_waste_on_site",
+        "site_visit_photo_notes",
+        "phase2_recommended"
+      ]
+    },
+    "phase1_devon": {
+      "label": "Devon 2017 reference Phase I (04-04-049-04W4M)",
+      "description": "Full-layout template from Devon 2017 reference; uses SED 002 §10 Excel fields.",
+      "default_phase": "Phase 1",
+      "primary_sheet": "ProjectData",
+      "required_sheets": ["ProjectData"],
+      "sheet_mappings": {
+        "DrillingWaste": "drilling_waste",
+        "StorageTanks": "storage_tanks"
+      },
+      "lab_loop_variable": null,
+      "narrative_profile": "phase1_alberta",
+      "recommended_fields": [
+        "site_name",
+        "client_name",
+        "well_name",
+        "uwi",
+        "consultant_name",
+        "company",
+        "executive_summary",
+        "records_review_summary",
+        "interview_operator_summary",
+        "aer_waste_compliance_option",
+        "drilling_waste_summary",
+        "site_visit_completed",
+        "phase2_esa_required",
+        "qp_names",
+        "prepared_by",
+        "date_of_issue"
       ]
     },
     "phase2_esa": {

@@ -6,6 +6,7 @@ import streamlit as st
 
 from phrase_resolver import build_phrase_catalog_workbook_bytes
 from report_profile import build_report_config_workbook_bytes
+from sed002_compliance import build_qp_review_checklist_markdown, sed002_section_summary
 from template_tools import PreflightResult, missing_fields_checklist, run_preflight
 
 
@@ -77,6 +78,14 @@ def render_preflight_panel(
                 f"**{missing_n}** tag(s) will render empty — you can still generate."
             )
 
+        sed = preflight.sed002
+        if sed:
+            st.metric(
+                "SED 002 §10",
+                f"{sed.completeness_pct}%",
+                help=f"{sed.satisfied_count}/{sed.total_items} checklist items",
+            )
+
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Tags", preflight.template_var_count)
@@ -99,6 +108,23 @@ def render_preflight_panel(
                 )
             else:
                 st.metric("Lab rows", cov.lab_row_count if cov else 0)
+
+    sed = preflight.sed002
+    if sed:
+        with st.expander("SED 002 Section 10 completeness", expanded=not sed.ready_for_qp_review):
+            for sec_id, (ok, total) in sorted(sed002_section_summary(sed).items()):
+                st.write(f"**{sec_id}**: {ok}/{total}")
+            if sed.required_missing:
+                st.caption("Required gaps:")
+                for ir in sed.required_missing[:12]:
+                    st.text(f"• {ir.section_id}: {ir.label}")
+            st.download_button(
+                "QP review checklist (SED 002)",
+                data=build_qp_review_checklist_markdown(sed),
+                file_name="sed002_qp_review_checklist.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
 
     if cov:
         if cov.matched:

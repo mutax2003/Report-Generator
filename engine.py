@@ -30,10 +30,7 @@ from security import (
     MAX_PROJECT_COLUMNS,
     MAX_PROJECT_ROWS,
     SecurityError,
-    ZipReadBudget,
     clamp_context,
-    open_docx_zip,
-    read_docx_xml_member,
     sanitize_download_filename,
     sanitize_meta,
     validate_excel_upload,
@@ -273,36 +270,11 @@ def _dataframe_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     ]
 
 
-def _parse_simple_mustache_vars(xml_text: str) -> set[str]:
-    """Top-level {{ var }} names; skips dotted paths (e.g. item.x)."""
-    needed: set[str] = set()
-    for m in re.finditer(r"\{\{-?\s*([^}|]+?)\s*-?\}\}", xml_text):
-        expr = m.group(1).strip()
-        if not expr or expr.startswith("%"):
-            continue
-        if "|" in expr:
-            expr = expr.split("|", 1)[0].strip()
-        if "." in expr:
-            continue
-        if re.fullmatch(r"[A-Za-z_]\w*", expr):
-            needed.add(expr)
-    return needed
-
-
 def collect_template_root_vars(template_bytes: bytes) -> set[str]:
-    roots: set[str] = set()
-    with open_docx_zip(template_bytes) as zf:
-        budget = ZipReadBudget()
-        for name in zf.namelist():
-            if not name.startswith("word/") or not name.endswith(".xml"):
-                continue
-            try:
-                data = read_docx_xml_member(zf, name, budget)
-            except (KeyError, OSError, SecurityError):
-                continue
-            roots |= _parse_simple_mustache_vars(data)
-    roots.discard("item")
-    return roots
+    """Root-level ``{{ var }}`` names from a Word template (single ZIP scan)."""
+    from template_tools import scan_template
+
+    return set(scan_template(template_bytes).root_vars)
 
 
 def _runtime_cache_key(runtime: ReportRuntimeConfig) -> tuple[Any, ...]:
@@ -343,21 +315,54 @@ class ReportEngine:
         self.excel_bytes = excel_bytes
         self.template_bytes = template_bytes
         self._root_vars_cache: set[str] | None = None
+        self._template_loops_cache: set[str] | None = None
         self._excel_cache_key: tuple[Any, ...] | None = None
         self._excel_cache: tuple[list[dict[str, Any]], dict[str, list]] | None = None
+        self._config_cache: dict[tuple[tuple[str, str], ...], ReportRuntimeConfig] = {}
+
+    def _ensure_template_scan(self) -> None:
+        """One ZIP pass for root vars and table loop names."""
+        if self._root_vars_cache is not None and self._template_loops_cache is not None:
+            return
+        from report_profile import loops_from_block_tags
+        from template_tools import scan_template
+
+        scan = scan_template(self.template_bytes)
+        self._root_vars_cache = scan.root_vars
+        self._template_loops_cache = loops_from_block_tags(scan.block_tags)
 
     def template_root_vars(self) -> set[str]:
-        if self._root_vars_cache is None:
-            self._root_vars_cache = collect_template_root_vars(self.template_bytes)
+        self._ensure_template_scan()
+        assert self._root_vars_cache is not None
         return self._root_vars_cache
 
     def resolve_config(self, meta: dict[str, str] | None) -> ReportRuntimeConfig:
-        return resolve_report_config(self.excel_bytes, self.template_bytes, meta)
+        meta_key = tuple(sorted(sanitize_meta(meta).items()))
+        cached = self._config_cache.get(meta_key)
+        if cached is not None:
+            return cached
+        self._ensure_template_scan()
+        runtime = resolve_report_config(
+            self.excel_bytes,
+            self.template_bytes,
+            meta,
+            template_loops=self._template_loops_cache,
+        )
+        self._config_cache[meta_key] = runtime
+        return runtime
 
-    def coverage(self, meta: dict[str, str] | None) -> "TemplateCoverage":
+    def coverage(
+        self,
+        meta: dict[str, str] | None,
+        *,
+        context: dict[str, Any] | None = None,
+    ) -> "TemplateCoverage":
         from template_tools import TemplateCoverage
 
-        ctx = self.build_context(meta)
+        if context is None:
+            ctx = self.build_context(meta)
+        else:
+            ctx = context
         needed = self.template_root_vars()
         ctx_keys = list_keys_from_context(ctx)
         counts = table_row_counts(ctx)
@@ -533,6 +538,10 @@ class ReportEngine:
         ):
             ctx["executive_summary"] = build_phase1_executive_summary(ctx)
             ctx["_executive_summary_auto_generated"] = True
+        if runtime.narrative_profile == "phase1_alberta" and phase == "Phase 1":
+            from phase1_decision import enrich_context_phase2_decision
+
+            ctx = enrich_context_phase2_decision(ctx)
         return ctx
 
     def missing_template_vars(
@@ -590,7 +599,7 @@ class ReportEngine:
             )
         )
         try:
-            coverage = self.coverage(meta)
+            coverage = self.coverage(meta, context=context)
         except (ValueError, SecurityError) as e:
             coverage = None
             warnings.append(str(e))
@@ -669,7 +678,7 @@ class ReportEngine:
         coverage = None
         if include_coverage:
             try:
-                coverage = self.coverage(meta)
+                coverage = self.coverage(meta, context=context)
             except (ValueError, SecurityError):
                 coverage = None
         record = build_generation_record(
@@ -993,6 +1002,19 @@ def generate_phase1_alberta_excel(path: str) -> None:
         "project_number": "ESA-P1-2017-001",
         "report_title": "Phase I Environmental Site Assessment",
         "report_month_year": "March 2017",
+        "asset_activity_type": "Oil well site — drilled and abandoned / suspended",
+        "prior_reclamation_cert_number": "",
+        "site_visit_date": "",
+        "records_review_summary": (
+            "Company well file, AER spills search, ABADATA, and historical air photos reviewed."
+        ),
+        "interview_operator_summary": (
+            "Informational interview with former site operator regarding waste disposal and infrastructure."
+        ),
+        "interview_landowner_summary": "",
+        "flare_pit_used": "No",
+        "no_drilling_waste_on_site": "No",
+        "site_visit_photo_notes": "",
         "qp_names": "Ecoventure QP (P.Eng.); Ecoventure QP (R.T.Ag.)",
         "spud_date": "15-Mar-2004",
         "cased_date": "17-Mar-2004",
@@ -1035,7 +1057,11 @@ def generate_phase1_alberta_excel(path: str) -> None:
         "phase2_recommendation_selected": "recommended",
     }
     row["executive_summary"] = build_phase1_executive_summary(row)
-    from phrase_resolver import list_phrase_definitions, resolve_phrase_text
+    from phrase_resolver import (
+        PHRASE_CATALOG_SHEET,
+        list_phrase_definitions,
+        resolve_phrase_text,
+    )
 
     for phrase_key, option_id in [
         ("drilling_waste_intro", row["drilling_waste_intro_selected"]),
@@ -1053,6 +1079,12 @@ def generate_phase1_alberta_excel(path: str) -> None:
                 "volume_m3": "208",
                 "disposal_method": "LWD, landspray, landspread onsite, remote site",
                 "location": "SW1/4 04-049-04 W4M; SE-09-049-04 W4M; onsite; remote site",
+                "disposal_type": "off-lease and on-lease",
+                "gps_coordinates": "",
+                "sump_depth_m": "",
+                "cover_depth_m": "",
+                "remote_cert_number": "",
+                "waste_manifest_refs": "",
             },
         ]
     )
@@ -1066,8 +1098,6 @@ def generate_phase1_alberta_excel(path: str) -> None:
             },
         ]
     )
-    from phrase_resolver import PHRASE_CATALOG_SHEET, list_phrase_definitions
-
     catalog_rows: list[dict[str, str]] = []
     for phrase_key, spec in sorted(list_phrase_definitions().items()):
         for opt in spec.get("options", []):
@@ -1089,7 +1119,7 @@ def generate_phase1_alberta_excel(path: str) -> None:
 
 
 def generate_phase1_alberta_template_docx(path: str) -> None:
-    """Alberta Phase I ESA Word template — Ecoventure Inc."""
+    """Alberta Phase I ESA Word template — SED 002 Section 10 structure (Ecoventure)."""
     doc = Document()
     doc.add_heading("{{ report_title }}", level=0)
     doc.add_paragraph("PREPARED FOR: {{ client_name }}")
@@ -1102,29 +1132,54 @@ def generate_phase1_alberta_template_docx(path: str) -> None:
     doc.add_paragraph("{{ report_month_year }}")
     doc.add_heading("Executive Summary", level=1)
     doc.add_paragraph("{{ executive_summary }}")
-    doc.add_heading("AER Schedule Two — Phase I ESA (summary)", level=1)
+    doc.add_heading("SED 002 — Phase 1 ESA (Section 10)", level=1)
+    doc.add_heading("10.1 Asset information", level=2)
+    doc.add_paragraph("Activity type: {{ asset_activity_type }}")
+    doc.add_paragraph("Prior reclamation certificate: {{ prior_reclamation_cert_number }}")
+    doc.add_heading("10.2 Drilling information", level=2)
     doc.add_paragraph("Well: {{ well_name }} | UWI: {{ uwi }}")
-    doc.add_paragraph("Spud: {{ spud_date }} | Final drill: {{ final_drill_date }} | TD: {{ well_depth_m }} m")
-    doc.add_paragraph("Status: {{ well_status }} | Re-entry: {{ reentry }} | Fluid: {{ production_fluid }}")
-    doc.add_paragraph("Drilling waste (AER): {{ aer_waste_compliance_option }}")
+    doc.add_paragraph("Spud: {{ spud_date }} | Cased: {{ cased_date }} | Final drill: {{ final_drill_date }}")
+    doc.add_paragraph("TD: {{ well_depth_m }} m | Status: {{ well_status }} | Re-entry: {{ reentry }}")
+    doc.add_paragraph("{{ reentry_detail }}")
+    doc.add_paragraph("Production fluid: {{ production_fluid }}")
+    doc.add_heading("10.4 Drilling waste disposal", level=2)
+    doc.add_paragraph("Compliance option: {{ aer_waste_compliance_option }}")
+    doc.add_paragraph("No drilling waste on site: {{ no_drilling_waste_on_site }}")
     doc.add_paragraph("{{ drilling_waste_intro }}")
     doc.add_paragraph("{{ drilling_waste_summary }}")
-    doc.add_paragraph("{{ site_recon_intro }}")
-    doc.add_paragraph("Infrastructure: {{ infrastructure_summary }}")
-    doc.add_paragraph("Spills/releases: {{ spills_releases }}")
-    doc.add_paragraph("Site visit completed: {{ site_visit_completed }}")
-    doc.add_paragraph("Phase II ESA required: {{ phase2_esa_required }}")
-    doc.add_paragraph("{{ phase2_recommendation }}")
-    doc.add_heading("Conclusions and Recommendations", level=1)
-    doc.add_paragraph("{{ conclusions_recommendations }}")
-    doc.add_paragraph("Prepared by: {{ prepared_by }} | Date: {{ date_of_issue }}")
     _add_docx_table_loop(
         doc,
-        "Drilling waste disposal:",
+        "Drilling waste disposal events:",
         "drilling_waste",
-        ["Mud type", "Volume (m3)", "Disposal method", "Location"],
-        ["mud_type", "volume_m3", "disposal_method", "location"],
+        [
+            "Mud type",
+            "Volume (m3)",
+            "Disposal type",
+            "Method",
+            "Location",
+            "GPS",
+            "Sump depth (m)",
+            "Cover (m)",
+            "Remote cert #",
+            "Manifests",
+        ],
+        [
+            "mud_type",
+            "volume_m3",
+            "disposal_type",
+            "disposal_method",
+            "location",
+            "gps_coordinates",
+            "sump_depth_m",
+            "cover_depth_m",
+            "remote_cert_number",
+            "waste_manifest_refs",
+        ],
     )
+    doc.add_heading("10.5 Production and storage", level=2)
+    doc.add_paragraph("Infrastructure: {{ infrastructure_summary }}")
+    doc.add_paragraph("Flare pit used: {{ flare_pit_used }}")
+    doc.add_paragraph("Spills/releases: {{ spills_releases }}")
     _add_docx_table_loop(
         doc,
         "Storage tanks:",
@@ -1132,10 +1187,26 @@ def generate_phase1_alberta_template_docx(path: str) -> None:
         ["Type", "Content", "Location", "Capacity (m3)"],
         ["tank_type", "content", "location", "capacity_m3"],
     )
+    doc.add_heading("10.6 Site visit", level=2)
+    doc.add_paragraph("{{ site_recon_intro }}")
+    doc.add_paragraph("Site visit completed: {{ site_visit_completed }} | Date: {{ site_visit_date }}")
+    doc.add_paragraph("{{ site_visit_photo_notes }}")
+    doc.add_heading("10.7 Records review", level=2)
+    doc.add_paragraph("{{ records_review_summary }}")
+    doc.add_paragraph("Air photos: {{ air_photo_observations }}")
+    doc.add_heading("10.8 Interviews", level=2)
+    doc.add_paragraph("Operator: {{ interview_operator_summary }}")
+    doc.add_paragraph("Landowner: {{ interview_landowner_summary }}")
+    doc.add_heading("Conclusions and Phase II", level=2)
+    doc.add_paragraph("Phase II ESA required: {{ phase2_esa_required }}")
+    doc.add_paragraph("Phase II recommended (rules): {{ phase2_recommended }}")
+    doc.add_paragraph("{{ phase2_recommendation }}")
+    doc.add_paragraph("{{ conclusions_recommendations }}")
+    doc.add_paragraph("Prepared by: {{ prepared_by }} | Date: {{ date_of_issue }}")
     doc.add_paragraph("")
     doc.add_paragraph(
-        "Appendices A–F (AER forms, ABADATA, air photos, drilling waste, survey, "
-        "land title) are attached separately to the deliverable package."
+        "Appendices A–H (AER forms, ABADATA, air photos, drilling waste checklists, "
+        "survey, land title, site sketch) are attached in the deliverable package."
     )
     doc.save(path)
 
