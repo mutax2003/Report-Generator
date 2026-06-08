@@ -9,31 +9,11 @@ from report_profile import build_report_config_workbook_bytes
 from sed002_compliance import build_qp_review_checklist_markdown, sed002_section_summary
 from template_tools import PreflightResult, missing_fields_checklist, run_preflight
 from ui.appendix_panel import appendix_labels_from_session
+from ui.helpers import get_cached_report_engine
 
 
 def _digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-@st.cache_data(show_spinner=False)
-def cached_preflight(
-    excel_digest: str,
-    template_digest: str,
-    meta_json: str,
-    appendix_labels_json: str,
-    excel_bytes: bytes,
-    template_bytes: bytes,
-) -> PreflightResult:
-    import json
-
-    meta = json.loads(meta_json)
-    labels = set(json.loads(appendix_labels_json))
-    return run_preflight(
-        excel_bytes,
-        template_bytes,
-        meta,
-        appendix_labels_present=labels,
-    )
 
 
 def run_preflight_check(
@@ -46,14 +26,27 @@ def run_preflight_check(
     import json
 
     appendix_labels = sorted(appendix_labels_from_session())
-    return cached_preflight(
+    cache_key = (
         _digest(excel_bytes),
         _digest(template_bytes),
         json.dumps(meta, sort_keys=True),
         json.dumps(appendix_labels),
+    )
+    box = st.session_state.setdefault("_preflight_result_cache", {})
+    cached = box.get(cache_key)
+    if cached is not None:
+        return cached
+
+    engine = get_cached_report_engine(excel_bytes, template_bytes)
+    result = run_preflight(
         excel_bytes,
         template_bytes,
+        meta,
+        appendix_labels_present=set(appendix_labels),
+        engine=engine,
     )
+    box[cache_key] = result
+    return result
 
 
 def render_preflight_panel(
@@ -94,6 +87,24 @@ def render_preflight_panel(
                 "SED 002 §10",
                 f"{sed.completeness_pct}%",
                 help=f"{sed.satisfied_count}/{sed.total_items} checklist items",
+            )
+        elif preflight.phase2:
+            st.metric(
+                "Phase II checklist",
+                f"{preflight.phase2.completeness_pct}%",
+                help=f"{preflight.phase2.satisfied_count}/{preflight.phase2.total_items} items",
+            )
+        elif preflight.groundwater:
+            st.metric(
+                "GW checklist",
+                f"{preflight.groundwater.completeness_pct}%",
+                help=f"{preflight.groundwater.satisfied_count}/{preflight.groundwater.total_items} items",
+            )
+        elif preflight.reclamation:
+            st.metric(
+                "Reclamation checklist",
+                f"{preflight.reclamation.completeness_pct}%",
+                help=f"{preflight.reclamation.satisfied_count}/{preflight.reclamation.total_items} items",
             )
 
         col1, col2, col3, col4 = st.columns(4)

@@ -76,6 +76,17 @@ def enrich_groundwater_context(ctx: dict[str, Any]) -> None:
     else:
         ctx["data_gap_note"] = ""
 
+    try:
+        from ai.gw_trends import analyze_groundwater_trends
+
+        trend_notes, _audit = analyze_groundwater_trends(ctx, use_llm=False)
+        if trend_notes:
+            ctx["gw_trend_summary"] = " ".join(n.message for n in trend_notes[:5])
+        else:
+            ctx["gw_trend_summary"] = ""
+    except Exception:
+        ctx["gw_trend_summary"] = ""
+
 
 def build_groundwater_executive_summary(ctx: dict[str, Any]) -> str:
     """Draft executive summary when ProjectData executive_summary is empty."""
@@ -101,4 +112,7 @@ def build_groundwater_executive_summary(ctx: dict[str, Any]) -> str:
     intro = _s(ctx.get("gw_program_intro"))
     if intro:
         parts.insert(1, intro)
+    trends = _s(ctx.get("gw_trend_summary"))
+    if trends:
+        parts.append(trends)
     return "\n\n".join(parts)

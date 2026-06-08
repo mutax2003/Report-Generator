@@ -133,7 +133,7 @@ scripts/                CLI utilities
 schemas/                report_profiles.json, field_contract.json
 samples/                Demo and production fixtures
 docs/                   Full documentation
-tests/                  Unit and integration tests (119 tests)
+tests/                  Unit and integration tests (123 tests)
 Dockerfile              Container image for Streamlit
 ```
 

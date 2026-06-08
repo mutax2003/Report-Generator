@@ -48,7 +48,7 @@ Or: `.\run.ps1 scripts\create_samples.py` (uses venv Python on Windows).
 | Regression | `python scripts\health_check.py` |
 | SharePoint bundle | `.\scripts\package_team_sharepoint.ps1` |
 | Team Docker host | `docker compose up -d --build` (see [docs/14-deployment.md](docs/14-deployment.md)) |
-| Unit tests | `python -m unittest discover -s tests -v` (**119 tests**; see [docs/08-testing.md](docs/08-testing.md)) |
+| Unit tests | `python -m unittest discover -s tests -v` (**123 tests**; see [docs/08-testing.md](docs/08-testing.md)) |
 | Devon sample pair | `python scripts\create_phase1_devon_pair.py` |
 | Slow health in smoke test | `$env:ESA_RUN_HEALTH_CHECK="1"` then run `tests.test_smoke_integration` |
 

@@ -88,15 +88,28 @@ def profile_id_for_phase(phase: str) -> str:
     return "phase1_alberta"
 
 
+_cached_field_contract: dict[str, Any] | None = None
+_field_contract_mtime: float | None = None
+
+
+def _load_field_contract() -> dict[str, Any]:
+    global _cached_field_contract, _field_contract_mtime
+    contract_path = Path(__file__).resolve().parent / "schemas" / "field_contract.json"
+    mtime = contract_path.stat().st_mtime if contract_path.is_file() else 0.0
+    if _cached_field_contract is None or _field_contract_mtime != mtime:
+        with contract_path.open(encoding="utf-8") as f:
+            _cached_field_contract = json.load(f)
+        _field_contract_mtime = mtime
+    return _cached_field_contract
+
+
 def get_recommended_fields(report_type: str) -> list[str]:
     """Profile-scoped recommended ProjectData / sidebar fields (single maintenance source)."""
     spec = get_profile_spec(report_type)
     fields = spec.get("recommended_fields")
     if isinstance(fields, list) and fields:
         return [str(f) for f in fields]
-    contract_path = Path(__file__).resolve().parent / "schemas" / "field_contract.json"
-    with contract_path.open(encoding="utf-8") as f:
-        contract = json.load(f)
+    contract = _load_field_contract()
     project = contract.get("sheets", {}).get("ProjectData", {})
     out = list(project.get("recommended_all_phases", []))
     if report_type == "phase1_alberta":
@@ -148,22 +161,10 @@ def loops_from_block_tags(block_tags: set[str]) -> set[str]:
 
 
 def discover_template_loops(template_bytes: bytes) -> set[str]:
-    """Find ``{%tr for item in var %}`` (and similar) loop variables in the Word template."""
-    from security import ZipReadBudget, open_docx_zip, read_docx_xml_member
+    """Find ``{%tr for item in var %}`` loop variables in the Word template (one ZIP scan)."""
+    from template_tools import scan_template
 
-    loops: set[str] = set()
-    with open_docx_zip(template_bytes) as zf:
-        budget = ZipReadBudget()
-        for name in zf.namelist():
-            if not name.startswith("word/") or not name.endswith(".xml"):
-                continue
-            try:
-                xml = read_docx_xml_member(zf, name, budget)
-            except (KeyError, OSError):
-                continue
-            for m in LOOP_FOR_ITEM_RE.finditer(xml):
-                loops.add(m.group(1))
-    return loops
+    return loops_from_block_tags(scan_template(template_bytes).block_tags)
 
 
 def _read_report_config_sheet(df: pd.DataFrame) -> dict[str, str]:

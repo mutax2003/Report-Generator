@@ -214,19 +214,20 @@ def _lab_frame_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     if len(df) > MAX_LAB_ROWS:
         df = df.head(MAX_LAB_ROWS)
     rows: list[dict[str, Any]] = []
-    col_map = {_norm_key(c): c for c in df.columns}
+    col_map = {_norm_key(c): i for i, c in enumerate(df.columns)}
 
-    def get(row: pd.Series, *names: str) -> Any:
+    def get_at(row: tuple[Any, ...], *names: str) -> Any:
         for n in names:
-            if n in col_map:
-                return row[col_map[n]]
+            idx = col_map.get(n)
+            if idx is not None:
+                return row[idx]
         return None
 
-    for _, row in df.iterrows():
-        analyte = get(row, "analyte", "parameter", "constituent")
-        result = get(row, "result", "value")
-        unit = get(row, "unit", "units")
-        criteria = get(
+    for row in df.itertuples(index=False, name=None):
+        analyte = get_at(row, "analyte", "parameter", "constituent")
+        result = get_at(row, "result", "value")
+        unit = get_at(row, "unit", "units")
+        criteria = get_at(
             row,
             "criteria",
             "standard",
@@ -235,16 +236,16 @@ def _lab_frame_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
             "background_limit",
             "guideline",
         )
-        exc_col = get(row, "exceedance", "exceeds", "flag")
+        exc_col = get_at(row, "exceedance", "exceeds", "flag")
 
         exceed = _truthy_exceedance(exc_col) or _numeric_compare_exceeds(
             result, criteria
         )
         rec: dict[str, Any] = {}
-        for c in df.columns:
+        for i, c in enumerate(df.columns):
             k = _norm_key(c)
             if k:
-                rec[k] = _cell_str(row[c])
+                rec[k] = _cell_str(row[i])
         rec["analyte"] = _cell_str(analyte)
         rec["result"] = _cell_str(result)
         rec["unit"] = _cell_str(unit)
@@ -318,6 +319,7 @@ class ReportEngine:
         self._template_loops_cache: set[str] | None = None
         self._excel_cache_key: tuple[Any, ...] | None = None
         self._excel_cache: tuple[list[dict[str, Any]], dict[str, list]] | None = None
+        self._excel_meta_cache: tuple[list[str], dict[str, str]] | None = None
         self._config_cache: dict[tuple[tuple[str, str], ...], ReportRuntimeConfig] = {}
 
     def _ensure_template_scan(self) -> None:
@@ -336,6 +338,21 @@ class ReportEngine:
         assert self._root_vars_cache is not None
         return self._root_vars_cache
 
+    def _get_excel_meta(self) -> tuple[list[str], dict[str, str]]:
+        if self._excel_meta_cache is None:
+            from report_profile import read_excel_meta
+
+            self._excel_meta_cache = read_excel_meta(self.excel_bytes)
+        return self._excel_meta_cache
+
+    def seed_template_scan(
+        self, root_vars: set[str], template_loops: set[str] | None = None
+    ) -> None:
+        """Reuse a prior template ZIP scan (e.g. from preflight)."""
+        self._root_vars_cache = root_vars
+        if template_loops is not None:
+            self._template_loops_cache = template_loops
+
     def resolve_config(self, meta: dict[str, str] | None) -> ReportRuntimeConfig:
         meta_key = tuple(sorted(sanitize_meta(meta).items()))
         cached = self._config_cache.get(meta_key)
@@ -347,6 +364,7 @@ class ReportEngine:
             self.template_bytes,
             meta,
             template_loops=self._template_loops_cache,
+            excel_meta=self._get_excel_meta(),
         )
         self._config_cache[meta_key] = runtime
         return runtime
@@ -435,8 +453,15 @@ class ReportEngine:
                     continue
                 df = xl.parse(sheet_name, header=0)
                 if (
-                    loop_var in (lab_var, "lab_results", "groundwater_results")
-                    or sheet_name in (LAB_SHEET, GROUNDWATER_LAB_SHEET)
+                    loop_var
+                    in (
+                        lab_var,
+                        "lab_results",
+                        "groundwater_results",
+                        "confirmatory_sampling",
+                    )
+                    or sheet_name
+                    in (LAB_SHEET, GROUNDWATER_LAB_SHEET, "ConfirmatorySampling")
                 ):
                     lists[loop_var] = _lab_frame_to_records(df)
                 else:
@@ -517,6 +542,7 @@ class ReportEngine:
             "treatment_events",
             "confirmatory_sampling",
             "waste_manifests",
+            "sample_locations",
         ):
             ctx.setdefault(legacy, [])
         ctx["_report_type"] = runtime.report_type
@@ -530,6 +556,26 @@ class ReportEngine:
             enrich_groundwater_context(ctx)
             if not _s(ctx.get("executive_summary")):
                 ctx["executive_summary"] = build_groundwater_executive_summary(ctx)
+                ctx["_executive_summary_auto_generated"] = True
+        elif runtime.narrative_profile == "phase2":
+            from phase2_narrative import (
+                build_phase2_executive_summary,
+                enrich_phase2_context,
+            )
+
+            enrich_phase2_context(ctx)
+            if not _s(ctx.get("executive_summary")):
+                ctx["executive_summary"] = build_phase2_executive_summary(ctx)
+                ctx["_executive_summary_auto_generated"] = True
+        elif runtime.narrative_profile == "remediation":
+            from remediation_narrative import (
+                build_remediation_executive_summary,
+                enrich_remediation_context,
+            )
+
+            enrich_remediation_context(ctx)
+            if not _s(ctx.get("executive_summary")):
+                ctx["executive_summary"] = build_remediation_executive_summary(ctx)
                 ctx["_executive_summary_auto_generated"] = True
         elif (
             runtime.narrative_profile == "phase1_alberta"
@@ -648,7 +694,8 @@ class ReportEngine:
                 "Executive summary auto-generated from ProjectData (Signum-style structure). "
                 "Review before client delivery."
             )
-        for m in self.missing_template_vars(context):
+        missing_vars = self.missing_template_vars(context)
+        for m in missing_vars:
             warnings.append(
                 f"Template uses '{{{{ {m} }}}}' but no Excel/sidebar value; "
                 "rendering with empty string."
@@ -687,7 +734,7 @@ class ReportEngine:
             meta=meta,
             coverage=coverage,
             warnings=warnings,
-            missing_variables=self.missing_template_vars(context),
+            missing_variables=missing_vars,
             output_bytes=docx_bytes,
             excel_filename=excel_filename,
             template_filename=template_filename,
@@ -713,7 +760,13 @@ class ReportEngine:
                 f"{MAX_BATCH_REPORTS} reports per run."
             )
         labels = _labels_from_project_rows(project_rows)
-        parsed = (project_rows, list_data)
+        filtered_per_row = [
+            {
+                loop_var: _filter_records_for_project(rows, project_rows[i])
+                for loop_var, rows in list_data.items()
+            }
+            for i in range(n)
+        ]
         results: list[BatchReportResult] = []
         for i in range(n):
             excel_row = int(
@@ -724,7 +777,7 @@ class ReportEngine:
                 excel_filename=excel_filename,
                 template_filename=template_filename,
                 project_row_index=i,
-                parsed_excel=parsed,
+                parsed_excel=(project_rows, filtered_per_row[i]),
                 include_coverage=(i == n - 1),
             )
             filename = suggested_download_name(
@@ -1243,28 +1296,40 @@ def generate_custom_demo_excel(path: str) -> None:
 
 def generate_groundwater_monitoring_excel(path: str) -> None:
     """Ecoventure groundwater monitoring sample workbook."""
-    project = pd.DataFrame(
-        [
-            {
-                "site_name": "Example Wellsite GW Program",
-                "client_name": "Example Energy Ltd.",
-                "project_number": "GW-2026-001",
-                "address": "NE 1/4-1-1-1W5M, Alberta",
-                "consultant_name": ECOVENTURE_CONSULTANT,
-                "company": ECOVENTURE_CONSULTANT,
-                "report_title": "Groundwater Monitoring Report",
-                "monitoring_program": "Annual groundwater monitoring",
-                "lab_name": "Accredited Environmental Laboratory",
-                "hydrogeologic_setting": "",
-                "executive_summary": "",
-                "conclusions_recommendations": (
-                    "Continue annual monitoring. Investigate chloride exceedance at MW-2."
-                ),
-                "hydrograph_image_path": "",
-                "site_map_image_path": "",
-            }
-        ]
-    )
+    from phrase_resolver import PHRASE_CATALOG_SHEET, list_phrase_definitions, resolve_phrase_text
+
+    row = {
+        "site_name": "Example Wellsite GW Program",
+        "client_name": "Example Energy Ltd.",
+        "project_number": "GW-2026-001",
+        "address": "NE 1/4-1-1-1W5M, Alberta",
+        "consultant_name": ECOVENTURE_CONSULTANT,
+        "company": ECOVENTURE_CONSULTANT,
+        "report_title": "Groundwater Monitoring Report",
+        "monitoring_program": "Annual groundwater monitoring",
+        "lab_name": "Accredited Environmental Laboratory",
+        "hydrogeologic_setting": "",
+        "executive_summary": "",
+        "conclusions_recommendations": (
+            "Continue annual monitoring. Investigate chloride exceedance at MW-2."
+        ),
+        "hydrograph_image_path": "",
+        "site_map_image_path": "",
+        "gw_program_intro_selected": "annual",
+        "gw_sampling_methods_selected": "low_flow",
+        "gw_data_usability_selected": "usable",
+        "gw_recommendations_selected": "investigate",
+    }
+    for phrase_key, option_id in [
+        ("gw_program_intro", row["gw_program_intro_selected"]),
+        ("gw_sampling_methods", row["gw_sampling_methods_selected"]),
+        ("gw_data_usability", row["gw_data_usability_selected"]),
+        ("gw_recommendations", row["gw_recommendations_selected"]),
+    ]:
+        text = resolve_phrase_text(phrase_key, option_id)
+        if text:
+            row[phrase_key] = text
+    project = pd.DataFrame([row])
     wells = pd.DataFrame(
         [
             {
@@ -1316,6 +1381,15 @@ def generate_groundwater_monitoring_excel(path: str) -> None:
             },
             {
                 "well_id": "MW-2",
+                "sample_date": "2025-04-15",
+                "analyte": "Chloride",
+                "result": "280",
+                "unit": "mg/L",
+                "tier1_limit": "250",
+                "Exceedance": "Y",
+            },
+            {
+                "well_id": "MW-2",
                 "sample_date": "2026-04-15",
                 "analyte": "Chloride",
                 "result": "380",
@@ -1344,12 +1418,25 @@ def generate_groundwater_monitoring_excel(path: str) -> None:
             },
         ]
     )
+    catalog_rows: list[dict[str, str]] = []
+    for phrase_key, spec in sorted(list_phrase_definitions().items()):
+        for opt in spec.get("options", []):
+            catalog_rows.append(
+                {
+                    "phrase_key": phrase_key,
+                    "option_id": str(opt.get("id", "")),
+                    "text": str(opt.get("text", "")),
+                }
+            )
+    phrase_catalog = pd.DataFrame(catalog_rows)
     with pd.ExcelWriter(path, engine="openpyxl") as w:
         project.to_excel(w, sheet_name=PROJECT_SHEET, index=False)
         wells.to_excel(w, sheet_name=MONITORING_WELLS_SHEET, index=False)
         levels.to_excel(w, sheet_name=WATER_LEVELS_SHEET, index=False)
         gw_lab.to_excel(w, sheet_name=GROUNDWATER_LAB_SHEET, index=False)
         field_notes.to_excel(w, sheet_name="FieldNotes", index=False)
+        if not phrase_catalog.empty:
+            phrase_catalog.to_excel(w, sheet_name=PHRASE_CATALOG_SHEET, index=False)
 
 
 def generate_groundwater_monitoring_template_docx(path: str) -> None:
@@ -1397,8 +1484,349 @@ def generate_groundwater_monitoring_template_docx(path: str) -> None:
     )
     doc.add_heading("Conclusions", level=1)
     doc.add_paragraph("{{ conclusions_recommendations }}")
+    doc.add_paragraph("{{ gw_trend_summary }}")
     doc.add_paragraph("{{ gw_recommendations }}")
     doc.add_paragraph("{{ gw_data_usability }}")
+    doc.save(path)
+
+
+def generate_phase2_alberta_excel(path: str) -> None:
+    """Alberta O&G Phase II workbook — Ecoventure sample with lab + sample locations."""
+    row = {
+        "client_name": "Example Energy Ltd.",
+        "consultant_name": ECOVENTURE_CONSULTANT,
+        "company": ECOVENTURE_CONSULTANT,
+        "site_name": "Example 4D Windy 4-4-49-4",
+        "site_address": "NE 1/4-04-049-04W4M, Alberta",
+        "uwi": "00/04-04-049-04W4/0",
+        "project_number": "ESA-P2-2017-001",
+        "report_title": "Phase II Environmental Site Assessment",
+        "investigation_scope": "Phase II ESA — well centre and production areas",
+        "lab_name": "Accredited Environmental Laboratory",
+        "qp_names": "Ecoventure QP (P.Eng.)",
+        "conclusions_recommendations": (
+            "Exceedances at well centre warrant risk assessment. "
+            "No further Phase II off-lease sampling recommended at this time."
+        ),
+    }
+    project = pd.DataFrame([row])
+    lab = pd.DataFrame(
+        [
+            {
+                "Sample ID": "BH-01-0.5",
+                "Location": "Well centre",
+                "Matrix": "Soil",
+                "Depth_m": "0.5",
+                "Analyte": "Benzene",
+                "Result": 0.02,
+                "Unit": "mg/kg",
+                "Criteria": 0.01,
+                "Exceedance": "Y",
+            },
+            {
+                "Sample ID": "BH-01-2.0",
+                "Location": "Well centre",
+                "Matrix": "Soil",
+                "Depth_m": "2.0",
+                "Analyte": "Benzene",
+                "Result": 0.005,
+                "Unit": "mg/kg",
+                "Criteria": 0.01,
+                "Exceedance": "N",
+            },
+            {
+                "Sample ID": "BH-02-1.0",
+                "Location": "Tank berm SE",
+                "Matrix": "Soil",
+                "Depth_m": "1.0",
+                "Analyte": "TCE",
+                "Result": 0.001,
+                "Unit": "mg/kg",
+                "Criteria": 0.005,
+                "Exceedance": "N",
+            },
+        ]
+    )
+    locations = pd.DataFrame(
+        [
+            {
+                "sample_id": "BH-01-0.5",
+                "location": "Well centre",
+                "matrix": "Soil",
+                "depth_m": "0.5",
+                "sample_date": "2017-08-15",
+            },
+            {
+                "sample_id": "BH-02-1.0",
+                "location": "Tank berm SE",
+                "matrix": "Soil",
+                "depth_m": "1.0",
+                "sample_date": "2017-08-15",
+            },
+        ]
+    )
+    with pd.ExcelWriter(path, engine="openpyxl") as w:
+        project.to_excel(w, sheet_name=PROJECT_SHEET, index=False)
+        lab.to_excel(w, sheet_name=LAB_SHEET, index=False)
+        locations.to_excel(w, sheet_name="SampleLocations", index=False)
+
+
+def generate_phase2_alberta_template_docx(path: str) -> None:
+    """Phase II ESA Word template — lab results + sample locations."""
+    doc = Document()
+    doc.add_heading("{{ report_title }}", level=0)
+    doc.add_paragraph("Client: {{ client_name }}")
+    doc.add_paragraph("Site: {{ site_name }}")
+    doc.add_paragraph("UWI: {{ uwi }}")
+    doc.add_paragraph("Scope: {{ investigation_scope }}")
+    doc.add_paragraph("Laboratory: {{ lab_name }}")
+    doc.add_paragraph("Prepared by: {{ prepared_by }} | {{ date_of_issue }}")
+    doc.add_heading("Executive Summary", level=1)
+    doc.add_paragraph("{{ executive_summary }}")
+    doc.add_paragraph("{{ exceedance_summary }}")
+    _add_docx_table_loop(
+        doc,
+        "Sample locations:",
+        "sample_locations",
+        ["Sample ID", "Location", "Matrix", "Depth (m)", "Date"],
+        ["sample_id", "location", "matrix", "depth_m", "sample_date"],
+    )
+    _add_lab_results_table(doc)
+    doc.add_heading("Conclusions", level=1)
+    doc.add_paragraph("{{ conclusions_recommendations }}")
+    doc.save(path)
+
+
+def generate_phase3_remediation_excel(path: str) -> None:
+    """Phase III remediation sample workbook."""
+    from phrase_resolver import PHRASE_CATALOG_SHEET, list_phrase_definitions, resolve_phrase_text
+
+    row = {
+        "client_name": "Example Energy Ltd.",
+        "consultant_name": ECOVENTURE_CONSULTANT,
+        "company": ECOVENTURE_CONSULTANT,
+        "site_name": "Example Wellsite Remediation",
+        "project_number": "REM-2026-001",
+        "report_title": "Remediation Progress Report",
+        "rap_status": "Approved RAP — active",
+        "remediation_status_selected": "ongoing",
+        "confirmatory_summary_selected": "not_met",
+        "closure_recommendation_selected": "defer",
+        "conclusions_recommendations": (
+            "Continue treatment until confirmatory objectives are met for benzene at MW-2."
+        ),
+    }
+    for phrase_key, option_id in [
+        ("remediation_status", row["remediation_status_selected"]),
+        ("confirmatory_summary", row["confirmatory_summary_selected"]),
+        ("closure_recommendation", row["closure_recommendation_selected"]),
+    ]:
+        text = resolve_phrase_text(phrase_key, option_id)
+        if text:
+            row[phrase_key] = text
+    project = pd.DataFrame([row])
+    objectives = pd.DataFrame(
+        [
+            {
+                "media": "Groundwater",
+                "parameter": "Benzene",
+                "objective": "0.005 mg/L",
+                "rap_reference": "RAP Table 3-1",
+            },
+        ]
+    )
+    treatments = pd.DataFrame(
+        [
+            {
+                "event_date": "2026-03-01",
+                "method": "Air sparging",
+                "location": "MW-2 vicinity",
+                "volume_m3": "N/A",
+                "contractor": "Remediation contractor",
+            },
+        ]
+    )
+    confirmatory = pd.DataFrame(
+        [
+            {
+                "well_id": "MW-2",
+                "sample_date": "2026-04-15",
+                "analyte": "Benzene",
+                "result": "0.008",
+                "unit": "mg/L",
+                "tier1_limit": "0.005",
+                "Exceedance": "Y",
+            },
+        ]
+    )
+    manifests = pd.DataFrame(
+        [
+            {
+                "manifest_number": "WM-2026-014",
+                "waste_type": "Impacted soil",
+                "destination": "Approved facility",
+                "volume_m3": "12",
+            },
+        ]
+    )
+    catalog_rows: list[dict[str, str]] = []
+    for phrase_key, spec in sorted(list_phrase_definitions().items()):
+        for opt in spec.get("options", []):
+            catalog_rows.append(
+                {
+                    "phrase_key": phrase_key,
+                    "option_id": str(opt.get("id", "")),
+                    "text": str(opt.get("text", "")),
+                }
+            )
+    phrase_catalog = pd.DataFrame(catalog_rows)
+    with pd.ExcelWriter(path, engine="openpyxl") as w:
+        project.to_excel(w, sheet_name=PROJECT_SHEET, index=False)
+        objectives.to_excel(w, sheet_name="RemediationObjectives", index=False)
+        treatments.to_excel(w, sheet_name="TreatmentEvents", index=False)
+        confirmatory.to_excel(w, sheet_name="ConfirmatorySampling", index=False)
+        manifests.to_excel(w, sheet_name="WasteManifests", index=False)
+        if not phrase_catalog.empty:
+            phrase_catalog.to_excel(w, sheet_name=PHRASE_CATALOG_SHEET, index=False)
+
+
+def generate_phase3_remediation_template_docx(path: str) -> None:
+    """Phase III remediation Word template."""
+    doc = Document()
+    doc.add_heading("{{ report_title }}", level=0)
+    doc.add_paragraph("Client: {{ client_name }}")
+    doc.add_paragraph("Site: {{ site_name }}")
+    doc.add_paragraph("RAP status: {{ rap_status }}")
+    doc.add_paragraph("Prepared by: {{ prepared_by }} | {{ date_of_issue }}")
+    doc.add_heading("Executive Summary", level=1)
+    doc.add_paragraph("{{ executive_summary }}")
+    doc.add_paragraph("Objectives: {{ objective_count }} | Treatments: {{ treatment_event_count }}")
+    doc.add_paragraph("{{ confirmatory_status }}")
+    _add_docx_table_loop(
+        doc,
+        "Remediation objectives:",
+        "remediation_objectives",
+        ["Media", "Parameter", "Objective", "RAP ref"],
+        ["media", "parameter", "objective", "rap_reference"],
+    )
+    _add_docx_table_loop(
+        doc,
+        "Treatment events:",
+        "treatment_events",
+        ["Date", "Method", "Location", "Volume", "Contractor"],
+        ["event_date", "method", "location", "volume_m3", "contractor"],
+    )
+    _add_docx_table_loop(
+        doc,
+        "Confirmatory sampling:",
+        "confirmatory_sampling",
+        ["Well ID", "Date", "Analyte", "Result", "Unit", "Exceedance"],
+        ["well_id", "sample_date", "analyte", "result_display", "unit", "exceedance_flag"],
+    )
+    doc.add_heading("Conclusions", level=1)
+    doc.add_paragraph("{{ conclusions_recommendations }}")
+    doc.add_paragraph("{{ closure_recommendation }}")
+    doc.save(path)
+
+
+def generate_reclamation_certificate_excel(path: str) -> None:
+    """Reclamation certificate sample workbook."""
+    row = {
+        "client_name": "Example Energy Ltd.",
+        "consultant_name": ECOVENTURE_CONSULTANT,
+        "company": ECOVENTURE_CONSULTANT,
+        "well_name": "Example 4D Windy 4-4-49-4",
+        "site_name": "Example 4D Windy 4-4-49-4",
+        "uwi": "00/04-04-049-04W4/0",
+        "project_number": "RC-2026-001",
+        "report_title": "Reclamation Certificate Application — Phase I ESA Summary",
+        "certificate_status": "Application in preparation",
+        "executive_summary": "",
+        "conclusions_recommendations": (
+            "Site reclamation meets equivalent land capability objectives. "
+            "Recommend submission of reclamation certificate application."
+        ),
+        "asset_activity_type": "Oil well site — suspended",
+        "aer_waste_compliance_option": "Option 1 (AER, 2014)",
+        "drilling_waste_summary": "Drilling waste disposed per company records.",
+        "records_review_summary": "Records reviewed.",
+        "site_visit_completed": "Yes",
+        "qp_names": "Ecoventure QP",
+    }
+    project = pd.DataFrame([row])
+    tasks = pd.DataFrame(
+        [
+            {
+                "task": "Remove infrastructure",
+                "status": "Complete",
+                "completion_date": "2025-10-01",
+            },
+            {
+                "task": "Contour and revegetate",
+                "status": "Complete",
+                "completion_date": "2026-04-01",
+            },
+        ]
+    )
+    soil = pd.DataFrame(
+        [
+            {
+                "source_area": "Well centre",
+                "destination": "On-site placement",
+                "volume_m3": "45",
+                "placement_depth_m": "0.3",
+            },
+        ]
+    )
+    vegetation = pd.DataFrame(
+        [
+            {
+                "species_mix": "Native grass seed mix",
+                "application_rate": "Standard",
+                "establishment_pct": "85",
+            },
+        ]
+    )
+    with pd.ExcelWriter(path, engine="openpyxl") as w:
+        project.to_excel(w, sheet_name=PROJECT_SHEET, index=False)
+        tasks.to_excel(w, sheet_name="ReclamationTasks", index=False)
+        soil.to_excel(w, sheet_name="SoilPlacement", index=False)
+        vegetation.to_excel(w, sheet_name="Vegetation", index=False)
+
+
+def generate_reclamation_certificate_template_docx(path: str) -> None:
+    """Reclamation certificate Word template."""
+    doc = Document()
+    doc.add_heading("{{ report_title }}", level=0)
+    doc.add_paragraph("Client: {{ client_name }}")
+    doc.add_paragraph("{{ well_name }} | UWI: {{ uwi }}")
+    doc.add_paragraph("Certificate status: {{ certificate_status }}")
+    doc.add_paragraph("Prepared by: {{ prepared_by }} | {{ date_of_issue }}")
+    doc.add_heading("Executive Summary", level=1)
+    doc.add_paragraph("{{ executive_summary }}")
+    _add_docx_table_loop(
+        doc,
+        "Reclamation tasks:",
+        "reclamation_tasks",
+        ["Task", "Status", "Completion date"],
+        ["task", "status", "completion_date"],
+    )
+    _add_docx_table_loop(
+        doc,
+        "Soil placement:",
+        "soil_placement",
+        ["Source", "Destination", "Volume (m3)", "Depth (m)"],
+        ["source_area", "destination", "volume_m3", "placement_depth_m"],
+    )
+    _add_docx_table_loop(
+        doc,
+        "Vegetation:",
+        "vegetation",
+        ["Species mix", "Application rate", "Establishment %"],
+        ["species_mix", "application_rate", "establishment_pct"],
+    )
+    doc.add_heading("Conclusions", level=1)
+    doc.add_paragraph("{{ conclusions_recommendations }}")
     doc.save(path)
 
 

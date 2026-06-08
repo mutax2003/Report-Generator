@@ -13,9 +13,15 @@ from engine import (
     generate_groundwater_monitoring_template_docx,
     generate_phase1_alberta_excel,
     generate_phase1_alberta_template_docx,
+    generate_phase2_alberta_excel,
+    generate_phase2_alberta_template_docx,
+    generate_phase3_remediation_excel,
+    generate_phase3_remediation_template_docx,
     generate_production_excel,
     generate_production_starter_template_docx,
     generate_production_template_docx,
+    generate_reclamation_certificate_excel,
+    generate_reclamation_certificate_template_docx,
     generate_sample_excel,
     generate_sample_template_docx,
 )
@@ -32,6 +38,12 @@ PHASE1_ALBERTA_XLSX = ROOT / "samples" / "phase1_alberta_data.xlsx"
 PHASE1_ALBERTA_DOCX = ROOT / "samples" / "phase1_alberta_template.docx"
 GW_MONITORING_XLSX = ROOT / "samples" / "groundwater_monitoring_data.xlsx"
 GW_MONITORING_DOCX = ROOT / "samples" / "groundwater_monitoring_template.docx"
+PHASE2_ALBERTA_XLSX = ROOT / "samples" / "phase2_alberta_data.xlsx"
+PHASE2_ALBERTA_DOCX = ROOT / "samples" / "phase2_alberta_template.docx"
+PHASE3_XLSX = ROOT / "samples" / "phase3_remediation_data.xlsx"
+PHASE3_DOCX = ROOT / "samples" / "phase3_remediation_template.docx"
+RECLAMATION_XLSX = ROOT / "samples" / "reclamation_certificate_data.xlsx"
+RECLAMATION_DOCX = ROOT / "samples" / "reclamation_certificate_template.docx"
 
 
 def format_size(num_bytes: int | None) -> str:
@@ -151,6 +163,18 @@ def _ensure_samples() -> None:
         generate_groundwater_monitoring_excel(str(GW_MONITORING_XLSX))
     if not GW_MONITORING_DOCX.is_file():
         generate_groundwater_monitoring_template_docx(str(GW_MONITORING_DOCX))
+    if not PHASE2_ALBERTA_XLSX.is_file():
+        generate_phase2_alberta_excel(str(PHASE2_ALBERTA_XLSX))
+    if not PHASE2_ALBERTA_DOCX.is_file():
+        generate_phase2_alberta_template_docx(str(PHASE2_ALBERTA_DOCX))
+    if not PHASE3_XLSX.is_file():
+        generate_phase3_remediation_excel(str(PHASE3_XLSX))
+    if not PHASE3_DOCX.is_file():
+        generate_phase3_remediation_template_docx(str(PHASE3_DOCX))
+    if not RECLAMATION_XLSX.is_file():
+        generate_reclamation_certificate_excel(str(RECLAMATION_XLSX))
+    if not RECLAMATION_DOCX.is_file():
+        generate_reclamation_certificate_template_docx(str(RECLAMATION_DOCX))
 
 
 def render_download_helpers() -> None:
@@ -226,6 +250,54 @@ def render_download_helpers() -> None:
             "Download groundwater monitoring template",
             data=GW_MONITORING_DOCX.read_bytes(),
             file_name="groundwater_monitoring_template.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True,
+        )
+    if PHASE2_ALBERTA_XLSX.is_file():
+        st.sidebar.download_button(
+            "Download Alberta Phase II Excel",
+            data=PHASE2_ALBERTA_XLSX.read_bytes(),
+            file_name="phase2_alberta_data.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
+    if PHASE2_ALBERTA_DOCX.is_file():
+        st.sidebar.download_button(
+            "Download Alberta Phase II template",
+            data=PHASE2_ALBERTA_DOCX.read_bytes(),
+            file_name="phase2_alberta_template.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True,
+        )
+    if PHASE3_XLSX.is_file():
+        st.sidebar.download_button(
+            "Download Phase III remediation Excel",
+            data=PHASE3_XLSX.read_bytes(),
+            file_name="phase3_remediation_data.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
+    if PHASE3_DOCX.is_file():
+        st.sidebar.download_button(
+            "Download Phase III remediation template",
+            data=PHASE3_DOCX.read_bytes(),
+            file_name="phase3_remediation_template.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True,
+        )
+    if RECLAMATION_XLSX.is_file():
+        st.sidebar.download_button(
+            "Download reclamation certificate Excel",
+            data=RECLAMATION_XLSX.read_bytes(),
+            file_name="reclamation_certificate_data.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
+    if RECLAMATION_DOCX.is_file():
+        st.sidebar.download_button(
+            "Download reclamation certificate template",
+            data=RECLAMATION_DOCX.read_bytes(),
+            file_name="reclamation_certificate_template.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True,
         )

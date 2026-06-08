@@ -45,7 +45,7 @@ python scripts\create_samples.py
 python -m unittest discover -s tests -v
 ```
 
-Expected: **119 tests OK** (includes SED 002 compliance, groundwater monitoring, phrase resolver, batch render, deliverable pack, smoke integration).
+Expected: **123 tests OK** (includes Phase II/remediation verticals, SED 002 compliance, groundwater monitoring, phrase resolver, batch render, deliverable pack, smoke integration).
 
 Optional slow check: `ESA_RUN_HEALTH_CHECK=1 python -m unittest tests.test_smoke_integration.SmokeIntegrationTests.test_health_check_script`
 
@@ -61,6 +61,9 @@ Some tests skip if `samples/` missing — committed samples in repo prevent skip
 | `scripts/tag_production_template.py` | Production template tagging |
 | `scripts/production_e2e.py` | Production data + template preflight + render |
 | `scripts/phase1_alberta_e2e.py` | Alberta Phase I Ecoventure preflight + render |
+| `scripts/phase2_alberta_e2e.py` | Alberta Phase II sample preflight + render |
+| `scripts/phase3_remediation_e2e.py` | Phase III remediation sample render |
+| `scripts/reclamation_e2e.py` | Reclamation certificate sample render |
 | `scripts/prepare_user_test_pack.py` | Copy samples to `user_test/` (row 2 customized) |
 | `scripts/test_with_your_documents.py` | Pre-flight, dry run, render for any Excel + template pair |
 

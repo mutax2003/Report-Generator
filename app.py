@@ -142,7 +142,10 @@ def _render_report_tab(
 
     project_row_count = 1
     project_row_labels: list[str] = []
-    if excel_bytes and template_bytes:
+    if preflight and preflight.project_row_count > 0:
+        project_row_count = preflight.project_row_count
+        project_row_labels = list(preflight.project_row_labels)
+    elif excel_bytes and template_bytes:
         try:
             _row_engine = get_cached_report_engine(excel_bytes, template_bytes)
             project_row_count = _row_engine.project_row_count(meta_render)

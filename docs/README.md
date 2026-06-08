@@ -29,6 +29,7 @@ Complete documentation for the Environmental Site Assessment (ESA) report genera
 | [18-groundwater-reports.md](18-groundwater-reports.md) | **Groundwater monitoring** — wells, levels, GroundwaterLab |
 | [19-charts-and-gis-embed.md](19-charts-and-gis-embed.md) | Power BI / QGIS figures in Word reports |
 | [20-aer-sed002-phase1-esa.md](20-aer-sed002-phase1-esa.md) | **AER SED 002** — Phase 1 §10 checklist, OneStop export |
+| [21-remediation-reports.md](21-remediation-reports.md) | **Phase II, remediation, reclamation** sample pairs and checklists |
 
 ## Quick start
 

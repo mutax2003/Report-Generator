@@ -37,8 +37,10 @@ class TestGroundwaterMonitoring(unittest.TestCase):
         self.assertEqual(ctx.get("well_count"), "2")
         self.assertIn("exceedance_summary", ctx)
         self.assertEqual(len(ctx.get("monitoring_wells", [])), 2)
-        self.assertEqual(len(ctx.get("groundwater_results", [])), 3)
+        self.assertEqual(len(ctx.get("groundwater_results", [])), 4)
         self.assertTrue(ctx.get("executive_summary"))
+        self.assertTrue(ctx.get("gw_program_intro"))
+        self.assertTrue(ctx.get("gw_trend_summary"))
 
     def test_render_sample(self) -> None:
         engine = ReportEngine(

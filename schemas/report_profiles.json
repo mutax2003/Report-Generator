@@ -90,7 +90,8 @@
       "primary_sheet": "ProjectData",
       "required_sheets": ["ProjectData", "LabResults"],
       "sheet_mappings": {
-        "LabResults": "lab_results"
+        "LabResults": "lab_results",
+        "SampleLocations": "sample_locations"
       },
       "lab_loop_variable": "lab_results",
       "narrative_profile": "phase2",
@@ -105,7 +106,12 @@
         "report_title",
         "lab_name",
         "consultant_name",
-        "company"
+        "company",
+        "uwi",
+        "investigation_scope",
+        "conclusions_recommendations",
+        "exceedance_summary",
+        "qp_names"
       ]
     },
     "groundwater_monitoring": {
@@ -139,7 +145,12 @@
         "hydrogeologic_setting",
         "conclusions_recommendations",
         "hydrograph_image_path",
-        "site_map_image_path"
+        "site_map_image_path",
+        "gw_program_intro",
+        "gw_sampling_methods",
+        "gw_recommendations",
+        "gw_data_usability",
+        "gw_trend_summary"
       ]
     },
     "reclamation_certificate": {
@@ -192,7 +203,7 @@
         "LabResults": "lab_results"
       },
       "lab_loop_variable": "groundwater_results",
-      "narrative_profile": "groundwater_monitoring",
+      "narrative_profile": "remediation",
       "recommended_fields": [
         "site_name",
         "client_name",
@@ -205,7 +216,9 @@
         "rap_status",
         "remediation_status",
         "executive_summary",
-        "conclusions_recommendations"
+        "conclusions_recommendations",
+        "confirmatory_status",
+        "closure_recommendation"
       ]
     },
     "template_driven": {

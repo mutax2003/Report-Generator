@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Groundwater monitoring preflight checklist",
+  "version": "1.0.0",
+  "profile_ids": ["groundwater_monitoring", "phase3_remediation"],
+  "sections": [
+    {
+      "id": "GW.1",
+      "title": "Program metadata",
+      "items": [
+        {"id": "GW.1.site", "label": "Site name", "requirement": "required", "source": "projectdata", "field": "site_name"},
+        {"id": "GW.1.program", "label": "Monitoring program", "requirement": "recommended", "source": "projectdata", "field": "monitoring_program"},
+        {"id": "GW.1.lab", "label": "Laboratory", "requirement": "recommended", "source": "projectdata", "field": "lab_name"}
+      ]
+    },
+    {
+      "id": "GW.2",
+      "title": "Monitoring data",
+      "items": [
+        {"id": "GW.2.wells", "label": "Monitoring wells", "requirement": "required", "source": "sheet", "sheet": "MonitoringWells", "min_rows": 1},
+        {"id": "GW.2.levels", "label": "Water levels", "requirement": "required", "source": "sheet", "sheet": "WaterLevels", "min_rows": 1},
+        {"id": "GW.2.lab", "label": "Groundwater lab results", "requirement": "required", "source": "sheet", "sheet": "GroundwaterLab", "min_rows": 1}
+      ]
+    }
+  ]
+}

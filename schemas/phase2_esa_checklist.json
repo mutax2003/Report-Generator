@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase II ESA preflight checklist",
+  "version": "1.0.0",
+  "profile_ids": ["phase2_esa"],
+  "sections": [
+    {
+      "id": "P2.1",
+      "title": "Project metadata",
+      "items": [
+        {"id": "P2.1.site", "label": "Site name", "requirement": "required", "source": "projectdata", "field": "site_name"},
+        {"id": "P2.1.lab", "label": "Laboratory named", "requirement": "required", "source": "projectdata", "field": "lab_name"},
+        {"id": "P2.1.qp", "label": "Prepared by / QP", "requirement": "required", "source": "meta", "field": "prepared_by"}
+      ]
+    },
+    {
+      "id": "P2.2",
+      "title": "Laboratory data",
+      "items": [
+        {"id": "P2.2.lab_rows", "label": "LabResults rows present", "requirement": "required", "source": "sheet", "sheet": "LabResults", "min_rows": 1},
+        {"id": "P2.2.conclusions", "label": "Conclusions / recommendations", "requirement": "recommended", "source": "projectdata", "field": "conclusions_recommendations"}
+      ]
+    }
+  ]
+}

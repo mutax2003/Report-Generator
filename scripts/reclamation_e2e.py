@@ -1,0 +1,60 @@
+"""E2E: Reclamation certificate sample render."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from engine import ReportEngine  # noqa: E402
+from template_tools import run_preflight  # noqa: E402
+
+XLSX = ROOT / "samples" / "reclamation_certificate_data.xlsx"
+TEMPLATE = ROOT / "samples" / "reclamation_certificate_template.docx"
+OUT = ROOT / "samples" / "reclamation_certificate_rendered.docx"
+
+
+def main() -> int:
+    if not XLSX.is_file() or not TEMPLATE.is_file():
+        print("Run scripts/create_samples.py first", file=sys.stderr)
+        return 1
+
+    meta = {
+        "prepared_by": "Ecoventure E2E",
+        "date_of_issue": "2026-06-08",
+        "report_phase": "Phase 1",
+        "report_type": "reclamation_certificate",
+    }
+    excel_bytes = XLSX.read_bytes()
+    template_bytes = TEMPLATE.read_bytes()
+    pre = run_preflight(excel_bytes, template_bytes, meta)
+    print(f"Preflight can_generate={pre.can_generate}")
+    if pre.reclamation:
+        print(f"Reclamation checklist: {pre.reclamation.completeness_pct}%")
+    if pre.sed002:
+        print(f"SED 002: {pre.sed002.completeness_pct}%")
+    if not pre.can_generate:
+        for e in pre.errors:
+            print(f"  error: {e}")
+        return 1
+
+    docx_bytes, warnings, _, record = ReportEngine(
+        excel_bytes, template_bytes
+    ).render(meta=meta, excel_filename=XLSX.name, template_filename=TEMPLATE.name)
+    OUT.write_bytes(docx_bytes)
+    from provenance import sha256_hex
+
+    record.output_filename = OUT.name
+    record.output_sha256 = sha256_hex(docx_bytes)
+    OUT.with_name(OUT.stem + "_manifest.json").write_bytes(record.to_json_bytes())
+    print(f"Wrote: {OUT} ({len(docx_bytes)} bytes)")
+    if warnings:
+        print("Warnings:", *warnings[:6], sep="\n  ")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

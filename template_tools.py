@@ -55,6 +55,11 @@ class PreflightResult:
     template_var_count: int = 0
     block_tag_count: int = 0
     sed002: Any = None  # Sed002ComplianceResult | None
+    phase2: Any = None  # Phase2ComplianceResult | None
+    groundwater: Any = None  # GroundwaterComplianceResult | None
+    reclamation: Any = None  # ReclamationComplianceResult | None
+    project_row_count: int = 0
+    project_row_labels: list[str] = field(default_factory=list)
 
     @property
     def can_generate(self) -> bool:
@@ -199,6 +204,7 @@ def run_preflight(
     meta: dict[str, str] | None,
     *,
     appendix_labels_present: set[str] | None = None,
+    engine: ReportEngine | None = None,
 ) -> PreflightResult:
     """Dry-run checks without rendering the document."""
     result = PreflightResult()
@@ -255,10 +261,12 @@ def run_preflight(
             )
 
     try:
-        engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=template_bytes)
+        if engine is None:
+            engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=template_bytes)
         if scan:
-            engine._root_vars_cache = scan.root_vars
-            engine._template_loops_cache = template_loops or set()
+            engine.seed_template_scan(scan.root_vars, template_loops)
+        if excel_meta:
+            engine._excel_meta_cache = excel_meta
     except SecurityError as e:
         result.errors.append(str(e))
         return result
@@ -278,6 +286,8 @@ def run_preflight(
     if not result.errors:
         try:
             ctx = engine.build_context(meta)
+            result.project_row_count = int(ctx.get("_project_row_count", 0))
+            result.project_row_labels = engine.project_row_labels(meta)
             result.coverage = engine.coverage(meta, context=ctx)
             cov = result.coverage
             if runtime.require_lab_sheet and cov and cov.lab_row_count == 0:
@@ -323,6 +333,81 @@ def run_preflight(
                         )
                     for pw in sed.phase2_warnings[:5]:
                         result.warnings.append(f"Phase 2 hint: {pw}")
+            if runtime.report_type == "phase2_esa" or runtime.narrative_profile == "phase2":
+                from phase2_compliance import evaluate_phase2_compliance
+
+                sheet_counts = (
+                    dict(cov.table_row_counts) if cov and cov.table_row_counts else {}
+                )
+                p2 = evaluate_phase2_compliance(
+                    ctx, meta, report_type=runtime.report_type, sheet_row_counts=sheet_counts
+                )
+                result.phase2 = p2
+                if p2:
+                    result.warnings.append(
+                        f"Phase II checklist: {p2.completeness_pct}% "
+                        f"({p2.satisfied_count}/{p2.total_items})"
+                    )
+                    for ir in p2.required_missing[:6]:
+                        result.warnings.append(
+                            f"Phase II required: {ir.section_id} — {ir.label}"
+                        )
+                    result.warnings.extend(p2.warnings[:5])
+            if runtime.narrative_profile == "groundwater_monitoring":
+                from groundwater_compliance import evaluate_groundwater_compliance
+
+                sheet_counts = (
+                    dict(cov.table_row_counts) if cov and cov.table_row_counts else {}
+                )
+                gw = evaluate_groundwater_compliance(
+                    ctx, meta, report_type=runtime.report_type, sheet_row_counts=sheet_counts
+                )
+                result.groundwater = gw
+                if gw:
+                    result.warnings.append(
+                        f"Groundwater checklist: {gw.completeness_pct}% "
+                        f"({gw.satisfied_count}/{gw.total_items})"
+                    )
+                    for ir in gw.required_missing[:6]:
+                        result.warnings.append(
+                            f"GW required: {ir.section_id} — {ir.label}"
+                        )
+                    result.warnings.extend(gw.warnings[:4])
+            if runtime.report_type == "reclamation_certificate":
+                from reclamation_compliance import evaluate_reclamation_compliance
+
+                sheet_counts = (
+                    dict(cov.table_row_counts) if cov and cov.table_row_counts else {}
+                )
+                rec = evaluate_reclamation_compliance(
+                    ctx, meta, report_type=runtime.report_type, sheet_row_counts=sheet_counts
+                )
+                result.reclamation = rec
+                if rec:
+                    result.warnings.append(
+                        f"Reclamation checklist: {rec.completeness_pct}% "
+                        f"({rec.satisfied_count}/{rec.total_items})"
+                    )
+                    for ir in rec.required_missing[:6]:
+                        result.warnings.append(
+                            f"Reclamation required: {ir.section_id} — {ir.label}"
+                        )
+            if runtime.report_type == "phase3_remediation":
+                from groundwater_compliance import evaluate_groundwater_compliance
+
+                sheet_counts = (
+                    dict(cov.table_row_counts) if cov and cov.table_row_counts else {}
+                )
+                gw = evaluate_groundwater_compliance(
+                    ctx, meta, report_type=runtime.report_type, sheet_row_counts=sheet_counts
+                )
+                result.groundwater = gw
+                if gw:
+                    result.warnings.append(
+                        f"Groundwater checklist: {gw.completeness_pct}% "
+                        f"({gw.satisfied_count}/{gw.total_items})"
+                    )
+                    result.warnings.extend(gw.warnings[:3])
         except ValueError as e:
             result.errors.append(str(e))
         except Exception as e:

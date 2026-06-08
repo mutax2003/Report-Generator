@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reclamation certificate report checklist",
+  "version": "1.0.0",
+  "profile_ids": ["reclamation_certificate"],
+  "sections": [
+    {
+      "id": "RC.1",
+      "title": "Certificate metadata",
+      "items": [
+        {"id": "RC.1.uwi", "label": "UWI", "requirement": "required", "source": "projectdata", "field": "uwi"},
+        {"id": "RC.1.cert", "label": "Certificate / application status", "requirement": "recommended", "source": "projectdata", "field": "certificate_status"},
+        {"id": "RC.1.conclusions", "label": "Conclusions", "requirement": "required", "source": "projectdata", "field": "conclusions_recommendations"}
+      ]
+    },
+    {
+      "id": "RC.2",
+      "title": "Reclamation tables",
+      "items": [
+        {"id": "RC.2.tasks", "label": "Reclamation tasks", "requirement": "recommended", "source": "sheet", "sheet": "ReclamationTasks", "min_rows": 1},
+        {"id": "RC.2.soil", "label": "Soil placement", "requirement": "recommended", "source": "sheet", "sheet": "SoilPlacement", "min_rows": 0},
+        {"id": "RC.2.veg", "label": "Vegetation", "requirement": "recommended", "source": "sheet", "sheet": "Vegetation", "min_rows": 0}
+      ]
+    }
+  ]
+}
