@@ -56,7 +56,7 @@ streamlit run app.py
 1. Upload **Excel** (`.xlsx`) and **report template** (`.docx` or `.pdf`; PDF is converted to Word for merge).
 2. Review **Pre-flight checks**.
 3. Fill **sidebar** fields; download samples from the sidebar if needed.
-4. Click **Generate Report**, then **Download Report** (optional: appendix PDFs A–F, **Download deliverable package (.zip)**).
+4. Click **Generate Report**, then **Download Report** (optional: appendix PDFs A–H, **Download deliverable package (.zip)**).
 
 See [docs/02-user-guide.md](docs/02-user-guide.md) for the complete workflow.
 
@@ -133,7 +133,7 @@ scripts/                CLI utilities
 schemas/                report_profiles.json, field_contract.json
 samples/                Demo and production fixtures
 docs/                   Full documentation
-tests/                  Unit and integration tests (99 tests)
+tests/                  Unit and integration tests (119 tests)
 Dockerfile              Container image for Streamlit
 ```
 

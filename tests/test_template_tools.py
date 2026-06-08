@@ -85,6 +85,28 @@ class TestTemplateTools(unittest.TestCase):
         self.assertIn("only_in_template", cov.missing_in_data)
         self.assertIn("site_name", cov.matched)
 
+    def test_preflight_appendix_labels_improve_sed002(self) -> None:
+        xlsx = ROOT / "samples" / "phase1_alberta_data.xlsx"
+        if not xlsx.is_file():
+            self.skipTest("phase1 alberta sample missing")
+        without = run_preflight(
+            xlsx.read_bytes(),
+            self.template_bytes,
+            {"report_phase": "Phase 1"},
+            appendix_labels_present=set(),
+        )
+        with_apps = run_preflight(
+            xlsx.read_bytes(),
+            self.template_bytes,
+            {"report_phase": "Phase 1"},
+            appendix_labels_present={"B", "D", "H"},
+        )
+        assert without.sed002 is not None and with_apps.sed002 is not None
+        self.assertGreater(
+            with_apps.sed002.satisfied_count,
+            without.sed002.satisfied_count,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -62,6 +62,82 @@ class TestSed002Compliance(unittest.TestCase):
         self.assertEqual(out["phase2_recommended"], "Yes")
         self.assertTrue(out["phase2_reasons"])
 
+    def test_appendix_missing_not_duplicated(self) -> None:
+        from sed002_compliance import evaluate_sed002_compliance
+
+        ctx = {
+            "client_name": "C",
+            "uwi": "1",
+            "asset_activity_type": "Well",
+            "spud_date": "1-Jan-2020",
+            "aer_waste_compliance_option": "Option 1",
+            "drilling_waste_summary": "x",
+            "infrastructure_summary": "x",
+            "site_visit_completed": "Yes",
+            "records_review_summary": "x",
+            "air_photo_observations": "x",
+            "interview_operator_summary": "x",
+            "executive_summary": "x",
+            "phase2_esa_required": "No",
+            "qp_names": "QP",
+            "drilling_waste": [{"mud_type": "Gel", "volume_m3": "1"}],
+        }
+        result = evaluate_sed002_compliance(
+            ctx,
+            {"prepared_by": "QP", "date_of_issue": "2026-01-01"},
+            report_type="phase1_alberta",
+            appendix_labels_present=set(),
+        )
+        assert result is not None
+        self.assertEqual(len(result.appendix_missing), len(set(result.appendix_missing)))
+
+    def test_meta_prepared_by_normalized(self) -> None:
+        from sed002_compliance import evaluate_sed002_compliance
+
+        ctx = {
+            "client_name": "C",
+            "uwi": "1",
+            "asset_activity_type": "Well",
+            "spud_date": "1-Jan-2020",
+            "aer_waste_compliance_option": "Option 1",
+            "drilling_waste_summary": "x",
+            "infrastructure_summary": "x",
+            "site_visit_completed": "Yes",
+            "records_review_summary": "x",
+            "air_photo_observations": "x",
+            "interview_operator_summary": "x",
+            "executive_summary": "x",
+            "phase2_esa_required": "No",
+            "qp_names": "QP",
+            "drilling_waste": [{"mud_type": "Gel", "volume_m3": "1"}],
+        }
+        before = evaluate_sed002_compliance(
+            ctx,
+            {},
+            report_type="phase1_alberta",
+            appendix_labels_present={"B", "D", "H"},
+        )
+        after = evaluate_sed002_compliance(
+            ctx,
+            {"Prepared By": "Ecoventure QP", "Date of Issue": "2026-01-01"},
+            report_type="phase1_alberta",
+            appendix_labels_present={"B", "D", "H"},
+        )
+        assert before is not None and after is not None
+        self.assertGreater(after.satisfied_count, before.satisfied_count)
+
+    def test_phase2_warnings_not_duplicated(self) -> None:
+        from phase1_decision import enrich_context_phase2_decision, evaluate_phase2_triggers
+
+        ctx = enrich_context_phase2_decision(
+            {"phase2_esa_required": "Yes", "site_visit_completed": "No"}
+        )
+        warnings = evaluate_phase2_triggers(ctx, {})
+        self.assertEqual(
+            sum("Phase II" in w or "Phase 2" in w for w in warnings),
+            1,
+        )
+
 
 class TestOnestopExport(unittest.TestCase):
     def test_onestop_summary_in_zip(self) -> None:
@@ -81,6 +157,15 @@ class TestOnestopExport(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(z)) as zf:
             names = zf.namelist()
         self.assertTrue(any(n.startswith("onestop/phase1_esa_summary.json") for n in names))
+
+    def test_contamination_likely_from_phase2_required(self) -> None:
+        from deliverable_pack import build_onestop_phase1_summary
+
+        summary = build_onestop_phase1_summary(
+            {"phase2_esa_required": "Yes", "client_name": "C", "uwi": "1"},
+            {},
+        )
+        self.assertEqual(summary["contamination_likelihood"], "likely")
 
 
 if __name__ == "__main__":

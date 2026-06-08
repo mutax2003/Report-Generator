@@ -182,7 +182,7 @@ def _read_report_config_sheet(df: pd.DataFrame) -> dict[str, str]:
     return out
 
 
-def _read_excel_meta(excel_bytes: bytes) -> tuple[list[str], dict[str, str]]:
+def read_excel_meta(excel_bytes: bytes) -> tuple[list[str], dict[str, str]]:
     """One openpyxl pass: sheet names and optional ReportConfig key/value rows."""
     import io
 
@@ -197,9 +197,12 @@ def _read_excel_meta(excel_bytes: bytes) -> tuple[list[str], dict[str, str]]:
     return names, _read_report_config_sheet(df)
 
 
+_read_excel_meta = read_excel_meta  # backward-compatible alias
+
+
 def read_excel_report_config(excel_bytes: bytes) -> dict[str, str]:
     """Load optional ReportConfig sheet from workbook bytes."""
-    return _read_excel_meta(excel_bytes)[1]
+    return read_excel_meta(excel_bytes)[1]
 
 
 def _profile_id_from_meta(meta: dict[str, str] | None) -> str:
@@ -250,7 +253,7 @@ def resolve_report_config(
     primary_default = catalog.get("primary_sheet_default", PROJECT_SHEET)
 
     if excel_meta is None:
-        sheet_names, excel_cfg = _read_excel_meta(excel_bytes)
+        sheet_names, excel_cfg = read_excel_meta(excel_bytes)
     else:
         sheet_names, excel_cfg = excel_meta
     report_type = excel_cfg.get("report_type") or _profile_id_from_meta(meta)
@@ -331,7 +334,7 @@ def resolve_report_config(
 
 def excel_sheet_names(excel_bytes: bytes) -> list[str]:
     """Return workbook sheet names (single openpyxl pass)."""
-    return _read_excel_meta(excel_bytes)[0]
+    return read_excel_meta(excel_bytes)[0]
 
 
 def list_keys_from_context(context: dict[str, Any]) -> set[str]:

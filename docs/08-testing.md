@@ -45,7 +45,7 @@ python scripts\create_samples.py
 python -m unittest discover -s tests -v
 ```
 
-Expected: **99 tests OK** (includes groundwater monitoring profile, GW AI helpers, phrase resolver, batch render, deliverable pack, smoke integration).
+Expected: **119 tests OK** (includes SED 002 compliance, groundwater monitoring, phrase resolver, batch render, deliverable pack, smoke integration).
 
 Optional slow check: `ESA_RUN_HEALTH_CHECK=1 python -m unittest tests.test_smoke_integration.SmokeIntegrationTests.test_health_check_script`
 

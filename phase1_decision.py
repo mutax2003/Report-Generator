@@ -73,12 +73,6 @@ def evaluate_phase2_triggers(
                 )
                 break
 
-    auto = str(context.get("phase2_recommended") or "").strip()
-    if _yes(auto):
-        for reason in context.get("phase2_reasons") or []:
-            if reason:
-                warnings.append(f"Rule: {reason}")
-
     return warnings
 
 

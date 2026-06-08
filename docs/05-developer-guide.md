@@ -53,7 +53,7 @@ Environment bypass for tests only: `ESA_VALIDATION_BYPASS=1`.
 
 ### `report_profile.py`
 
-`resolve_report_config`, `get_recommended_fields`, `build_report_config_workbook_bytes`, template loop discovery.
+`resolve_report_config`, `read_excel_meta`, `get_recommended_fields`, `build_report_config_workbook_bytes`, template loop discovery.
 
 ### `template_attachments.py`
 
@@ -61,11 +61,19 @@ Environment bypass for tests only: `ESA_VALIDATION_BYPASS=1`.
 
 ### `deliverable_pack.py`
 
-`build_deliverable_zip`, `AppendixFile`, `appendix_manifest_entries`, `enrich_manifest_dict`.
+`build_deliverable_zip`, `build_onestop_export_bytes`, `AppendixFile`, `appendix_manifest_entries`, `enrich_manifest_dict` — zip includes `onestop/` summary JSON/CSV for OneStop upload prep.
 
 ### `phase1_narrative.py`
 
 `build_phase1_executive_summary` — Signum-style structure, Ecoventure voice.
+
+### `phase1_decision.py`
+
+`evaluate_phase2_triggers`, `enrich_context_phase2_decision` — Phase II ESA heuristics aligned with SED 002; adds `phase2_recommended` and `phase2_reasons` to render context.
+
+### `sed002_compliance.py`
+
+`evaluate_sed002_compliance`, `build_qp_review_checklist_markdown` — SED 002 §10 checklist driven by [`schemas/sed002_phase1_checklist.json`](../schemas/sed002_phase1_checklist.json); used in preflight and QP review export.
 
 ### `provenance.py`
 
@@ -85,10 +93,10 @@ Streamlit orchestration only: session state, uploaders, calls `ui/*`, instantiat
 |--------|------|
 | `sidebar.py` | Profile, phase sync, meta, executive summary override, sample downloads |
 | `helpers.py` | Template cache, PDF conversion download, `_ensure_samples`, template analysis |
-| `preflight.py` | Cached preflight, profile checklist, ReportConfig export |
+| `preflight.py` | Cached preflight, SED 002 §10 metrics, appendix-aware checklist, ReportConfig export |
 | `preview.py` | Dry-run panel |
 | `results.py` | Download buttons, context preview, manifest |
-| `appendix_panel.py` | Appendix A–F uploads, deliverable zip download |
+| `appendix_panel.py` | Appendix A–H uploads, deliverable zip + OneStop export |
 | `workflow.py` | Step indicator UI |
 | `ai_panel.py` | AI tab (Tier 1 & 2) |
 

@@ -15,6 +15,12 @@ PDF_MIME = "application/pdf"
 ZIP_MIME = "application/zip"
 
 
+def appendix_labels_from_session() -> set[str]:
+    """Labels of appendix PDFs currently in session state."""
+    store = st.session_state.get("appendix_files") or {}
+    return set(store.keys())
+
+
 def _init_appendix_state() -> None:
     if "appendix_files" not in st.session_state:
         st.session_state.appendix_files = {}
@@ -43,8 +49,8 @@ def render_appendix_uploader() -> list[AppendixFile]:
                 data=data,
                 filename=uploaded.name or f"appendix_{label}.pdf",
             )
-        elif label in store and f"appendix_upload_{label}" not in st.session_state:
-            pass
+        elif label in store:
+            del store[label]
     if st.button("Clear all appendices", use_container_width=True):
         st.session_state.appendix_files = {}
         st.rerun()

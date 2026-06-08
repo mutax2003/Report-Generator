@@ -63,7 +63,7 @@ Design goals:
 5. **Build Jinja context** — Keys are lowercased headers with spaces → underscores (`Site Name` → `site_name`).
 6. **Pre-flight / coverage** — Profile-aware checklist; compare template `{{ root_vars }}` to context keys; lint split Word runs.
 7. **Render** — Missing scalar tags filled with `""` (warning, not crash). Lab exceedances → `result_display` as bold red RichText.
-8. **Output** — Validated `.docx` + `GenerationRecord` JSON manifest + optional deliverable **zip** (appendices A–F).
+8. **Output** — Validated `.docx` + `GenerationRecord` JSON manifest + optional deliverable **zip** (appendices A–H, OneStop export).
 
 ## Report phases
 

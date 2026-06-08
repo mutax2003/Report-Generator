@@ -15,7 +15,7 @@ Alberta O&G **AER Schedule Two** Phase 1 ESA package (reclamation certificate wo
 | AER 10.3 Production / tanks | Yes | Scalar + `StorageTanks` sheet |
 | AER 10.4 Site visit | Yes | Scalar checklist fields |
 | AER 10.5–10.7 Imagery, interviews, conclusions | Partial | Key scalar fields |
-| Appendices A–F | Streamlit upload A–F | Included in deliverable zip; merge to one PDF outside app |
+| Appendices A–H | Streamlit upload A–H | Included in deliverable zip; SED preflight counts labels; merge to one PDF outside app |
 
 ## Ecoventure branding (implementation default)
 

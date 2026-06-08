@@ -47,7 +47,7 @@ Use **Download missing-fields checklist** or **Download ReportConfig sheet** if 
 2. **Generate Report**
 3. **Download Report (.docx)** — or batch zip when multiple sites were generated
 4. **Download generation manifest (JSON)** — save with the report on SharePoint
-5. Upload appendix PDFs **A–F** (air photos, ABADATA, land title, …) if applicable
+5. Upload appendix PDFs **A–H** (air photos, ABADATA, land title, site sketch, …) if applicable
 6. **Download deliverable package (.zip)** — report + manifest + appendices folder
 
 Export to client PDF in Word if needed; the app does not merge appendices into one PDF automatically.

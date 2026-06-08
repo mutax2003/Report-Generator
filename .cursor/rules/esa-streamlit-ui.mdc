@@ -18,10 +18,10 @@ alwaysApply: false
 | `ui/sidebar.py` | Profile, phase sync, meta, executive override, sample downloads |
 | `ui/phrase_panel.py` | Standard phrases selectboxes → `phrase_meta` merged into render meta |
 | `ui/helpers.py` | Template cache, PDF→DOCX path, sample ensure |
-| `ui/preflight.py` | Cached preflight, checklist, ReportConfig export |
+| `ui/preflight.py` | Cached preflight, SED 002 §10 metrics, appendix-aware checklist, ReportConfig export |
 | `ui/preview.py` | Dry-run panel |
 | `ui/results.py` | Single-report downloads; `render_batch_download_section` for batch zip |
-| `ui/appendix_panel.py` | Appendices A–F, deliverable zip |
+| `ui/appendix_panel.py` | Appendices A–H, deliverable zip (incl. OneStop export) |
 | `ui/ai_panel.py` | Optional AI tab (offline fallbacks in `ai/`) |
 
 ## Batch mode

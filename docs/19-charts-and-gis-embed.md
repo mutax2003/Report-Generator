@@ -40,11 +40,11 @@ flowchart LR
 | 1 | **QGIS** / ArcGIS | Well locations, plumes, site boundary |
 | 2 | Export layout | PNG or PDF appendix |
 | 3 | `ProjectData` | `site_map_image_path` |
-| 4 | Deliverable zip | Optional appendix PDF via appendices A–F uploader ([02-user-guide.md](02-user-guide.md)) |
+| 4 | Deliverable zip | Optional appendix PDF via appendices A–H uploader ([02-user-guide.md](02-user-guide.md)) |
 
 ### 3. Reclamation / Phase I figures
 
-Air photos and survey plans often stay as **appendix PDFs** (Alberta Phase I appendices A–F) rather than inline merge fields.
+Air photos and survey plans often stay as **appendix PDFs** (Alberta Phase I appendices A–H) rather than inline merge fields.
 
 ## Version control
 

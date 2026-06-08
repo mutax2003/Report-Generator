@@ -8,6 +8,7 @@ from phrase_resolver import build_phrase_catalog_workbook_bytes
 from report_profile import build_report_config_workbook_bytes
 from sed002_compliance import build_qp_review_checklist_markdown, sed002_section_summary
 from template_tools import PreflightResult, missing_fields_checklist, run_preflight
+from ui.appendix_panel import appendix_labels_from_session
 
 
 def _digest(data: bytes) -> str:
@@ -19,13 +20,20 @@ def cached_preflight(
     excel_digest: str,
     template_digest: str,
     meta_json: str,
+    appendix_labels_json: str,
     excel_bytes: bytes,
     template_bytes: bytes,
 ) -> PreflightResult:
     import json
 
     meta = json.loads(meta_json)
-    return run_preflight(excel_bytes, template_bytes, meta)
+    labels = set(json.loads(appendix_labels_json))
+    return run_preflight(
+        excel_bytes,
+        template_bytes,
+        meta,
+        appendix_labels_present=labels,
+    )
 
 
 def run_preflight_check(
@@ -37,10 +45,12 @@ def run_preflight_check(
         return None
     import json
 
+    appendix_labels = sorted(appendix_labels_from_session())
     return cached_preflight(
         _digest(excel_bytes),
         _digest(template_bytes),
         json.dumps(meta, sort_keys=True),
+        json.dumps(appendix_labels),
         excel_bytes,
         template_bytes,
     )

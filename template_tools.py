@@ -8,8 +8,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from engine import LAB_SHEET, PROJECT_SHEET, ReportEngine
-from report_profile import loops_from_block_tags, resolve_report_config, _read_excel_meta
+from engine import LAB_SHEET, ReportEngine
+from report_profile import loops_from_block_tags, read_excel_meta, resolve_report_config
+from sed002_compliance import PHASE1_SED_PROFILES
 from security import SecurityError, ZipReadBudget, open_docx_zip, read_docx_xml_member
 
 
@@ -196,6 +197,8 @@ def run_preflight(
     excel_bytes: bytes,
     template_bytes: bytes,
     meta: dict[str, str] | None,
+    *,
+    appendix_labels_present: set[str] | None = None,
 ) -> PreflightResult:
     """Dry-run checks without rendering the document."""
     result = PreflightResult()
@@ -218,13 +221,13 @@ def run_preflight(
 
     excel_meta: tuple[list[str], dict[str, str]] | None = None
     try:
-        excel_meta = _read_excel_meta(excel_bytes)
+        excel_meta = read_excel_meta(excel_bytes)
         result.sheet_names = excel_meta[0]
     except Exception as e:
         result.errors.append(f"Could not read Excel: {e}")
 
+    template_loops = loops_from_block_tags(scan.block_tags) if scan else None
     try:
-        template_loops = loops_from_block_tags(scan.block_tags) if scan else None
         runtime = resolve_report_config(
             excel_bytes,
             template_bytes,
@@ -255,7 +258,7 @@ def run_preflight(
         engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=template_bytes)
         if scan:
             engine._root_vars_cache = scan.root_vars
-            engine._template_loops_cache = loops_from_block_tags(scan.block_tags)
+            engine._template_loops_cache = template_loops or set()
     except SecurityError as e:
         result.errors.append(str(e))
         return result
@@ -289,7 +292,7 @@ def run_preflight(
                         result.warnings.append(
                             f"Table loop '{loop_var}' has 0 rows in Excel."
                         )
-            if runtime.narrative_profile == "phase1_alberta":
+            if runtime.report_type in PHASE1_SED_PROFILES or runtime.narrative_profile == "phase1_alberta":
                 from sed002_compliance import evaluate_sed002_compliance
 
                 sheet_counts = (
@@ -302,6 +305,7 @@ def run_preflight(
                     meta,
                     report_type=runtime.report_type,
                     sheet_row_counts=sheet_counts,
+                    appendix_labels_present=appendix_labels_present,
                 )
                 result.sed002 = sed
                 if sed:

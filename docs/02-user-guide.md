@@ -63,7 +63,7 @@ Sidebar also provides **download buttons** for sample Excel and Word files when 
 3. **Workflow step indicator** — Visual checklist: Excel → Template → Pre-flight OK → Output.
 4. **Preview data (dry run)** — Builds merge context and manifest **without** rendering Word (fast QA); top scalar keys and table row counts.
 5. **Standard phrases (optional)** — Select preset paragraphs (drilling waste intro, site recon, Phase II recommendation, etc.); overrides Excel for those keys.
-6. **Appendices (optional)** — Upload PDFs labeled **A–F** (Alberta Phase I); included in deliverable zip.
+6. **Appendices (optional)** — Upload PDFs labeled **A–H** (Alberta Phase I / SED 002); included in deliverable zip and SED preflight.
 7. **Generate Report** — Primary action; disabled until uploads valid and pre-flight has no **errors**.
 8. **Download section** — Report `.docx`, warnings, context preview, manifest JSON, **Download deliverable package (.zip)** when report or appendices exist.
 

@@ -75,6 +75,15 @@ def build_batch_reports_zip(
     return bio.getvalue()
 
 
+def _phase2_likely(context: dict[str, Any], meta: dict[str, str]) -> bool:
+    for key in ("phase2_recommended", "phase2_esa_required"):
+        for src in (context, meta):
+            val = str(src.get(key) or "").strip().lower()
+            if val.startswith("y") or val in ("required", "likely", "true", "1"):
+                return True
+    return False
+
+
 def build_onestop_phase1_summary(
     context: dict[str, Any],
     meta: dict[str, str] | None = None,
@@ -84,8 +93,10 @@ def build_onestop_phase1_summary(
     phase2 = str(
         context.get("phase2_recommended")
         or context.get("phase2_esa_required")
+        or meta.get("phase2_esa_required")
         or ""
     ).strip()
+    likely = _phase2_likely(context, meta)
     return {
         "client_name": str(context.get("client_name", "")),
         "operator_name": str(context.get("client_name", "")),
@@ -105,9 +116,7 @@ def build_onestop_phase1_summary(
         ),
         "phase2_esa_required": str(context.get("phase2_esa_required", "")),
         "phase2_recommended": phase2,
-        "contamination_likelihood": (
-            "likely" if phase2.lower().startswith("y") else "unlikely"
-        ),
+        "contamination_likelihood": "likely" if likely else "unlikely",
         "executive_summary_excerpt": str(context.get("executive_summary", ""))[
             :2000
         ],

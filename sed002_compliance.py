@@ -5,7 +5,9 @@ AER SED 002 Section 10 Phase 1 ESA compliance evaluation for pre-flight and expo
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +56,13 @@ class Sed002ComplianceResult:
         return len(self.required_missing) == 0
 
 
+def _norm_key(name: str) -> str:
+    s = str(name).strip()
+    s = re.sub(r"\s+", "_", s)
+    return s.lower()
+
+
+@lru_cache(maxsize=1)
 def load_checklist() -> dict[str, Any]:
     return json.loads(CHECKLIST_PATH.read_text(encoding="utf-8"))
 
@@ -65,14 +74,27 @@ def _has_value(val: Any) -> bool:
     return bool(s) and s.lower() not in ("nan", "none", "n/a", "")
 
 
+def _meta_value(meta: dict[str, str], field_name: str) -> Any:
+    target = _norm_key(field_name)
+    for key, val in meta.items():
+        if _norm_key(key) == target and _has_value(val):
+            return val
+    return None
+
+
 def _context_value(
     context: dict[str, Any],
     meta: dict[str, str],
     field_name: str,
 ) -> Any:
-    if field_name in meta and _has_value(meta.get(field_name)):
-        return meta[field_name]
-    return context.get(field_name)
+    meta_val = _meta_value(meta, field_name)
+    if meta_val is not None:
+        return meta_val
+    target = _norm_key(field_name)
+    for key, val in context.items():
+        if _norm_key(key) == target:
+            return val
+    return None
 
 
 def evaluate_sed002_compliance(
@@ -98,6 +120,7 @@ def evaluate_sed002_compliance(
             "storage_tanks": len(context.get("storage_tanks") or []),
         }
     appendices = appendix_labels_present or set()
+    appendix_missing: set[str] = set()
 
     result = Sed002ComplianceResult(report_type=rt)
     for section in data.get("sections", []):
@@ -118,7 +141,7 @@ def evaluate_sed002_compliance(
                     detail = f"ProjectData.{fld} empty"
             elif source == "meta":
                 fld = str(item.get("field", ""))
-                satisfied = _has_value(meta.get(fld))
+                satisfied = _has_value(_meta_value(meta, fld))
                 if not satisfied:
                     detail = f"Sidebar/meta '{fld}' empty"
             elif source == "sheet":
@@ -142,7 +165,7 @@ def evaluate_sed002_compliance(
                 satisfied = label_key in appendices
                 if not satisfied:
                     detail = f"Appendix {label_key} not uploaded"
-                    result.appendix_missing.append(label_key)
+                    appendix_missing.add(label_key)
             elif source == "manual":
                 fld = str(item.get("field", ""))
                 satisfied = _has_value(_context_value(context, meta, fld))
@@ -168,6 +191,7 @@ def evaluate_sed002_compliance(
 
     from phase1_decision import evaluate_phase2_triggers
 
+    result.appendix_missing = sorted(appendix_missing)
     result.phase2_warnings = evaluate_phase2_triggers(context, meta)
     return result
 
