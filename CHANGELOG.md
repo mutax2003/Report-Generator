@@ -6,6 +6,12 @@ All notable changes to the ESA Report Generator. Manifest schema and profile IDs
 
 ### Added
 
+- **Phase I appendices D and G** auto-generated as `.docx` in the deliverable zip (from `ProjectData` + `DrillingWaste`).
+- **Phase I appendix A** — QP professional declaration (`.docx`) from sidebar meta and Excel fields.
+- `appendix_generator.py`: `render_phase1_appendices`, `attach_appendices_to_record`, `predicted_appendix_labels`, upload-over-generated merge.
+- Health check step 4: Phase I appendices; **135 unit tests** (appendix generator suite).
+- `render_cli.py --package` / `--appendices` / `--no-appendices`; batch deliverable packages in Streamlit.
+- `run.ps1 streamlit` — launch UI with venv Python on Windows.
 - **Groundwater monitoring:** profile `groundwater_monitoring`, samples, `groundwater_narrative.py`, [docs/18-groundwater-reports.md](docs/18-groundwater-reports.md), GW phrases and RAG corpus.
 - **Remediation / reclamation profiles:** `reclamation_certificate`, `phase3_remediation` (scaffold sheet mappings).
 - **AI:** well log PDF extract, groundwater trend notes, Lab PDF → `GroundwaterLab`; GW consistency checks.
@@ -34,6 +40,7 @@ All notable changes to the ESA Report Generator. Manifest schema and profile IDs
 ### Not in this release
 
 - Single merged `Final_Report.pdf` (docx + all appendices).
+- Auto-generated appendices **C**, **E**, **F**, **H** (image/GIS paths — manual PDF upload).
 - Project library (remember last uploads).
 - Playwright browser UI tests (headless smoke test covers engine path).
 

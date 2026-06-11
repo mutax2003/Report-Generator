@@ -28,6 +28,11 @@ from engine import (  # noqa: E402
 )
 
 try:
+    from scripts.create_appendix_templates import main as create_appendix_templates  # noqa: E402
+except ImportError:
+    create_appendix_templates = None
+
+try:
     from scripts.create_phase1_devon_pair import main as create_phase1_devon_pair  # noqa: E402
 except ImportError:
     create_phase1_devon_pair = None
@@ -99,6 +104,8 @@ def main() -> None:
 
     if create_phase1_devon_pair is not None:
         create_phase1_devon_pair()
+    if create_appendix_templates is not None:
+        create_appendix_templates()
     if create_phase1_site_samples is not None:
         create_phase1_site_samples()
 

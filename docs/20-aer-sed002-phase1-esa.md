@@ -70,11 +70,11 @@ After upload, the **Report** tab shows:
 **Download deliverable package (.zip)** includes:
 
 - Report `.docx` + manifest JSON
-- `appendices/` (A–H PDFs uploaded in UI)
+- `appendices/` — auto-generated **D** and **G** as `.docx` (from DrillingWaste / ProjectData) plus uploaded A–H PDFs
 - `onestop/phase1_esa_summary.json` and `.csv` — field reference for the Phase 1 ESA summary module
 - `onestop/SUBMISSION_LAYOUT.txt` — suggested PDF filenames for upload
 
-Export the Word report to PDF manually (`01_Phase1_ESA_Report.pdf`) before OneStop submission.
+Export the Word report and generated appendix `.docx` files to PDF manually before OneStop submission.
 
 ## Related
 

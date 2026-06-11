@@ -43,6 +43,7 @@ class GenerationRecord:
     report_type: str = ""
     template_source_format: str = ""
     appendix_files: list[dict[str, str]] = field(default_factory=list)
+    generated_appendix_files: list[dict[str, str]] = field(default_factory=list)
     dry_run: bool = False
     ai_audit: list[dict[str, Any]] = field(default_factory=list)
 

@@ -50,7 +50,12 @@
         "no_drilling_waste_on_site",
         "site_visit_photo_notes",
         "phase2_recommended"
-      ]
+      ],
+      "appendix_templates": {
+        "A": "appendices/appendix_a_qp_declaration.docx",
+        "D": "appendices/appendix_d_drilling_waste_checklist.docx",
+        "G": "appendices/appendix_g_waste_calc_tables.docx"
+      }
     },
     "phase1_devon": {
       "label": "Devon 2017 reference Phase I (04-04-049-04W4M)",
@@ -81,7 +86,12 @@
         "qp_names",
         "prepared_by",
         "date_of_issue"
-      ]
+      ],
+      "appendix_templates": {
+        "A": "appendices/appendix_a_qp_declaration.docx",
+        "D": "appendices/appendix_d_drilling_waste_checklist.docx",
+        "G": "appendices/appendix_g_waste_calc_tables.docx"
+      }
     },
     "phase2_esa": {
       "label": "Phase II ESA (laboratory results)",
@@ -184,7 +194,12 @@
         "executive_summary",
         "conclusions_recommendations",
         "certificate_status"
-      ]
+      ],
+      "appendix_templates": {
+        "A": "appendices/appendix_a_qp_declaration.docx",
+        "D": "appendices/appendix_d_drilling_waste_checklist.docx",
+        "G": "appendices/appendix_g_waste_calc_tables.docx"
+      }
     },
     "phase3_remediation": {
       "label": "Phase III / remediation",

@@ -210,10 +210,27 @@ def check_phrase_catalog_gw() -> bool:
     return True
 
 
+def check_phase1_appendices() -> bool:
+    from appendix_generator import render_phase1_appendices
+    from engine import ReportEngine
+
+    xlsx = ROOT / "samples" / "phase1_alberta_data.xlsx"
+    tpl = ROOT / "samples" / "phase1_alberta_template.docx"
+    meta = {"report_phase": "Phase 1", "report_type": "phase1_alberta", "prepared_by": "Ecoventure", "date_of_issue": "2026-06-10"}
+    engine = ReportEngine(xlsx.read_bytes(), tpl.read_bytes())
+    ctx = engine.build_context(meta)
+    appendices, warnings = render_phase1_appendices(ctx, meta)
+    labels = {a.label for a in appendices}
+    assert labels == {"A", "D", "G"}, labels
+    assert not warnings, warnings
+    return True
+
+
 CHECKS = [
     check_imports,
     check_phase1_context,
     check_phase1_render,
+    check_phase1_appendices,
     check_phase2_requires_lab,
     check_preflight_phase1,
     check_narrative_phase1,
@@ -229,6 +246,7 @@ CHECK_NAMES = [
     "imports",
     "phase1 context",
     "phase1 render",
+    "phase1 appendices A/D/G",
     "phase2 lab guard",
     "preflight phase1",
     "narrative phase1",

@@ -2,28 +2,72 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import streamlit as st
 
+from appendix_generator import merge_appendix_lists
 from deliverable_pack import AppendixFile, DeliverablePackage, build_deliverable_zip
 from deliverable_pack import enrich_manifest_dict
 from provenance import GenerationRecord, record_filename
 
 APPENDIX_LABELS = ("A", "B", "C", "D", "E", "F", "G", "H")
 PDF_MIME = "application/pdf"
+DOCX_MIME = (
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+)
 ZIP_MIME = "application/zip"
 
 
 def appendix_labels_from_session() -> set[str]:
-    """Labels of appendix PDFs currently in session state."""
+    """Labels of appendix PDFs currently uploaded in session state."""
     store = st.session_state.get("appendix_files") or {}
     return set(store.keys())
+
+
+def all_appendix_labels_from_session() -> set[str]:
+    """Uploaded + auto-generated appendix labels in session state."""
+    labels = set(appendix_labels_from_session())
+    for ap in st.session_state.get("generated_appendices") or []:
+        labels.add(ap.label.upper())
+    return labels
+
+
+def all_appendices_from_session() -> list[AppendixFile]:
+    """Merge generated appendices with uploads (upload wins on same label)."""
+    generated = list(st.session_state.get("generated_appendices") or [])
+    uploaded = list((st.session_state.get("appendix_files") or {}).values())
+    return merge_appendix_lists(generated, uploaded)
 
 
 def _init_appendix_state() -> None:
     if "appendix_files" not in st.session_state:
         st.session_state.appendix_files = {}
+    if "generated_appendices" not in st.session_state:
+        st.session_state.generated_appendices = []
+
+
+def render_generated_appendix_downloads() -> None:
+    """Download buttons for auto-generated appendix Word files."""
+    generated: list[AppendixFile] = st.session_state.get("generated_appendices") or []
+    if not generated:
+        return
+    st.subheader("Generated appendices")
+    st.caption(
+        "Appendices D and G are rendered from Excel DrillingWaste data. "
+        "Export each .docx to PDF in Word before OneStop submission."
+    )
+    for ap in generated:
+        mime = DOCX_MIME if ap.format == "docx" else PDF_MIME
+        st.download_button(
+            f"Download Appendix {ap.label} ({ap.format.upper()})",
+            data=ap.data,
+            file_name=ap.filename,
+            mime=mime,
+            key=f"download_generated_appendix_{ap.label}",
+            use_container_width=True,
+        )
 
 
 def render_appendix_uploader() -> list[AppendixFile]:
@@ -31,13 +75,14 @@ def render_appendix_uploader() -> list[AppendixFile]:
     _init_appendix_state()
     st.subheader("Appendices (optional)")
     st.caption(
-        "Upload PDF appendices A–H (Alberta Phase I / SED 002). Included in the deliverable zip; "
-        "optional combined PDF merges report + appendices when report is PDF."
+        "Upload PDF appendices A–H for external documents (B ABADATA, C air photos, "
+        "E survey, F land title, H site sketch). Appendices **D** and **G** are "
+        "auto-generated from DrillingWaste data when you generate the report."
     )
     store: dict[str, AppendixFile] = st.session_state.appendix_files
     for label in APPENDIX_LABELS:
         uploaded = st.file_uploader(
-            f"Appendix {label} (PDF)",
+            f"Appendix {label} (PDF)" + (" — auto-generated if empty" if label in ("D", "G") else ""),
             type=["pdf"],
             key=f"appendix_upload_{label}",
             accept_multiple_files=False,
@@ -48,6 +93,8 @@ def render_appendix_uploader() -> list[AppendixFile]:
                 label=label,
                 data=data,
                 filename=uploaded.name or f"appendix_{label}.pdf",
+                format="pdf",
+                source="uploaded",
             )
         elif label in store:
             del store[label]
@@ -69,9 +116,11 @@ def render_deliverable_downloads(
     if not docx_bytes:
         return
 
-    appendices = list(st.session_state.get("appendix_files", {}).values())
+    appendices = all_appendices_from_session()
     if not appendices and not generation_record:
         return
+
+    render_generated_appendix_downloads()
 
     st.subheader("Deliverable package")
     manifest_bytes = None
@@ -86,8 +135,6 @@ def render_deliverable_downloads(
             template_source_format=fmt,
             appendices=appendices,
         )
-        import json
-
         manifest_bytes = json.dumps(rec_dict, indent=2, sort_keys=True).encode("utf-8")
 
     pkg = DeliverablePackage(
@@ -119,7 +166,14 @@ def render_deliverable_downloads(
     )
 
     if appendices:
+        gen_n = sum(1 for a in appendices if a.source == "generated")
+        up_n = len(appendices) - gen_n
+        parts = []
+        if gen_n:
+            parts.append(f"{gen_n} generated")
+        if up_n:
+            parts.append(f"{up_n} uploaded")
         st.caption(
-            f"{len(appendices)} appendix PDF(s) in package. "
-            "Export the Word report to PDF separately to build a single merged PDF."
+            f"{len(appendices)} appendix file(s) in package ({', '.join(parts)}). "
+            "Export generated .docx appendices to PDF in Word before OneStop upload."
         )

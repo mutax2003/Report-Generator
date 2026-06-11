@@ -27,9 +27,9 @@ Framework: Python `unittest` (stdlib).
 | `test_gw_trends.py` | Groundwater trend notes |
 | `test_well_log_extract.py` | Well log PDF heuristics |
 
-## Ten-step health check
+## Thirteen-step health check
 
-Quick regression pass (imports, Phase I Ecoventure render, security, full unittest):
+Quick regression pass (imports, Phase I Ecoventure render, appendices A/D/G, security, full unittest):
 
 ```powershell
 python scripts\health_check.py
@@ -45,7 +45,9 @@ python scripts\create_samples.py
 python -m unittest discover -s tests -v
 ```
 
-Expected: **123 tests OK** (includes Phase II/remediation verticals, SED 002 compliance, groundwater monitoring, phrase resolver, batch render, deliverable pack, smoke integration).
+Expected: **136+ tests OK** (includes Phase I appendix generator, automate package smoke, Phase II/remediation verticals, SED 002 compliance, groundwater monitoring, phrase resolver, batch render, deliverable pack, smoke integration).
+
+Optional slow tests (Devon full template render): `ESA_RUN_SLOW=1 python -m unittest discover -s tests -v`
 
 Optional slow check: `ESA_RUN_HEALTH_CHECK=1 python -m unittest tests.test_smoke_integration.SmokeIntegrationTests.test_health_check_script`
 
@@ -113,7 +115,7 @@ On push/PR to `main` or `master`:
 6. `render_cli.py`
 7. `production_e2e.py`
 8. `phase1_alberta_e2e.py`
-9. `health_check.py` (12-step regression, incl. groundwater + phrases)
+9. `health_check.py` (13-step regression, incl. Phase I appendices D/G, groundwater + phrases)
 10. `scripts/groundwater_e2e.py` (groundwater profile preflight + render)
 11. `test_with_your_documents.py` (default Alberta sample pair)
 

@@ -6,6 +6,12 @@ One-page path for **Ecoventure** staff generating Alberta Phase I or Phase II ES
 
 ```powershell
 cd "Report Generator"
+.\run.ps1 streamlit
+```
+
+Or manually:
+
+```powershell
 .\.venv\Scripts\Activate.ps1
 streamlit run app.py
 ```
@@ -47,8 +53,11 @@ Use **Download missing-fields checklist** or **Download ReportConfig sheet** if 
 2. **Generate Report**
 3. **Download Report (.docx)** — or batch zip when multiple sites were generated
 4. **Download generation manifest (JSON)** — save with the report on SharePoint
-5. Upload appendix PDFs **A–H** (air photos, ABADATA, land title, site sketch, …) if applicable
-6. **Download deliverable package (.zip)** — report + manifest + appendices folder
+5. **Download Generated appendices D/G** (and **A** QP declaration when shown) — export each `.docx` to PDF in Word before OneStop
+6. Upload appendix PDFs **B/C/E/F/H** (air photos, ABADATA, land title, site sketch, …) under **Optional tools** if needed
+7. **Download deliverable package (.zip)** — report + manifest + appendices + OneStop export
+
+For batch runs, use **Download all deliverable packages** for one zip with a folder per site.
 
 Export to client PDF in Word if needed; the app does not merge appendices into one PDF automatically.
 

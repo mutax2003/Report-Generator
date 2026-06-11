@@ -18,8 +18,16 @@ samples/e2e_*_manifest.json
 samples/phase1_alberta_rendered_manifest.json
 samples/e2e_*.docx
 samples/phase1_alberta_rendered.docx
+samples/phase1_alberta_rendered_package.zip
+samples/phase1_alberta_e2e_rendered.docx
+samples/phase1_alberta_e2e_rendered_manifest.json
+samples/phase1_alberta_e2e_rendered_package.zip
+samples/phase1_devon_e2e_rendered.docx
+samples/phase1_devon_e2e_rendered_manifest.json
+samples/phase1_devon_e2e_rendered_package.zip
 samples/groundwater_monitoring_rendered.docx
 samples/groundwater_monitoring_rendered_manifest.json
+samples/*_package.zip
 
 # Client reference PDFs (confidential)
 samples/*.pdf

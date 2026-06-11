@@ -164,7 +164,7 @@ def evaluate_sed002_compliance(
                 label_key = str(item.get("appendix", ""))
                 satisfied = label_key in appendices
                 if not satisfied:
-                    detail = f"Appendix {label_key} not uploaded"
+                    detail = f"Appendix {label_key} not uploaded or auto-generated"
                     appendix_missing.add(label_key)
             elif source == "manual":
                 fld = str(item.get("field", ""))

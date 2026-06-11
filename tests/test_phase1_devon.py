@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+_SLOW = os.getenv("ESA_RUN_SLOW", "").strip().lower() in ("1", "true", "yes")
 
 
 class TestPhase1Devon(unittest.TestCase):
@@ -18,6 +21,7 @@ class TestPhase1Devon(unittest.TestCase):
                 "Run scripts/create_phase1_devon_pair.py (or create_samples.py) first"
             )
 
+    @unittest.skipUnless(_SLOW, "Set ESA_RUN_SLOW=1 for full Devon template render")
     def test_preflight_and_render(self) -> None:
         from engine import ECOVENTURE_CONSULTANT, ReportEngine
         from template_tools import run_preflight
@@ -45,6 +49,23 @@ class TestPhase1Devon(unittest.TestCase):
         self.assertIn("Example Energy", xml)
         self.assertIn("Ecoventure", xml)
         self.assertNotIn("DEVON CANADA CORPORATION", xml)
+
+    def test_render_generates_appendices_d_and_g(self) -> None:
+        from appendix_generator import render_phase1_appendices
+        from engine import ReportEngine
+
+        meta = {
+            "prepared_by": "Ecoventure QP",
+            "date_of_issue": "2026-05-20",
+            "report_phase": "Phase 1",
+            "report_type": "phase1_devon",
+        }
+        excel_bytes = self.xlsx.read_bytes()
+        template_bytes = self.tpl.read_bytes()
+        engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=template_bytes)
+        _docx, _warnings, ctx, _record = engine.render(meta=meta)
+        appendices, _warnings = render_phase1_appendices(ctx, meta)
+        self.assertEqual({a.label for a in appendices}, {"A", "D", "G"})
 
 
 if __name__ == "__main__":

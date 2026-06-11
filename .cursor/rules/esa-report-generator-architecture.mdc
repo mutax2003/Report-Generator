@@ -31,11 +31,11 @@ Use venv `python` or `.\.venv\Scripts\python.exe` — system `python` lacks `pan
 | `PhraseCatalog` | Optional | Optional | Phrase options + `phrase_key_selected` columns (see `phrase_resolver.py`) |
 | `ReportConfig` | Optional | Optional | key/value overrides (`report_type`, `map_*`) |
 
-**Code layout:** `app.py` + `ui/*` (Streamlit, incl. `phrase_panel`, `preflight`, `appendix_panel`) · `engine.py` (`ReportEngine`, `render_batch`) · `phrase_resolver.py` · `report_profile.py` · `template_attachments.py` (PDF→DOCX) · `template_size.py` · `deliverable_pack.py` · `phase1_narrative.py` · `phase1_decision.py` · `sed002_compliance.py` · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `schemas/report_profiles.json` · `schemas/sed002_phase1_checklist.json` · `schemas/phrase_catalog.json` · `schemas/field_contract.json` (legacy/AI) · `scripts/` · `automate/`.
+**Code layout:** `app.py` + `ui/*` (Streamlit, incl. `phrase_panel`, `preflight`, `appendix_panel`) · `engine.py` (`ReportEngine`, `render_batch`) · `appendix_generator.py` (Phase I appendices D/G from `DrillingWaste`) · `phrase_resolver.py` · `report_profile.py` · `template_attachments.py` (PDF→DOCX) · `template_size.py` · `deliverable_pack.py` · `phase1_narrative.py` · `phase1_decision.py` · `sed002_compliance.py` · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `schemas/report_profiles.json` (incl. `appendix_templates` per profile) · `schemas/sed002_phase1_checklist.json` · `schemas/phrase_catalog.json` · `schemas/field_contract.json` (legacy/AI) · `samples/appendices/` (D/G Word templates) · `scripts/` (`create_appendix_templates.py`) · `automate/`.
 
 **Report profiles:** `phase1_alberta`, `phase1_devon`, `phase2_esa`, `groundwater_monitoring`, `template_driven` — see [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md). Recommended fields per profile in `schemas/report_profiles.json`. Optional Excel `ReportConfig` sheet for overrides.
 
-**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (123 tests)
+**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (135 tests) · regression: `python scripts\health_check.py` (13 checks)
 
 **Multiple-choice phrases:** [`schemas/phrase_catalog.json`](schemas/phrase_catalog.json) · Excel `PhraseCatalog` sheet · Streamlit **Standard phrases** panel · see [docs/04-template-authoring.md](docs/04-template-authoring.md)
 
@@ -61,7 +61,7 @@ Web-based **Environmental Report Generation Engine**: upload Excel + Word or PDF
 - Sidebar: **Profile** (`report_type`), **Report phase** (syncs with profile), Prepared By, Date of Issue, template version, **executive summary override**
 - **Generate Report** — single site or **All N reports (batch)** when Excel has multiple `ProjectData` rows; batch downloads via `ui/results.py`
 - Download rendered `.docx`, manifest JSON, **deliverable package (.zip)**
-- **Appendices A–H** PDF uploader (`ui/appendix_panel.py`); included in zip with SHA-256 in manifest; SED preflight counts uploaded labels
+- **Appendices A–H** — **D** and **G** auto-generated as `.docx` via `appendix_generator.py` (from `DrillingWaste` / `ProjectData`); **B, C, E, F, H** PDF upload in `ui/appendix_panel.py`; included in deliverable zip with SHA-256 in manifest; SED preflight counts uploaded + predicted generated labels
 - After PDF upload: **Download converted Word template** for tagging in Word
 - Pre-flight: profile-aware missing-field checklist; **SED 002 §10 completeness** (Phase I); **Download ReportConfig sheet (Excel)**
 - Session state persists generated file for download
@@ -85,7 +85,7 @@ Web-based **Environmental Report Generation Engine**: upload Excel + Word or PDF
 
 ## Deliverables (present in repo)
 
-- `app.py`, `engine.py`, `deliverable_pack.py`
+- `app.py`, `engine.py`, `appendix_generator.py`, `deliverable_pack.py`
 - `EXCEL_LAYOUT.txt`, `JINJA2_CHEATSHEET.txt`
 - `scripts/create_samples.py` — demo + production + phase1_alberta fixtures
 - `Dockerfile`, `docs/14-deployment.md`, `docs/15-power-automate-guide.md`

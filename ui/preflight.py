@@ -8,7 +8,7 @@ from phrase_resolver import build_phrase_catalog_workbook_bytes
 from report_profile import build_report_config_workbook_bytes
 from sed002_compliance import build_qp_review_checklist_markdown, sed002_section_summary
 from template_tools import PreflightResult, missing_fields_checklist, run_preflight
-from ui.appendix_panel import appendix_labels_from_session
+from ui.appendix_panel import all_appendix_labels_from_session, appendix_labels_from_session
 from ui.helpers import get_cached_report_engine
 
 
@@ -25,7 +25,7 @@ def run_preflight_check(
         return None
     import json
 
-    appendix_labels = sorted(appendix_labels_from_session())
+    appendix_labels = sorted(all_appendix_labels_from_session())
     cache_key = (
         _digest(excel_bytes),
         _digest(template_bytes),
@@ -106,6 +106,11 @@ def render_preflight_panel(
                 f"{preflight.reclamation.completeness_pct}%",
                 help=f"{preflight.reclamation.satisfied_count}/{preflight.reclamation.total_items} items",
             )
+
+        predicted = sorted(getattr(preflight, "predicted_appendix_labels", set()) or set())
+        if predicted and report_phase.strip() == "Phase 1":
+            labels = ", ".join(predicted)
+            st.info(f"Will auto-generate appendices: **{labels}** (included in deliverable package)")
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:

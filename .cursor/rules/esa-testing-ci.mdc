@@ -21,7 +21,7 @@ python scripts\health_check.py
 
 ## Conventions
 
-- Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates. Current count: **119 tests** (`test_sed002_compliance`, `test_phrase_resolver`, `test_batch_render`, `test_phase1_markup`, `test_phase1_pdf_text`, etc.).
+- Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates. Current count: **135 tests** (`test_appendix_generator`, `test_sed002_compliance`, `test_phrase_resolver`, `test_batch_render`, `test_phase1_markup`, `test_phase1_pdf_text`, etc.).
 - Prefer **real fixtures** in `samples/` over huge inline ZIP bytes; use `unittest.SkipTest` when optional large files are absent.
 - **`ESA_VALIDATION_BYPASS=1`**: tests only — never document for production.
 - **`ESA_RUN_HEALTH_CHECK=1`**: enables the slow `test_smoke_integration` health path; CI runs `health_check.py` separately.

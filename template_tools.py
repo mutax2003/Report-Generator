@@ -60,6 +60,7 @@ class PreflightResult:
     reclamation: Any = None  # ReclamationComplianceResult | None
     project_row_count: int = 0
     project_row_labels: list[str] = field(default_factory=list)
+    predicted_appendix_labels: set[str] = field(default_factory=set)
 
     @property
     def can_generate(self) -> bool:
@@ -303,6 +304,7 @@ def run_preflight(
                             f"Table loop '{loop_var}' has 0 rows in Excel."
                         )
             if runtime.report_type in PHASE1_SED_PROFILES or runtime.narrative_profile == "phase1_alberta":
+                from appendix_generator import predicted_appendix_labels
                 from sed002_compliance import evaluate_sed002_compliance
 
                 sheet_counts = (
@@ -310,12 +312,18 @@ def run_preflight(
                     if cov and cov.table_row_counts
                     else {}
                 )
+                appendix_present = set(appendix_labels_present or set())
+                predicted = predicted_appendix_labels(
+                    ctx, meta, report_type=runtime.report_type
+                )
+                result.predicted_appendix_labels = predicted
+                appendix_present |= predicted
                 sed = evaluate_sed002_compliance(
                     ctx,
                     meta,
                     report_type=runtime.report_type,
                     sheet_row_counts=sheet_counts,
-                    appendix_labels_present=appendix_labels_present,
+                    appendix_labels_present=appendix_present,
                 )
                 result.sed002 = sed
                 if sed:

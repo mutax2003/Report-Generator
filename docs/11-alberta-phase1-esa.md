@@ -38,18 +38,18 @@ Do **not** require **`LabResults`** when sidebar **Report phase** is **Phase 1**
 2. **Executive summary** — `{{ executive_summary }}` (Signum Consulting–style multi-paragraph structure; Ecoventure voice). If blank in Excel, the engine auto-generates from ProjectData fields. Override in sidebar **Override executive summary** before generate.  
 3. **SED 002 §10** sections (10.1–10.8) — asset, drilling, waste, production, site visit, records, interviews  
 4. Table loops for drilling waste and storage tanks  
-5. Appendices **A–H** — client PDFs uploaded in the app; **onestop/** summary JSON in deliverable zip  
+5. Appendices **A–H** — **D** and **G** auto-generated as `.docx` from DrillingWaste data; other appendices uploaded as PDFs in the app; **onestop/** summary JSON in deliverable zip  
 
 ## Workflow
 
 1. Sidebar: **Phase 1**, profile **Alberta Phase I ESA**, **Prepared by**, date, template version.  
 2. Upload `phase1_alberta_data.xlsx` + `phase1_alberta_template.docx` (or `.pdf` layout reference—convert and tag in Word if needed).  
 3. Pre-flight → optional dry run → **Generate Report**.  
-4. Upload appendix PDFs **A–H** (air photos, ABADATA, drilling waste checklists, site sketch, etc.).  
+4. Review auto-generated appendices **D** (checklist) and **G** (calc tables) in step 4 downloads; upload other appendix PDFs **A–C, E–F, H** (ABADATA, air photos, land title, site sketch, etc.) under **Optional tools**.  
 5. Review **SED 002 §10** completeness in pre-flight; download QP checklist if needed.  
-6. Download **Report (.docx)**, **manifest JSON**, and **deliverable package (.zip)** (includes `onestop/` summary for OneStop).
+6. Download **Report (.docx)**, **manifest JSON**, and **deliverable package (.zip)** (includes generated appendices and `onestop/` summary for OneStop).
 
-Combined **Final_Report.pdf** (Word + appendices in one file) is not merged in-app; export the `.docx` to PDF in Word and combine appendices with your PDF tool if required.
+Export generated appendix `.docx` files to PDF in Word before OneStop submission. Combined **Final_Report.pdf** (Word + appendices in one file) is not merged in-app.
 
 ## Commands
 

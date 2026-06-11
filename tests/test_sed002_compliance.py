@@ -126,6 +126,38 @@ class TestSed002Compliance(unittest.TestCase):
         assert before is not None and after is not None
         self.assertGreater(after.satisfied_count, before.satisfied_count)
 
+    def test_appendix_d_satisfied_when_generated_label_present(self) -> None:
+        from sed002_compliance import evaluate_sed002_compliance
+
+        ctx = {
+            "client_name": "C",
+            "uwi": "1",
+            "asset_activity_type": "Well",
+            "spud_date": "1-Jan-2020",
+            "aer_waste_compliance_option": "Option 1",
+            "drilling_waste_summary": "x",
+            "infrastructure_summary": "x",
+            "site_visit_completed": "Yes",
+            "records_review_summary": "x",
+            "air_photo_observations": "x",
+            "interview_operator_summary": "x",
+            "executive_summary": "x",
+            "phase2_esa_required": "No",
+            "qp_names": "QP",
+            "drilling_waste": [{"mud_type": "Gel", "volume_m3": "1"}],
+        }
+        result = evaluate_sed002_compliance(
+            ctx,
+            {"prepared_by": "QP", "date_of_issue": "2026-01-01"},
+            report_type="phase1_alberta",
+            appendix_labels_present={"D"},
+        )
+        assert result is not None
+        d_items = [ir for ir in result.items if ir.item_id == "10.4.appendix_checklist"]
+        self.assertEqual(len(d_items), 1)
+        self.assertTrue(d_items[0].satisfied)
+        self.assertNotIn("D", result.appendix_missing)
+
     def test_phase2_warnings_not_duplicated(self) -> None:
         from phase1_decision import enrich_context_phase2_decision, evaluate_phase2_triggers
 

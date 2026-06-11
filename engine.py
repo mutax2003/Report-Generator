@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import io
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
@@ -206,6 +206,7 @@ class BatchReportResult:
     record: Any
     filename: str
     row_label: str = ""
+    appendices: list[Any] = field(default_factory=list)
 
 
 def _lab_frame_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:

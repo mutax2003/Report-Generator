@@ -19,10 +19,30 @@ from provenance import build_generation_record, sha256_hex
 
 class DeliverablePackTests(unittest.TestCase):
     def test_appendix_manifest_entries(self) -> None:
-        ap = AppendixFile(label="A", data=b"%PDF-1.4", filename="a.pdf")
+        ap = AppendixFile(
+            label="A",
+            data=b"%PDF-1.4",
+            filename="a.pdf",
+            format="pdf",
+            source="uploaded",
+        )
         entries = appendix_manifest_entries([ap])
         self.assertEqual(entries[0]["label"], "A")
+        self.assertEqual(entries[0]["format"], "pdf")
+        self.assertEqual(entries[0]["source"], "uploaded")
         self.assertEqual(entries[0]["sha256"], sha256_hex(b"%PDF-1.4"))
+
+    def test_appendix_manifest_docx_generated(self) -> None:
+        ap = AppendixFile(
+            label="D",
+            data=b"docx-bytes",
+            filename="d.docx",
+            format="docx",
+            source="generated",
+        )
+        entries = appendix_manifest_entries([ap])
+        self.assertEqual(entries[0]["format"], "docx")
+        self.assertEqual(entries[0]["source"], "generated")
 
     def test_build_zip_contains_report_and_appendix(self) -> None:
         ap = AppendixFile(label="B", data=b"pdf2", filename="b.pdf")

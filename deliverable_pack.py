@@ -19,6 +19,8 @@ class AppendixFile:
     label: str
     data: bytes
     filename: str
+    format: str = "pdf"
+    source: str = "uploaded"
 
     @property
     def sha256(self) -> str:
@@ -48,19 +50,25 @@ def appendix_manifest_entries(appendices: list[AppendixFile]) -> list[dict[str, 
             "filename": a.filename,
             "sha256": a.sha256,
             "size_bytes": str(len(a.data)),
+            "format": a.format,
+            "source": a.source,
         }
         for a in appendices
     ]
 
 
 def build_batch_reports_zip(
-    reports: list[tuple[str, bytes, bytes | None]],
+    reports: list[tuple[str, bytes, bytes | None, list[AppendixFile] | None]],
 ) -> bytes:
-    """Zip multiple rendered reports. Each item is (filename, docx_bytes, manifest_bytes|None)."""
+    """Zip reports; optional fourth element is merged appendices per report."""
     bio = io.BytesIO()
     seen: dict[str, int] = {}
     with zipfile.ZipFile(bio, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for docx_name, docx_bytes, manifest_bytes in reports:
+        for entry in reports:
+            docx_name = entry[0]
+            docx_bytes = entry[1]
+            manifest_bytes = entry[2] if len(entry) > 2 else None
+            appendices = entry[3] if len(entry) > 3 else None
             safe = docx_name.replace("\\", "_").replace("/", "_")
             if safe in seen:
                 seen[safe] += 1
@@ -68,10 +76,13 @@ def build_batch_reports_zip(
                 safe = f"{stem}_{seen[safe]}.{ext}"
             else:
                 seen[safe] = 1
+            stem = safe.rsplit(".", 1)[0] if "." in safe else safe
             zf.writestr(f"reports/{safe}", docx_bytes)
             if manifest_bytes:
-                stem = safe.rsplit(".", 1)[0] if "." in safe else safe
                 zf.writestr(f"manifests/{stem}_manifest.json", manifest_bytes)
+            for ap in appendices or []:
+                ap_safe = ap.filename.replace("\\", "_").replace("/", "_")
+                zf.writestr(f"appendices/{stem}/{ap.label}_{ap_safe}", ap.data)
     return bio.getvalue()
 
 
@@ -158,8 +169,8 @@ def build_submission_folder_readme(appendix_labels: list[str]) -> bytes:
         "=============================================",
         "",
         "01_Phase1_ESA_Report.pdf          — export from Word report in this zip",
-        "02_DrillingWaste_Checklist.pdf    — appendix D",
-        "03_DrillingWaste_CalcTables.pdf   — appendix G (if applicable)",
+        "02_DrillingWaste_Checklist.pdf    — appendix D (export .docx to PDF if generated)",
+        "03_DrillingWaste_CalcTables.pdf   — appendix G (export .docx to PDF if generated)",
         "04_ABADATA_SpillSearch.pdf        — appendix B",
         "05_AirPhotos_Sketch.pdf           — appendix C / H",
         "06_Survey_Plan.pdf                — appendix E",
@@ -172,6 +183,30 @@ def build_submission_folder_readme(appendix_labels: list[str]) -> bytes:
     lines.append("")
     lines.append("onestop/phase1_esa_summary.json — summary module field reference")
     return "\n".join(lines).encode("utf-8")
+
+
+def build_deliverable_zip_bytes(
+    docx_bytes: bytes,
+    report_filename: str,
+    context: dict[str, Any],
+    meta: dict[str, str] | None,
+    manifest_bytes: bytes,
+    appendices: list[AppendixFile],
+) -> bytes:
+    """Build deliverable zip from an already-rendered report and manifest."""
+    manifest_name = report_filename.rsplit(".", 1)[0] + "_manifest.json"
+    return build_deliverable_zip(
+        DeliverablePackage(
+            report_docx=docx_bytes,
+            report_filename=report_filename,
+            manifest_bytes=manifest_bytes,
+            manifest_filename=manifest_name,
+            appendices=appendices,
+            render_context=context,
+            render_meta=meta,
+            include_onestop_export=True,
+        )
+    )
 
 
 def build_deliverable_zip(package: DeliverablePackage) -> bytes:
@@ -201,6 +236,51 @@ def build_deliverable_zip(package: DeliverablePackage) -> bytes:
                 "onestop/SUBMISSION_LAYOUT.txt",
                 build_submission_folder_readme(labels),
             )
+    return bio.getvalue()
+
+
+def _batch_site_folder_name(item: Any) -> str:
+    """Safe folder name for one batch deliverable package."""
+    import re
+
+    ctx = getattr(item, "context", None) or {}
+    for key in ("site_name", "well_name", "uwi", "project_number"):
+        val = str(ctx.get(key) or "").strip()
+        if val:
+            safe = re.sub(r"[^\w\-]+", "_", val.replace("/", "-").replace("\\", "-"))[:48]
+            if safe:
+                return safe
+    stem = str(getattr(item, "filename", "site") or "site")
+    return stem.rsplit(".", 1)[0][:48] or "site"
+
+
+def build_batch_deliverable_packages_zip(
+    batch: list[Any],
+    meta: dict[str, str] | None,
+) -> bytes:
+    """One deliverable folder per site: report + manifest + appendices + onestop."""
+    bio = io.BytesIO()
+    seen: dict[str, int] = {}
+    with zipfile.ZipFile(bio, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for item in batch:
+            folder = _batch_site_folder_name(item)
+            if folder in seen:
+                seen[folder] += 1
+                folder = f"{folder}_{seen[folder]}"
+            else:
+                seen[folder] = 1
+            manifest_bytes = item.record.to_json_bytes()
+            pkg_bytes = build_deliverable_zip_bytes(
+                item.docx_bytes,
+                item.filename,
+                item.context,
+                meta,
+                manifest_bytes,
+                list(item.appendices or []),
+            )
+            with zipfile.ZipFile(io.BytesIO(pkg_bytes)) as inner:
+                for name in inner.namelist():
+                    zf.writestr(f"{folder}/{name}", inner.read(name))
     return bio.getvalue()
 
 

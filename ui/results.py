@@ -12,6 +12,17 @@ from engine import BatchReportResult
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
+def _appendix_generation_warnings(warnings: list[str]) -> list[str]:
+    return [w for w in warnings if "Appendix" in w and "not generated" in w]
+
+
+def _render_appendix_warning_callout(warnings: list[str]) -> None:
+    ap_warns = _appendix_generation_warnings(warnings)
+    if ap_warns:
+        for w in ap_warns:
+            st.warning(w)
+
+
 _LIST_KEYS = ("lab_results", "drilling_waste", "storage_tanks")
 
 
@@ -29,30 +40,59 @@ def render_context_preview(context: dict[str, Any], *, max_rows: int = 15) -> No
             st.caption(f"{key}: {len(data)} row(s) (table loop data)")
 
 
-def render_batch_download_section(batch: list[BatchReportResult] | None) -> None:
+def render_batch_download_section(
+    batch: list[BatchReportResult] | None,
+    *,
+    meta: dict[str, str] | None = None,
+) -> None:
     if not batch:
         return
-    from deliverable_pack import build_batch_reports_zip
+    from deliverable_pack import build_batch_deliverable_packages_zip, build_batch_reports_zip
 
     with st.container(border=True):
         st.markdown(f"### Batch package · {len(batch)} reports")
-        zip_entries: list[tuple[str, bytes, bytes | None]] = []
+        zip_entries: list[tuple[str, bytes, bytes | None, list]] = []
         all_warnings: list[str] = []
+        appendix_sites = 0
         for item in batch:
             zip_entries.append(
-                (item.filename, item.docx_bytes, item.record.to_json_bytes())
+                (
+                    item.filename,
+                    item.docx_bytes,
+                    item.record.to_json_bytes(),
+                    item.appendices,
+                )
             )
+            if item.appendices:
+                appendix_sites += 1
             all_warnings.extend(item.warnings)
         zip_bytes = build_batch_reports_zip(zip_entries)
         zip_name = f"esa_reports_batch_{len(batch)}.zip"
+        cap = f"Download all as ZIP ({len(batch)} reports"
+        if appendix_sites:
+            cap += f", {appendix_sites} with appendices"
+        cap += ")"
         st.download_button(
-            label=f"Download all as ZIP ({len(batch)} files)",
+            label=cap,
             data=zip_bytes,
             file_name=zip_name,
             mime="application/zip",
             type="primary",
             use_container_width=True,
         )
+        deliverable_zip = build_batch_deliverable_packages_zip(batch, meta)
+        st.download_button(
+            label=f"Download all deliverable packages ({len(batch)} sites)",
+            data=deliverable_zip,
+            file_name=f"esa_deliverables_batch_{len(batch)}.zip",
+            mime="application/zip",
+            use_container_width=True,
+        )
+        st.caption(
+            "Deliverable packages include report, manifest, auto-generated appendices, "
+            "and OneStop export per site."
+        )
+        _render_appendix_warning_callout(all_warnings)
         if all_warnings:
             with st.expander("Batch warnings", expanded=False):
                 for w in all_warnings[:40]:
@@ -107,6 +147,7 @@ def render_download_section(
                 f"template v{generation_record.template_version or 'n/a'}"
             )
 
+    _render_appendix_warning_callout(warnings)
     if warnings:
         with st.expander(
             f"Warnings ({len(warnings)}) — review before client delivery",

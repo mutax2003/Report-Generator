@@ -40,20 +40,23 @@ Or: `.\run.ps1 scripts\create_samples.py` (uses venv Python on Windows).
 
 | Task | Command |
 |------|---------|
-| Web UI | `streamlit run app.py` (templates: `.docx` or `.pdf`) |
+| Web UI | `.\run.ps1 streamlit` or `streamlit run app.py` (templates: `.docx` or `.pdf`) |
 | Quick merge test | `python scripts\test_with_your_documents.py` |
 | Phase 1 PDF → markup + site Excel | `python scripts\phase1_pdf_to_markup.py` · `python scripts\create_phase1_site_samples.py` |
 | Phase 1 site E2E (251106R + 260109R) | `$env:ESA_ALLOW_LARGE_TEMPLATE="1"; python scripts\phase1_site_e2e.py` |
 | User test folder | `python scripts\prepare_user_test_pack.py` then edit `user_test/` |
-| Regression | `python scripts\health_check.py` |
+| Regression | `python scripts\health_check.py` (**13 checks**, incl. Phase I appendices D/G) |
+| Phase I E2E + deliverable zip | `python scripts\phase1_alberta_e2e.py` |
+| Appendix templates (A/D/G) | `python scripts\create_appendix_templates.py` |
+| CLI render + package | `python scripts\render_cli.py --package` (see `--report-type phase1_alberta`) |
 | SharePoint bundle | `.\scripts\package_team_sharepoint.ps1` |
 | Team Docker host | `docker compose up -d --build` (see [docs/14-deployment.md](docs/14-deployment.md)) |
-| Unit tests | `python -m unittest discover -s tests -v` (**123 tests**; see [docs/08-testing.md](docs/08-testing.md)) |
+| Unit tests | `python -m unittest discover -s tests -v` (**135 tests**; see [docs/08-testing.md](docs/08-testing.md)) |
 | Devon sample pair | `python scripts\create_phase1_devon_pair.py` |
 | Slow health in smoke test | `$env:ESA_RUN_HEALTH_CHECK="1"` then run `tests.test_smoke_integration` |
 
 ## Key modules
 
-`app.py` · `engine.py` (`ReportEngine`, `render_batch`) · `phrase_resolver.py` · `groundwater_narrative.py` · `phase1_narrative.py` · `phase1_decision.py` · `sed002_compliance.py` · `report_profile.py` (`read_excel_meta`) · `template_attachments.py` · `template_size.py` · `deliverable_pack.py` (OneStop export) · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `ui/` (`sidebar`, `phrase_panel`, `preflight`, `appendix_panel`, `results`, `helpers`) · `schemas/phrase_catalog.json` · `schemas/sed002_phase1_checklist.json` · `scripts/` · `automate/`
+`app.py` · `engine.py` (`ReportEngine`, `render_batch`) · `appendix_generator.py` (Phase I appendices D/G) · `phrase_resolver.py` · `groundwater_narrative.py` · `phase1_narrative.py` · `phase1_decision.py` · `sed002_compliance.py` · `report_profile.py` (`read_excel_meta`) · `template_attachments.py` · `template_size.py` · `deliverable_pack.py` (OneStop export, deliverable zip) · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `ui/` (`sidebar`, `phrase_panel`, `preflight`, `appendix_panel`, `results`, `helpers`) · `schemas/phrase_catalog.json` · `schemas/sed002_phase1_checklist.json` · `scripts/` (`create_appendix_templates.py`) · `automate/`
 
 Do not put Streamlit imports in `engine.py`. Extend **`schemas/report_profiles.json`** `recommended_fields` when adding production fields; update `field_contract.json` if the AI tagger or legacy docs need the same names. For phrase fields, update **`schemas/phrase_catalog.json`** and [docs/04-template-authoring.md](docs/04-template-authoring.md). For multi-site Excel, use **`ProjectData` rows 3+** and batch mode or `render_cli.py --all-rows`.

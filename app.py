@@ -5,6 +5,7 @@ from typing import Any
 
 import streamlit as st
 
+from appendix_generator import attach_appendices_to_record
 from engine import suggested_download_name
 from security import (
     MAX_EXCEL_BYTES,
@@ -48,6 +49,7 @@ def _init_state() -> None:
         "template_prep_warnings": [],
         "last_prepared_template": None,
         "generated_batch": None,
+        "generated_appendices": [],
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -181,7 +183,7 @@ def _render_report_tab(
         st.divider()
         render_outputs_section_header()
 
-    render_batch_download_section(st.session_state.get("generated_batch"))
+    render_batch_download_section(st.session_state.get("generated_batch"), meta=meta_render)
     render_download_section(
         st.session_state.generated_docx,
         st.session_state.generated_filename,
@@ -247,6 +249,7 @@ def _run_generation(
     st.session_state.last_context = None
     st.session_state.generation_record = None
     st.session_state.generated_batch = None
+    st.session_state.generated_appendices = []
 
     if not _file_ext_ok(excel_file.name, ".xlsx"):
         st.error("Excel file must have a .xlsx extension.")
@@ -279,9 +282,7 @@ def _run_generation(
             excel_bytes or b"",
             template_bytes or b"",
         )
-        from deliverable_pack import appendix_manifest_entries
-
-        appendices = list(st.session_state.get("appendix_files", {}).values())
+        uploaded_appendices = list(st.session_state.get("appendix_files", {}).values())
         ai_audit = list(st.session_state.get("ai_audit_log") or [])
 
         if batch_mode and project_row_count > 1:
@@ -296,12 +297,14 @@ def _run_generation(
                 item.record.template_source_format = (
                     prepared_tpl.source_format if prepared_tpl else ""
                 )
-                if appendices:
-                    item.record.appendix_files = appendix_manifest_entries(
-                        appendices
-                    )
+                generated, merged, ap_warnings = attach_appendices_to_record(
+                    item.record, item.context, meta_render, uploaded_appendices
+                )
+                item.appendices = merged
+                item.warnings.extend(ap_warnings)
                 item.record.ai_audit = ai_audit
             st.session_state.generated_batch = batch
+            st.session_state.generated_appendices = []
             st.session_state.warnings = [w for item in batch for w in item.warnings]
             n_warn = len(template_prep_warnings) + len(st.session_state.warnings)
             st.success(
@@ -323,8 +326,11 @@ def _run_generation(
             record.template_source_format = (
                 prepared_tpl.source_format if prepared_tpl else ""
             )
-            if appendices:
-                record.appendix_files = appendix_manifest_entries(appendices)
+            generated, merged, ap_warnings = attach_appendices_to_record(
+                record, context, meta_render, uploaded_appendices
+            )
+            st.session_state.generated_appendices = generated
+            warnings = list(warnings) + ap_warnings
             record.ai_audit = ai_audit
             st.session_state.generated_docx = docx_bytes
             st.session_state.warnings = warnings

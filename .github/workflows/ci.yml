@@ -24,6 +24,9 @@ jobs:
       - name: Generate samples
         run: python scripts/create_samples.py
 
+      - name: Generate appendix templates
+        run: python scripts/create_appendix_templates.py
+
       - name: Tag production template
         run: python scripts/tag_production_template.py
 
@@ -32,6 +35,9 @@ jobs:
 
       - name: CLI smoke render
         run: python scripts/render_cli.py
+
+      - name: CLI deliverable package smoke
+        run: python scripts/phase1_package_smoke.py
 
       - name: Production E2E render
         run: python scripts/production_e2e.py
@@ -42,5 +48,5 @@ jobs:
       - name: User document test script (Alberta defaults)
         run: python scripts/test_with_your_documents.py
 
-      - name: Ten-step health check
+      - name: Thirteen-step health check
         run: python scripts/health_check.py

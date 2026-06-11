@@ -1,4 +1,4 @@
-p# 07 — Security and deployment
+# 07 — Security and deployment
 
 ## Threat model
 
@@ -33,7 +33,8 @@ The application accepts **untrusted uploads** (Excel and Word) from internal use
 
 ### Jinja2
 
-- `SandboxedEnvironment` with `StrictUndefined` during `doc.render`.
+- **Main report:** `SandboxedEnvironment` with `StrictUndefined` during `doc.render`. Missing scalar tags warn and render empty — render does not crash.
+- **Auto-generated appendices (A/D/G):** same sandbox with lenient `Undefined` so sparse Excel rows do not abort appendix render; missing keys render blank (same consultant outcome as empty main-report tags).
 - Templates treated as trusted — sandbox blocks dangerous Python, not malicious template authors.
 
 ### Context limits

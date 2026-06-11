@@ -15,7 +15,7 @@ Alberta O&G **AER Schedule Two** Phase 1 ESA package (reclamation certificate wo
 | AER 10.3 Production / tanks | Yes | Scalar + `StorageTanks` sheet |
 | AER 10.4 Site visit | Yes | Scalar checklist fields |
 | AER 10.5–10.7 Imagery, interviews, conclusions | Partial | Key scalar fields |
-| Appendices A–H | Streamlit upload A–H | Included in deliverable zip; SED preflight counts labels; merge to one PDF outside app |
+| Appendices A–H | D/G auto `.docx`; other labels PDF upload | Included in deliverable zip; SED preflight counts labels; merge to one PDF outside app |
 
 ## Ecoventure branding (implementation default)
 
@@ -84,22 +84,31 @@ Jinja: `{%tr for item in drilling_waste %}`
 
 Jinja: `{%tr for item in storage_tanks %}`
 
-## Appendices (manual)
+## Appendices
 
-- A: AER Phase I form and QP declaration  
-- B: ABADATA, pipeline, spill search  
-- C: Air photos (2001, 2004, 2015)  
-- D: Drilling waste notification and checklist  
-- E: Survey plan and proximity map  
-- F: Land title search  
+- A: AER Phase I form and QP declaration (manual PDF upload)  
+- B: ABADATA, pipeline, spill search (manual PDF upload)  
+- C: Air photos (2001, 2004, 2015) (manual PDF upload)  
+- D: Drilling waste notification and checklist — **auto-generated `.docx`**  
+- E: Survey plan and proximity map (manual PDF upload)  
+- F: Land title search (manual PDF upload)  
+- G: Drilling waste calculation tables — **auto-generated `.docx`**  
+- H: Operations/construction site sketch (manual PDF upload)  
 
-## Implementation artifacts (pending Agent mode)
+## Implementation artifacts (committed)
 
-- `samples/phase1_alberta_data.xlsx`  
-- `samples/phase1_alberta_template.docx`  
-- `schemas/report_profiles.json` — `phase1_alberta` → `recommended_fields`
-- `schemas/field_contract.json` — legacy `recommended_phase_1_alberta_og`  
-- `engine.py` — optional sheets + generators  
-- `docs/11-alberta-phase1-esa.md`  
-- Default sidebar **Phase 1**  
-- `rag_corpus/phase1_alberta_aer.txt`  
+- `samples/phase1_alberta_data.xlsx` · `samples/phase1_alberta_template.docx`
+- `samples/appendices/` — D/G Word templates (`create_appendix_templates.py`)
+- `appendix_generator.py` — auto-render D/G from `DrillingWaste` + `ProjectData`
+- `schemas/report_profiles.json` — `phase1_alberta` + `appendix_templates`
+- `docs/11-alberta-phase1-esa.md` · `docs/20-aer-sed002-phase1-esa.md`
+
+## Future (out of scope V1)
+
+| Appendix | Planned approach |
+|----------|------------------|
+| **A** | Word template from sidebar meta + QP declaration fields |
+| **C** | Image assembly from Excel paths or multi-file upload → PDF |
+| **E, F** | External PDF upload only (survey, land title) |
+| **H** | Site sketch — upload or GIS export workflow ([docs/19-charts-and-gis-embed.md](../docs/19-charts-and-gis-embed.md)) |
+| **Merged PDF** | Server DOCX→PDF + `merge_pdfs()` in `deliverable_pack.py` (optional team host) |

@@ -59,9 +59,13 @@ Environment bypass for tests only: `ESA_VALIDATION_BYPASS=1`.
 
 `prepare_template_upload` — PDF → DOCX via pdf2docx; `PreparedTemplate` dataclass.
 
+### `appendix_generator.py`
+
+`render_phase1_appendices`, `attach_appendices_to_record`, `predicted_appendix_labels`, `merge_appendix_lists` — auto-render SED 002 appendices **D** (drilling waste checklist) and **G** (calc tables) from the same Jinja context as the main report. Templates in `samples/appendices/`; profile mapping via `appendix_templates` in `schemas/report_profiles.json`. No Streamlit imports.
+
 ### `deliverable_pack.py`
 
-`build_deliverable_zip`, `build_onestop_export_bytes`, `AppendixFile`, `appendix_manifest_entries`, `enrich_manifest_dict` — zip includes `onestop/` summary JSON/CSV for OneStop upload prep.
+`build_deliverable_zip`, `build_deliverable_zip_bytes`, `build_onestop_export_bytes`, `AppendixFile`, `appendix_manifest_entries`, `enrich_manifest_dict`, `build_batch_reports_zip` — zip includes `appendices/` (uploaded PDFs + generated D/G `.docx`) and `onestop/` summary JSON/CSV for OneStop upload prep.
 
 ### `phase1_narrative.py`
 
@@ -77,7 +81,7 @@ Environment bypass for tests only: `ESA_VALIDATION_BYPASS=1`.
 
 ### `provenance.py`
 
-`GenerationRecord` dataclass (`report_type`, `template_source_format`, `appendix_files`), `build_generation_record`, `sha256_hex`.
+`GenerationRecord` dataclass (`report_type`, `template_source_format`, `appendix_files`, `generated_appendix_files`), `build_generation_record`, `sha256_hex`.
 
 ### `field_validation.py`
 
@@ -95,8 +99,8 @@ Streamlit orchestration only: session state, uploaders, calls `ui/*`, instantiat
 | `helpers.py` | Template cache, PDF conversion download, `_ensure_samples`, template analysis |
 | `preflight.py` | Cached preflight, SED 002 §10 metrics, appendix-aware checklist, ReportConfig export |
 | `preview.py` | Dry-run panel |
-| `results.py` | Download buttons, context preview, manifest |
-| `appendix_panel.py` | Appendix A–H uploads, deliverable zip + OneStop export |
+| `appendix_panel.py` | Appendix A–H PDF uploads, generated D/G downloads, deliverable zip + OneStop export |
+| `results.py` | Download buttons, context preview, manifest; batch zip includes per-site `appendices/` |
 | `workflow.py` | Step indicator UI |
 | `ai_panel.py` | AI tab (Tier 1 & 2) |
 
