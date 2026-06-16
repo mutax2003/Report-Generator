@@ -7,6 +7,7 @@ Optional Excel sheet ``ReportConfig`` (key/value) overrides report_type and shee
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass, field
@@ -160,8 +161,14 @@ def loops_from_block_tags(block_tags: set[str]) -> set[str]:
     return loops
 
 
-def discover_template_loops(template_bytes: bytes) -> set[str]:
-    """Find ``{%tr for item in var %}`` loop variables in the Word template (one ZIP scan)."""
+def discover_template_loops(
+    template_bytes: bytes,
+    *,
+    block_tags: set[str] | None = None,
+) -> set[str]:
+    """Find ``{%tr for item in var %}`` loop variables in the Word template."""
+    if block_tags is not None:
+        return loops_from_block_tags(block_tags)
     from template_tools import scan_template
 
     return loops_from_block_tags(scan_template(template_bytes).block_tags)
@@ -183,8 +190,29 @@ def _read_report_config_sheet(df: pd.DataFrame) -> dict[str, str]:
     return out
 
 
+_EXCEL_META_CACHE_MAX = 16
+_excel_meta_cache: dict[str, tuple[list[str], dict[str, str]]] = {}
+
+
+def clear_excel_meta_cache() -> None:
+    """Drop cached workbook meta reads (tests)."""
+    _excel_meta_cache.clear()
+
+
 def read_excel_meta(excel_bytes: bytes) -> tuple[list[str], dict[str, str]]:
     """One openpyxl pass: sheet names and optional ReportConfig key/value rows."""
+    digest = hashlib.sha256(excel_bytes).hexdigest()
+    hit = _excel_meta_cache.get(digest)
+    if hit is not None:
+        return hit
+    result = _read_excel_meta_uncached(excel_bytes)
+    if len(_excel_meta_cache) >= _EXCEL_META_CACHE_MAX:
+        _excel_meta_cache.pop(next(iter(_excel_meta_cache)))
+    _excel_meta_cache[digest] = result
+    return result
+
+
+def _read_excel_meta_uncached(excel_bytes: bytes) -> tuple[list[str], dict[str, str]]:
     import io
 
     catalog = load_profiles_catalog()

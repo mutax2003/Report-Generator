@@ -15,11 +15,31 @@ streamlit run app.py
 
 The app opens in your browser (default `http://localhost:8501`). Use **localhost** on office machines; do not expose the server broadly without IT approval (see [07-security-and-deployment.md](07-security-and-deployment.md)).
 
+## Choose your workflow
+
+On first launch, pick one path (see also [00-start-here.md](00-start-here.md)):
+
+| Choice | When to use |
+|--------|-------------|
+| **Project folder + AI** | Local site folder with `project_data.xlsx`, `template.docx`, optional `source/`, `appendices/`, `rag/`. AI drafts land in `ai_drafts/`. |
+| **Excel + Word template** | Upload `.xlsx` + `.docx`/`.pdf` directly — classic merge. |
+
+Use **Change** in the banner to switch workflows later.
+
+### Project folder path
+
+1. Enter path or click **Browse…** (local desktop only).
+2. **Load folder** — reads Excel + template into the app.
+3. Optional **Analyze folder** — writes inventory, preflight, narratives to `ai_drafts/` on disk.
+4. Open **Report** tab → pre-flight → Generate.
+
+Full layout and CLI: [22-project-folder-workflow.md](22-project-folder-workflow.md).
+
 ## Screen layout
 
-### Header and upload zones
+### Header and upload zones (Excel + template workflow)
 
-Two columns:
+When you chose **Excel + Word template**, two columns:
 
 | Column | Control | Accepts |
 |--------|---------|---------|

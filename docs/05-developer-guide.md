@@ -87,26 +87,58 @@ Environment bypass for tests only: `ESA_VALIDATION_BYPASS=1`.
 
 `contract_warnings` — reads `report_profiles.json` first; falls back to `field_contract.json`.
 
+### `project_folder.py`
+
+Headless local folder workflow (no Streamlit):
+
+| Symbol | Role |
+|--------|------|
+| `resolve_project_folder` | Validate layout; resolve Excel + template paths |
+| `ResolvedProjectFolder.read_core_files` | Cached Excel/template bytes (mtime LRU) |
+| `enrich_project_folder` | AI advisory modes: inventory, source-ingest, narratives, appendix-classify |
+| `render_project_folder` | Render to `delivered/` + optional deliverable zip |
+| `init_sample_project_folder` | Seed demo folder (Phase I or `profile="phase2_esa"`) |
+
+CLI: `scripts/ingest_project_folder.py` · Streamlit: `ui/project_folder.py` · See [22-project-folder-workflow.md](22-project-folder-workflow.md).
+
 ### `app.py`
 
-Streamlit orchestration only: session state, uploaders, calls `ui/*`, instantiates `ReportEngine` on generate.
+Streamlit orchestration only: session state, workflow picker, uploads or folder load, calls `ui/*`, instantiates `ReportEngine` on generate.
 
 ### `ui/` package
 
 | Module | Role |
 |--------|------|
 | `sidebar.py` | Profile, phase sync, meta, executive summary override, sample downloads |
-| `helpers.py` | Template cache, PDF conversion download, `_ensure_samples`, template analysis |
+| `phrase_panel.py` | Standard phrases selectboxes → `phrase_meta` merged into render meta |
+| `helpers.py` | Template cache, PDF conversion download, `_ensure_samples`, upload/engine caches |
 | `preflight.py` | Cached preflight, SED 002 §10 metrics, appendix-aware checklist, ReportConfig export |
 | `preview.py` | Dry-run panel |
 | `appendix_panel.py` | Appendix A–H PDF uploads, generated D/G downloads, deliverable zip + OneStop export |
 | `results.py` | Download buttons, context preview, manifest; batch zip includes per-site `appendices/` |
-| `workflow.py` | Step indicator UI |
+| `workflow.py` | Step indicator (delegates to `layout.py`) |
+| `workflow_mode.py` | Startup picker: project folder + AI vs Excel + template upload |
+| `project_folder.py` | Folder path loader, Browse/Load/Analyze, meta merge, session bundle cache |
+| `folder_picker.py` | Native OS folder dialog (tkinter; headless → manual path) |
+| `layout.py` | Section headers, workflow step computation |
+| `branding.py` | App header / Ecoventure branding |
+| `alberta_imagery.py` | Hero imagery cache for header |
 | `ai_panel.py` | AI tab (Tier 1 & 2) |
+
+**Streamlit widget rule:** never assign `st.session_state.<widget_key>` after that widget is instantiated. Use a pending key set before render (e.g. `project_folder_path_pending`).
 
 ### `ai/` package
 
 Optional LLM features; each module has offline fallback. Does not modify `ReportEngine.render` logic.
+
+| Module | Role |
+|--------|------|
+| `source_ingest.py` | Ingest `source/` PDFs → `ai_drafts/source_summaries.json`; optional `rag/` snippets |
+| `narrative.py` | Section drafts; reads `_source_summaries` from folder enrich |
+| `copilot.py` | Pre-flight copilot advice |
+| `appendix_classifier.py` | Heuristic / LLM appendix label suggestions |
+| `lab_extract.py` | Lab COA PDF → structured extract |
+| `rag.py` | Project + global RAG corpus for prompts |
 
 ### `automate/` package
 
@@ -174,7 +206,7 @@ streamlit run app.py
 
 ## CI
 
-GitHub Actions: `.github/workflows/ci.yml` — install, samples, tag, unittest, CLI, production E2E.
+GitHub Actions: `.github/workflows/ci.yml` — install, samples, appendix templates, tag, unittest, CLI smoke, package smoke, production E2E, Phase I E2E, user docs test, 15-step health check. Profile E2E and project-folder CLI are local-only (see [08-testing.md](08-testing.md)).
 
 ## Related
 

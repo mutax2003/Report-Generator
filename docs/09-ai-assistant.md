@@ -15,6 +15,21 @@ No API key required. Rule-based fallbacks power all features.
 
 Enable **Use cloud LLM** in the sidebar (AI settings).
 
+**Default model:** `gpt-4o-mini` (~$0.01–0.05 per site for narrative drafts).
+
+### Free or cheap alternatives (OpenAI-compatible)
+
+All use the same [`ai/client.py`](../ai/client.py) — set env vars or `secrets.toml`:
+
+| Provider | Cost | Privacy | Example config |
+|----------|------|---------|----------------|
+| **Offline heuristics** | Free | Local | No key; uncheck “Use cloud LLM” |
+| **Ollama** | Free | Local | `OPENAI_BASE_URL=http://localhost:11434/v1`, `OPENAI_MODEL=qwen2.5:7b`, `OPENAI_API_KEY=ollama` |
+| **OpenAI gpt-4o-mini** | Low | Cloud | `OPENAI_API_KEY=sk-...` (default) |
+| **Groq** | Free tier | Cloud | `OPENAI_BASE_URL=https://api.groq.com/openai/v1`, Groq API key |
+
+**Ecoventure recommendation:** Ollama on desktop for confidential site folders; gpt-4o-mini when quality matters. JSON-mode features (lab PDF LLM parse) may fall back to heuristics on local models.
+
 Dependencies: `openai`, `pypdf` in `requirements.txt`.
 
 ## Architecture
@@ -28,8 +43,12 @@ ui/ai_panel.py
     ├── ai/narrative.py         → section drafts + RAG
     ├── ai/copilot.py           → pre-flight explanations
     ├── ai/consistency.py       → data QA rules
-    └── ai/exceedance_notes.py  → plain-language lab notes
-         └── ai/client.py       → OpenAI or offline stub
+    ├── ai/exceedance_notes.py  → plain-language lab notes
+    └── ai/appendix_classifier.py → PDF → appendix label A–H (project folder)
+    └── ai/source_ingest.py     → source/ PDF text + summaries → ai_drafts/
+         └── ai/client.py       → OpenAI-compatible API (OpenAI, Ollama, Groq, Azure)
+
+project_folder.py + scripts/ingest_project_folder.py — local folder ingest, AI drafts in `ai_drafts/`, render to `delivered/` ([22-project-folder-workflow.md](22-project-folder-workflow.md)).
 ```
 
 `ai/config.py` — model names, limits. `ai/models.py` — `AiAudit` entries for session log.
@@ -69,11 +88,19 @@ ui/ai_panel.py
 
 ### Narrative drafts
 
-- Input: Excel context + optional `rag_corpus/*.txt` snippets
+- Input: Excel context + optional `rag_corpus/*.txt` + **project folder** `source/` PDF summaries (when ingested)
 - Output: Draft paragraphs (executive summary, site description, conclusions)
-- Citations reference corpus filenames only (not full text dump)
+- Citations reference corpus filenames and source PDF names (not full text dump)
 
 **Use when:** First draft of narrative sections — always edit in Word after merge.
+
+### Source PDF ingest (project folder)
+
+- Input: PDFs in project folder `source/`
+- Output: `ai_drafts/source_index.json`, `source_extracts/*.txt`, `source_summaries.json`, optional `excel_field_suggestions.json`, optional `rag/ingested/*.txt`
+- Lab COA filenames routed to `lab_extract_*.json`; Phase I ESA PDFs parsed for cover metadata
+
+**Use when:** Bootstrapping narratives from legacy reports and site PDFs — review before copying into Excel.
 
 ### RAG corpus
 

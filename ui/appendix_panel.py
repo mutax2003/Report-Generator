@@ -7,10 +7,12 @@ from typing import Any
 
 import streamlit as st
 
+from ui.helpers import cached_upload_bytes
+
 from appendix_generator import merge_appendix_lists
 from deliverable_pack import AppendixFile, DeliverablePackage, build_deliverable_zip
 from deliverable_pack import enrich_manifest_dict
-from provenance import GenerationRecord, record_filename
+from provenance import GenerationRecord, record_filename, sha256_hex
 
 APPENDIX_LABELS = ("A", "B", "C", "D", "E", "F", "G", "H")
 PDF_MIME = "application/pdf"
@@ -55,7 +57,7 @@ def render_generated_appendix_downloads() -> None:
         return
     st.subheader("Generated appendices")
     st.caption(
-        "Appendices D and G are rendered from Excel DrillingWaste data. "
+        "Appendices A, D, and G are rendered from Excel and sidebar data. "
         "Export each .docx to PDF in Word before OneStop submission."
     )
     for ap in generated:
@@ -66,7 +68,7 @@ def render_generated_appendix_downloads() -> None:
             file_name=ap.filename,
             mime=mime,
             key=f"download_generated_appendix_{ap.label}",
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -88,7 +90,7 @@ def render_appendix_uploader() -> list[AppendixFile]:
             accept_multiple_files=False,
         )
         if uploaded is not None:
-            data = uploaded.getvalue()
+            data = cached_upload_bytes(uploaded, slot=f"appendix_{label}") or b""
             store[label] = AppendixFile(
                 label=label,
                 data=data,
@@ -98,7 +100,7 @@ def render_appendix_uploader() -> list[AppendixFile]:
             )
         elif label in store:
             del store[label]
-    if st.button("Clear all appendices", use_container_width=True):
+    if st.button("Clear all appendices", width="stretch"):
         st.session_state.appendix_files = {}
         st.rerun()
     return list(store.values())
@@ -125,11 +127,11 @@ def render_deliverable_downloads(
     st.subheader("Deliverable package")
     manifest_bytes = None
     manifest_name = record_filename(filename)
+    fmt = ""
+    if prepared_template is not None:
+        fmt = getattr(prepared_template, "source_format", "") or ""
     if generation_record:
         rec_dict = generation_record.to_dict()
-        fmt = ""
-        if prepared_template is not None:
-            fmt = getattr(prepared_template, "source_format", "") or ""
         rec_dict = enrich_manifest_dict(
             rec_dict,
             template_source_format=fmt,
@@ -155,13 +157,23 @@ def render_deliverable_downloads(
             else None
         ),
     )
-    zip_bytes = build_deliverable_zip(pkg)
+    cache_key = (
+        sha256_hex(docx_bytes),
+        manifest_bytes and sha256_hex(manifest_bytes) or "",
+        tuple(sorted((a.label, a.sha256) for a in appendices)),
+        bool(render_context),
+        fmt,
+    )
+    if st.session_state.get("_deliverable_zip_key") != cache_key:
+        st.session_state._deliverable_zip_key = cache_key
+        st.session_state._deliverable_zip_bytes = build_deliverable_zip(pkg)
+    zip_bytes = st.session_state._deliverable_zip_bytes
     st.download_button(
         "Download deliverable package (.zip)",
         data=zip_bytes,
         file_name=(filename or "esa_report").rsplit(".", 1)[0] + "_package.zip",
         mime=ZIP_MIME,
-        use_container_width=True,
+        width="stretch",
         help="Contains report .docx, manifest JSON, appendices/, and onestop/ summary export.",
     )
 

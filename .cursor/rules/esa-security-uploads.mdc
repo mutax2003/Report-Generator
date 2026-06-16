@@ -23,3 +23,7 @@ alwaysApply: false
 ## Templates as code
 
 Jinja in `.docx` is **trusted** (authors with template access). Untrusted input is **Excel/PDF uploads** and **sidebar meta** — keep `sanitize_meta` and filename sanitization on any new code paths.
+
+## Local project folder (not uploads)
+
+**Project folder** reads Excel/template/PDFs from disk via `project_folder.py` (`resolve_project_folder`, `_cached_file_bytes`). Paths must resolve under a validated folder layout; appendix/source PDFs still pass size and zip guards where applicable. Do not treat arbitrary local paths as trusted content — only expected filenames under `source/`, `appendices/`, etc.

@@ -22,8 +22,11 @@ def _ok(n: int, name: str) -> tuple[bool, str]:
 def check_imports() -> bool:
     import app  # noqa: F401
     from engine import ECOVENTURE_CONSULTANT, ReportEngine  # noqa: F401
+    from ui.folder_picker import folder_picker_available, pick_local_folder  # noqa: F401
 
     assert ECOVENTURE_CONSULTANT == "Ecoventure Inc."
+    assert callable(pick_local_folder)
+    assert isinstance(folder_picker_available(), bool)
     return True
 
 
@@ -226,6 +229,44 @@ def check_phase1_appendices() -> bool:
     return True
 
 
+def check_project_folder() -> bool:
+    import tempfile
+
+    from project_folder import enrich_project_folder, init_sample_project_folder, resolve_project_folder
+
+    with tempfile.TemporaryDirectory(prefix="esa_health_") as tmp:
+        folder = init_sample_project_folder(Path(tmp), source_user_test=False)
+        resolved = resolve_project_folder(folder)
+        assert resolved.excel_path.is_file()
+        core1 = resolved.read_core_files()
+        core2 = resolved.read_core_files()
+        assert core1 is core2
+        paths = enrich_project_folder(resolved, use_llm=False, modes=("inventory",))
+        assert any(p.name == "preflight_report.md" for p in paths)
+    return True
+
+
+def check_source_ingest() -> bool:
+    import tempfile
+
+    from project_folder import (
+        init_sample_project_folder,
+        resolve_project_folder,
+        source_ingest_for_folder,
+    )
+
+    with tempfile.TemporaryDirectory(prefix="esa_health_src_") as tmp:
+        folder = init_sample_project_folder(Path(tmp), source_user_test=False)
+        src = Path(tmp) / "source"
+        src.mkdir(exist_ok=True)
+        (src / "phase1_esa_report.pdf").write_bytes(b"%PDF-1.4\n")
+        resolved = resolve_project_folder(folder)
+        paths = source_ingest_for_folder(resolved, use_llm=False)
+        assert any(p.name == "source_index.json" for p in paths)
+        assert (resolved.ai_drafts_dir / "source_summaries.json").is_file()
+    return True
+
+
 CHECKS = [
     check_imports,
     check_phase1_context,
@@ -240,6 +281,8 @@ CHECKS = [
     check_batch_render,
     check_groundwater_monitoring,
     check_phrase_catalog_gw,
+    check_project_folder,
+    check_source_ingest,
 ]
 
 CHECK_NAMES = [
@@ -256,6 +299,8 @@ CHECK_NAMES = [
     "batch render (2 rows)",
     "groundwater monitoring render",
     "phrase catalog GW keys",
+    "project folder ingest",
+    "source PDF ingest",
 ]
 
 

@@ -7,6 +7,10 @@ Edit them, then test without changing files under samples/.
   my_project_data.xlsx  — Edit row 2 on ProjectData; optional DrillingWaste rows
   my_template.docx      — Edit layout/tags; keep {{ tag }} names matching Excel headers
 
+Phase II test folder (full project layout):
+  python scripts\create_phase2_project_folder.py
+  -> user_test\phase2_alberta\  (ProjectData + LabResults, template, source/, rag/)
+
 Setup (once per machine):
   .\.venv\Scripts\Activate.ps1
   pip install -r requirements.txt

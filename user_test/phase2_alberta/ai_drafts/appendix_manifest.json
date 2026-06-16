@@ -1,0 +1,13 @@
+{
+  "disclaimer": "Suggested labels \u2014 confirm before copying PDFs to appendices/.",
+  "items": [
+    {
+      "filename": "lab_coa_example.pdf",
+      "label": "B",
+      "confidence": 0.35,
+      "source": "default",
+      "rationale": "No filename match; default B \u2014 confirm manually",
+      "auto_generated_at_render": false
+    }
+  ]
+}

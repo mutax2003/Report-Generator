@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +26,7 @@ from engine import (
     generate_sample_excel,
     generate_sample_template_docx,
 )
-from template_attachments import PreparedTemplate, prepare_template_upload
+from template_attachments import PreparedTemplate, prepare_template_upload_cached
 from template_tools import scan_template
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +47,17 @@ RECLAMATION_XLSX = ROOT / "samples" / "reclamation_certificate_data.xlsx"
 RECLAMATION_DOCX = ROOT / "samples" / "reclamation_certificate_template.docx"
 
 
+@lru_cache(maxsize=32)
+def _sample_file_bytes(path_str: str, mtime_ns: int) -> bytes:
+    return Path(path_str).read_bytes()
+
+
+def _sample_bytes(path: Path) -> bytes:
+    if not path.is_file():
+        return b""
+    return _sample_file_bytes(str(path.resolve()), path.stat().st_mtime_ns)
+
+
 def format_size(num_bytes: int | None) -> str:
     if num_bytes is None:
         return "unknown size"
@@ -64,9 +76,58 @@ def show_upload_status(label: str, uploaded: Any, *, extra: str = "") -> None:
     st.success(f"**{uploaded.name}** ({format_size(uploaded.size)}){suffix}")
 
 
-def _template_cache_key(data: bytes, filename: str) -> str:
+def _upload_content_fingerprint(data: bytes) -> tuple[int, bytes, bytes]:
+    """Size plus head/tail bytes — catches same-size file swaps without full re-read."""
+    n = len(data)
+    if n == 0:
+        return (0, b"", b"")
+    head = data[:8]
+    tail = data[-8:] if n > 8 else data
+    return (n, head, tail)
+
+
+def stable_upload_digest(slot: str, filename: str, data: bytes) -> str:
+    """
+    SHA-256 of upload bytes, cached in Streamlit session by (slot, name, fingerprint).
+
+    Avoids re-hashing large templates on every rerun when the upload is unchanged.
+    """
+    sig = (filename or "", _upload_content_fingerprint(data))
+    box = st.session_state.setdefault("_upload_digest_cache", {})
+    entry = box.get(slot)
+    if entry and entry[0] == sig:
+        return entry[1]
     digest = hashlib.sha256(data).hexdigest()
+    box[slot] = (sig, digest)
+    return digest
+
+
+def _template_cache_key(data: bytes, filename: str, *, digest_slot: str = "template") -> str:
+    digest = stable_upload_digest(digest_slot, filename, data)
     return f"tpl_{digest}_{filename}"
+
+
+def cached_upload_bytes(uploaded: Any, *, slot: str = "default") -> bytes | None:
+    """
+    Return upload bytes; cache in session by (slot, name, content fingerprint).
+
+    Avoids re-copying large Excel/template uploads on every Streamlit rerun.
+    """
+    if uploaded is None:
+        return None
+    name = getattr(uploaded, "name", None) or ""
+    try:
+        size = int(uploaded.size)
+    except (TypeError, AttributeError, ValueError):
+        size = -1
+    data = uploaded.getvalue()
+    sig = (name, _upload_content_fingerprint(data))
+    box = st.session_state.setdefault("_upload_bytes_cache", {})
+    entry = box.get(slot)
+    if entry and entry[0] == sig:
+        return entry[1]
+    box[slot] = (sig, data)
+    return data
 
 
 def get_cached_report_engine(
@@ -74,8 +135,8 @@ def get_cached_report_engine(
 ) -> ReportEngine:
     """Reuse ReportEngine across Streamlit reruns when uploads are unchanged."""
     key = (
-        hashlib.sha256(excel_bytes).hexdigest(),
-        hashlib.sha256(template_bytes).hexdigest(),
+        stable_upload_digest("excel", "excel.xlsx", excel_bytes),
+        stable_upload_digest("template", "template.docx", template_bytes),
     )
     cache = st.session_state.setdefault("_report_engine_cache", {})
     if cache.get("key") != key:
@@ -84,16 +145,20 @@ def get_cached_report_engine(
     return cache["engine"]
 
 
-def prepare_uploaded_template(uploaded: Any) -> PreparedTemplate | None:
+def prepare_uploaded_template(
+    uploaded: Any, *, digest_slot: str = "template"
+) -> PreparedTemplate | None:
     """Convert PDF→DOCX if needed; cache by file hash to avoid re-conversion on reruns."""
     if uploaded is None:
         return None
-    data = uploaded.getvalue()
+    data = cached_upload_bytes(uploaded, slot=digest_slot)
+    if data is None:
+        return None
     name = uploaded.name or ""
-    key = _template_cache_key(data, name)
+    key = _template_cache_key(data, name, digest_slot=digest_slot)
     if key in st.session_state:
         return st.session_state[key]
-    prepared = prepare_template_upload(data, name)
+    prepared = prepare_template_upload_cached(data, name)
     from security import MAX_TEMPLATE_BYTES, _template_size_limit
 
     limit = _template_size_limit()
@@ -132,7 +197,7 @@ def render_converted_template_download(prepared: PreparedTemplate | None) -> Non
         data=prepared.docx_bytes,
         file_name=f"{base}_converted.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True,
+        width="stretch",
         help="Add Jinja2 tags in Word, then re-upload the .docx template.",
     )
     st.caption(
@@ -143,6 +208,8 @@ def render_converted_template_download(prepared: PreparedTemplate | None) -> Non
 
 
 def _ensure_samples() -> None:
+    if st.session_state.get("_samples_ensured"):
+        return
     samples = ROOT / "samples"
     samples.mkdir(parents=True, exist_ok=True)
     if not SAMPLE_XLSX.is_file():
@@ -175,6 +242,7 @@ def _ensure_samples() -> None:
         generate_reclamation_certificate_excel(str(RECLAMATION_XLSX))
     if not RECLAMATION_DOCX.is_file():
         generate_reclamation_certificate_template_docx(str(RECLAMATION_DOCX))
+    st.session_state["_samples_ensured"] = True
 
 
 def render_download_helpers() -> None:
@@ -184,122 +252,122 @@ def render_download_helpers() -> None:
     if SAMPLE_XLSX.is_file():
         st.sidebar.download_button(
             "Download sample Excel",
-            data=SAMPLE_XLSX.read_bytes(),
+            data=_sample_bytes(SAMPLE_XLSX),
             file_name="sample_data.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
         )
     if PRODUCTION_XLSX.is_file():
         st.sidebar.download_button(
             "Download production Excel layout",
-            data=PRODUCTION_XLSX.read_bytes(),
+            data=_sample_bytes(PRODUCTION_XLSX),
             file_name="production_data.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
         )
     if SAMPLE_DOCX.is_file():
         st.sidebar.download_button(
             "Download sample Word template",
-            data=SAMPLE_DOCX.read_bytes(),
+            data=_sample_bytes(SAMPLE_DOCX),
             file_name="sample_template.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
+            width="stretch",
         )
     if PRODUCTION_STARTER_DOCX.is_file():
         st.sidebar.download_button(
             "Download production starter template",
-            data=PRODUCTION_STARTER_DOCX.read_bytes(),
+            data=_sample_bytes(PRODUCTION_STARTER_DOCX),
             file_name="production_starter_template.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
+            width="stretch",
         )
     if PRODUCTION_TEMPLATE_DOCX.is_file():
         st.sidebar.download_button(
             "Download production template (tagged)",
-            data=PRODUCTION_TEMPLATE_DOCX.read_bytes(),
+            data=_sample_bytes(PRODUCTION_TEMPLATE_DOCX),
             file_name="production_template.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
+            width="stretch",
         )
     if PHASE1_ALBERTA_XLSX.is_file():
         st.sidebar.download_button(
             "Download Alberta Phase I Excel (Ecoventure)",
-            data=PHASE1_ALBERTA_XLSX.read_bytes(),
+            data=_sample_bytes(PHASE1_ALBERTA_XLSX),
             file_name="phase1_alberta_data.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
         )
     if PHASE1_ALBERTA_DOCX.is_file():
         st.sidebar.download_button(
             "Download Alberta Phase I template (Ecoventure)",
-            data=PHASE1_ALBERTA_DOCX.read_bytes(),
+            data=_sample_bytes(PHASE1_ALBERTA_DOCX),
             file_name="phase1_alberta_template.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
+            width="stretch",
         )
     if GW_MONITORING_XLSX.is_file():
         st.sidebar.download_button(
             "Download groundwater monitoring Excel",
-            data=GW_MONITORING_XLSX.read_bytes(),
+            data=_sample_bytes(GW_MONITORING_XLSX),
             file_name="groundwater_monitoring_data.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
         )
     if GW_MONITORING_DOCX.is_file():
         st.sidebar.download_button(
             "Download groundwater monitoring template",
-            data=GW_MONITORING_DOCX.read_bytes(),
+            data=_sample_bytes(GW_MONITORING_DOCX),
             file_name="groundwater_monitoring_template.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
+            width="stretch",
         )
     if PHASE2_ALBERTA_XLSX.is_file():
         st.sidebar.download_button(
             "Download Alberta Phase II Excel",
-            data=PHASE2_ALBERTA_XLSX.read_bytes(),
+            data=_sample_bytes(PHASE2_ALBERTA_XLSX),
             file_name="phase2_alberta_data.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
         )
     if PHASE2_ALBERTA_DOCX.is_file():
         st.sidebar.download_button(
             "Download Alberta Phase II template",
-            data=PHASE2_ALBERTA_DOCX.read_bytes(),
+            data=_sample_bytes(PHASE2_ALBERTA_DOCX),
             file_name="phase2_alberta_template.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
+            width="stretch",
         )
     if PHASE3_XLSX.is_file():
         st.sidebar.download_button(
             "Download Phase III remediation Excel",
-            data=PHASE3_XLSX.read_bytes(),
+            data=_sample_bytes(PHASE3_XLSX),
             file_name="phase3_remediation_data.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
         )
     if PHASE3_DOCX.is_file():
         st.sidebar.download_button(
             "Download Phase III remediation template",
-            data=PHASE3_DOCX.read_bytes(),
+            data=_sample_bytes(PHASE3_DOCX),
             file_name="phase3_remediation_template.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
+            width="stretch",
         )
     if RECLAMATION_XLSX.is_file():
         st.sidebar.download_button(
             "Download reclamation certificate Excel",
-            data=RECLAMATION_XLSX.read_bytes(),
+            data=_sample_bytes(RECLAMATION_XLSX),
             file_name="reclamation_certificate_data.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
         )
     if RECLAMATION_DOCX.is_file():
         st.sidebar.download_button(
             "Download reclamation certificate template",
-            data=RECLAMATION_DOCX.read_bytes(),
+            data=_sample_bytes(RECLAMATION_DOCX),
             file_name="reclamation_certificate_template.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -308,7 +376,14 @@ def render_template_analysis(template_bytes: bytes | None) -> None:
         return
     with st.expander("Analyze uploaded Word template"):
         try:
-            scan = scan_template(template_bytes)
+            digest = stable_upload_digest("template_analysis", "template.docx", template_bytes)
+            box = st.session_state.setdefault("_template_analysis_cache", {})
+            scan = box.get(digest)
+            if scan is None:
+                scan = scan_template(template_bytes)
+                if len(box) >= 16:
+                    box.pop(next(iter(box)))
+                box[digest] = scan
             st.write(f"**Root variables** ({len(scan.root_vars)}):")
             st.code(", ".join(sorted(scan.root_vars)) or "(none)")
             if scan.block_tags:

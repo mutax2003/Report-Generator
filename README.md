@@ -11,7 +11,7 @@ Web application for generating **Phase 1** and **Phase 2 Environmental Site Asse
 |-------|----------|
 | [docs/11-alberta-phase1-esa.md](docs/11-alberta-phase1-esa.md) | **Alberta O&G Phase I (Ecoventure)** — primary use case |
 | [docs/01-overview.md](docs/01-overview.md) | Architecture and data flow |
-| [docs/02-user-guide.md](docs/02-user-guide.md) | Streamlit workflow (upload → pre-flight → generate) |
+| [docs/02-user-guide.md](docs/02-user-guide.md) | Streamlit workflow (upload or project folder → pre-flight → generate) |
 | [docs/03-excel-data-guide.md](docs/03-excel-data-guide.md) | Excel sheets, columns, exceedances |
 | [docs/04-template-authoring.md](docs/04-template-authoring.md) | Word Jinja2 tags and lab tables |
 | [docs/05-developer-guide.md](docs/05-developer-guide.md) | Codebase modules and extension |
@@ -28,6 +28,7 @@ Web application for generating **Phase 1** and **Phase 2 Environmental Site Asse
 | [docs/17-server-update-runbook.md](docs/17-server-update-runbook.md) | Server release updates |
 | [docs/18-groundwater-reports.md](docs/18-groundwater-reports.md) | Groundwater monitoring (Ecoventure) |
 | [docs/19-charts-and-gis-embed.md](docs/19-charts-and-gis-embed.md) | Hydrographs and GIS maps workflow |
+| [docs/22-project-folder-workflow.md](docs/22-project-folder-workflow.md) | **Project folder** — local CLI + AI enrich + render |
 
 **Consultants (non-developer):** [docs/00-start-here.md](docs/00-start-here.md)
 
@@ -50,15 +51,25 @@ pip install -r requirements.txt
 ## Run the app
 
 ```powershell
-streamlit run app.py
+.\run.ps1 streamlit
 ```
+
+On first open, choose **Project folder + AI** or **Excel + Word template**.
+
+**Excel + template**
 
 1. Upload **Excel** (`.xlsx`) and **report template** (`.docx` or `.pdf`; PDF is converted to Word for merge).
 2. Review **Pre-flight checks**.
 3. Fill **sidebar** fields; download samples from the sidebar if needed.
 4. Click **Generate Report**, then **Download Report** (optional: appendix PDFs A–H, **Download deliverable package (.zip)**).
 
-See [docs/02-user-guide.md](docs/02-user-guide.md) for the complete workflow.
+**Project folder + AI** (local desktop)
+
+1. **Browse…** or paste a folder path (e.g. `user_test\phase2_alberta` after `python scripts\create_phase2_project_folder.py`).
+2. **Load folder** (optional **Analyze folder** for AI drafts in `ai_drafts/`).
+3. **Report** tab → pre-flight → Generate.
+
+See [docs/02-user-guide.md](docs/02-user-guide.md) and [docs/22-project-folder-workflow.md](docs/22-project-folder-workflow.md).
 
 ## Sample files
 
@@ -98,9 +109,12 @@ See [docs/12-testing-with-your-documents.md](docs/12-testing-with-your-documents
 | `python scripts\inventory_template.py template.docx` | List Jinja tags |
 | `python scripts\prepare_user_test_pack.py` | Copy Alberta samples to `user_test/` for editing |
 | `python scripts\test_with_your_documents.py` | Pre-flight + dry run + render (no browser) |
+| `python scripts\ingest_project_folder.py --folder <path> --render` | Project folder CLI render to `delivered/` |
+| `python scripts\create_phase2_project_folder.py` | Phase II test folder under `user_test/phase2_alberta` |
+| `python scripts\health_check.py` | 15-step regression (imports, render, folder ingest) |
 | `.\run.ps1 scripts\test_with_your_documents.py` | Same, via venv Python (Windows) |
 | `.\scripts\package_team_sharepoint.ps1` | Build `dist\team-sharepoint\` for SharePoint upload |
-| `python -m unittest discover -s tests -v` | Full test suite |
+| `python -m unittest discover -s tests -v` | Full test suite (179 tests) |
 
 ## Automation
 
@@ -117,8 +131,9 @@ python -m automate.http_server --port 8765
 ## Project layout
 
 ```
-app.py                  Streamlit UI
+app.py                  Streamlit UI (workflow picker + upload or folder)
 engine.py               ReportEngine (Excel → docxtpl → .docx)
+project_folder.py       Local folder resolve, AI enrich, render to delivered/
 report_profile.py       Profile resolution, ReportConfig export
 template_attachments.py PDF → DOCX for templates
 deliverable_pack.py     Zip deliverable + appendix manifest entries
@@ -126,14 +141,14 @@ phase1_narrative.py     Signum-style executive summary (Phase I)
 security.py             Upload validation
 template_tools.py       Pre-flight and template scan
 provenance.py           Generation manifest
-ui/                     Streamlit (sidebar, preflight, appendix_panel, …)
+ui/                     Streamlit (workflow_mode, project_folder, preflight, …)
 ai/                     Optional AI helpers
 automate/               Headless render API
 scripts/                CLI utilities
 schemas/                report_profiles.json, field_contract.json
 samples/                Demo and production fixtures
 docs/                   Full documentation
-tests/                  Unit and integration tests (135 tests)
+tests/                  Unit and integration tests (179 tests)
 Dockerfile              Container image for Streamlit
 ```
 

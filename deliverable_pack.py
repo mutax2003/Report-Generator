@@ -7,8 +7,10 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 import zipfile
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import Any
 
 from provenance import sha256_hex
@@ -22,7 +24,7 @@ class AppendixFile:
     format: str = "pdf"
     source: str = "uploaded"
 
-    @property
+    @cached_property
     def sha256(self) -> str:
         return sha256_hex(self.data)
 
@@ -209,40 +211,59 @@ def build_deliverable_zip_bytes(
     )
 
 
+def _zip_path(prefix: str, name: str) -> str:
+    prefix = prefix.strip("/")
+    return f"{prefix}/{name}" if prefix else name
+
+
+def write_deliverable_to_zip(
+    zf: zipfile.ZipFile,
+    package: DeliverablePackage,
+    *,
+    path_prefix: str = "",
+) -> None:
+    """Write one deliverable package into an open ZipFile (optional folder prefix)."""
+    zf.writestr(_zip_path(path_prefix, package.report_filename), package.report_docx)
+    if package.manifest_bytes:
+        zf.writestr(
+            _zip_path(path_prefix, package.manifest_filename),
+            package.manifest_bytes,
+        )
+    for ap in package.appendices:
+        safe = ap.filename.replace("\\", "_").replace("/", "_")
+        zf.writestr(
+            _zip_path(path_prefix, f"appendices/{ap.label}_{safe}"),
+            ap.data,
+        )
+    if package.converted_template_docx and package.converted_template_name:
+        zf.writestr(
+            _zip_path(path_prefix, f"templates/{package.converted_template_name}"),
+            package.converted_template_docx,
+        )
+    if package.include_onestop_export and package.render_context is not None:
+        jbytes, cbytes, rbytes = build_onestop_export_bytes(
+            package.render_context, package.render_meta
+        )
+        zf.writestr(_zip_path(path_prefix, "onestop/phase1_esa_summary.json"), jbytes)
+        zf.writestr(_zip_path(path_prefix, "onestop/phase1_esa_summary.csv"), cbytes)
+        zf.writestr(_zip_path(path_prefix, "onestop/README.txt"), rbytes)
+        labels = [a.label for a in package.appendices]
+        zf.writestr(
+            _zip_path(path_prefix, "onestop/SUBMISSION_LAYOUT.txt"),
+            build_submission_folder_readme(labels),
+        )
+
+
 def build_deliverable_zip(package: DeliverablePackage) -> bytes:
     """Zip report.docx, manifest, appendices/, onestop/, and optional converted template."""
     bio = io.BytesIO()
     with zipfile.ZipFile(bio, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(package.report_filename, package.report_docx)
-        if package.manifest_bytes:
-            zf.writestr(package.manifest_filename, package.manifest_bytes)
-        for ap in package.appendices:
-            safe = ap.filename.replace("\\", "_").replace("/", "_")
-            zf.writestr(f"appendices/{ap.label}_{safe}", ap.data)
-        if package.converted_template_docx and package.converted_template_name:
-            zf.writestr(
-                f"templates/{package.converted_template_name}",
-                package.converted_template_docx,
-            )
-        if package.include_onestop_export and package.render_context is not None:
-            jbytes, cbytes, rbytes = build_onestop_export_bytes(
-                package.render_context, package.render_meta
-            )
-            zf.writestr("onestop/phase1_esa_summary.json", jbytes)
-            zf.writestr("onestop/phase1_esa_summary.csv", cbytes)
-            zf.writestr("onestop/README.txt", rbytes)
-            labels = [a.label for a in package.appendices]
-            zf.writestr(
-                "onestop/SUBMISSION_LAYOUT.txt",
-                build_submission_folder_readme(labels),
-            )
+        write_deliverable_to_zip(zf, package)
     return bio.getvalue()
 
 
 def _batch_site_folder_name(item: Any) -> str:
     """Safe folder name for one batch deliverable package."""
-    import re
-
     ctx = getattr(item, "context", None) or {}
     for key in ("site_name", "well_name", "uwi", "project_number"):
         val = str(ctx.get(key) or "").strip()
@@ -270,17 +291,21 @@ def build_batch_deliverable_packages_zip(
             else:
                 seen[folder] = 1
             manifest_bytes = item.record.to_json_bytes()
-            pkg_bytes = build_deliverable_zip_bytes(
-                item.docx_bytes,
-                item.filename,
-                item.context,
-                meta,
-                manifest_bytes,
-                list(item.appendices or []),
+            manifest_name = item.filename.rsplit(".", 1)[0] + "_manifest.json"
+            write_deliverable_to_zip(
+                zf,
+                DeliverablePackage(
+                    report_docx=item.docx_bytes,
+                    report_filename=item.filename,
+                    manifest_bytes=manifest_bytes,
+                    manifest_filename=manifest_name,
+                    appendices=list(item.appendices or []),
+                    render_context=item.context,
+                    render_meta=meta,
+                    include_onestop_export=True,
+                ),
+                path_prefix=folder,
             )
-            with zipfile.ZipFile(io.BytesIO(pkg_bytes)) as inner:
-                for name in inner.namelist():
-                    zf.writestr(f"{folder}/{name}", inner.read(name))
     return bio.getvalue()
 
 

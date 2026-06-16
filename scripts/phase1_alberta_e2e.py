@@ -51,8 +51,9 @@ def main() -> int:
     )
     appendices, ap_warnings = render_phase1_appendices(ctx, meta)
     labels = {a.label for a in appendices}
-    if labels != {"D", "G"}:
-        print(f"Appendix labels expected D,G got {labels}", file=sys.stderr)
+    expected = {"A", "D", "G"}
+    if labels != expected:
+        print(f"Appendix labels expected {expected} got {labels}", file=sys.stderr)
         return 1
 
     OUT.write_bytes(docx_bytes)
@@ -75,6 +76,7 @@ def main() -> int:
     )
     with zipfile.ZipFile(BytesIO(PKG.read_bytes())) as zf:
         names = zf.namelist()
+    assert any(n.startswith("appendices/A_") for n in names)
     assert any(n.startswith("appendices/D_") for n in names)
     assert any(n.startswith("appendices/G_") for n in names)
 

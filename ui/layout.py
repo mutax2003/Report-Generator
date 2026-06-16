@@ -31,10 +31,9 @@ def compute_workflow_step(
 
 
 def render_workflow_hint() -> None:
-    """One-line orientation (replaces removed HTML stepper)."""
+    """Deprecated — use ui.workflow_mode.render_workflow_hint(mode)."""
     st.markdown(
-        "**Workflow:** Sidebar setup → upload files → **Report** tab (pre-flight & generate) "
-        "→ download · **AI tools** tab optional"
+        "**Workflow:** Choose a mode at startup, then follow the steps shown."
     )
 
 
@@ -200,7 +199,7 @@ def render_generate_cta(
         generate_clicked = st.button(
             btn_label,
             type="primary",
-            use_container_width=True,
+            width="stretch",
             disabled=generate_disabled,
             key="generate_report_btn",
         )

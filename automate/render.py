@@ -13,7 +13,7 @@ from appendix_generator import attach_appendices_to_record
 from deliverable_pack import AppendixFile, build_deliverable_zip_bytes
 from engine import ReportEngine
 from provenance import GenerationRecord, sha256_hex
-from template_attachments import prepare_template_upload
+from template_attachments import prepare_template_upload_cached
 
 
 def render_report_from_bytes(
@@ -27,7 +27,7 @@ def render_report_from_bytes(
     uploaded_appendices: list[AppendixFile] | None = None,
 ) -> tuple[bytes, list[str], dict[str, Any], GenerationRecord, list[AppendixFile]]:
     """Render a report; returns (docx_bytes, warnings, context, manifest record, appendices)."""
-    prepared = prepare_template_upload(template_bytes, template_filename)
+    prepared = prepare_template_upload_cached(template_bytes, template_filename)
     engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=prepared.docx_bytes)
     docx_bytes, warnings, context, record = engine.render(
         meta=meta,

@@ -20,7 +20,7 @@ def render_preview_panel(
     if not excel_bytes or not template_bytes:
         return
 
-    if st.button("Preview data (dry run)", use_container_width=True):
+    if st.button("Preview data (dry run)", width="stretch"):
         try:
             engine = get_cached_report_engine(excel_bytes, template_bytes)
             row_index = int(st.session_state.get("projectdata_row_select", 0))
@@ -69,7 +69,7 @@ def render_preview_panel(
                 data=record.to_json_bytes(),
                 file_name=record_filename("preview.docx"),
                 mime="application/json",
-                use_container_width=True,
+                width="stretch",
             )
             with st.expander("Manifest JSON", expanded=False):
                 st.json(record.to_dict())

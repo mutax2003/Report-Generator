@@ -48,7 +48,7 @@ Deploy using [14-deployment.md](14-deployment.md) (Docker, VM, or Azure Containe
 - **Microsoft Entra ID** (or VPN + network restriction) — do not expose Streamlit on the public internet without auth
 - Secrets (`OPENAI_API_KEY` if using AI tab) in host secrets, not in GitHub
 
-**Author workflow:** Same as [02-user-guide.md](02-user-guide.md) — Excel + Word/PDF template, sidebar profile, optional phrases and appendices, deliverable zip.
+**Author workflow:** Same as [02-user-guide.md](02-user-guide.md) — choose **Excel + Word template** or **Project folder + AI** (local desktop Browse; see [22-project-folder-workflow.md](22-project-folder-workflow.md)), sidebar profile, optional phrases and appendices, deliverable zip.
 
 **Updates:** Follow [17-server-update-runbook.md](17-server-update-runbook.md) (typically &lt; 15 minutes per release).
 

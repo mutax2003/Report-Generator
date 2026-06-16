@@ -1,0 +1,3 @@
+Source PDF: lab_coa_example.pdf
+---
+lab_coa_example.pdf: no extractable text (scanned PDF may need OCR).

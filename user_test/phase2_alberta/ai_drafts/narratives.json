@@ -1,0 +1,45 @@
+{
+  "disclaimer": "AI draft \u2014 review before copying into Excel or Word.",
+  "sections": [
+    {
+      "section": "executive_summary",
+      "text": "Ecoventure Inc. prepared this Phase II ESA \u2014 well centre and production areas report for Example Energy Ltd. at Example 4D Windy 4-4-49-4.\n\nLaboratory analytical results for 3 sample result row(s) are summarized in the tables below.\n\nSample matrices evaluated include: Soil.\n\n1 parameter(s) exceeded applicable criteria: Benzene.\n\nExceedances at well centre warrant risk assessment. No further Phase II off-lease sampling recommended at this time.",
+      "sources": [
+        "rag_corpus/phase1_alberta_aer.txt",
+        "rag_corpus/phase2_intro.txt",
+        "rag/phase2_intro.txt",
+        "source/lab_coa_example.pdf"
+      ],
+      "disclaimer": "AI-assisted draft \u2014 review and edit before including in a client report."
+    },
+    {
+      "section": "site_description",
+      "text": "The subject property (Example 4D Windy 4-4-49-4) is located at NE 1/4-04-049-04W4M, Alberta. Site conditions were assessed in accordance with applicable Alberta guidance.",
+      "sources": [
+        "rag_corpus/phase1_alberta_aer.txt",
+        "rag_corpus/phase2_intro.txt",
+        "rag/phase2_intro.txt",
+        "source/lab_coa_example.pdf"
+      ],
+      "disclaimer": "AI-assisted draft \u2014 review and edit before including in a client report."
+    },
+    {
+      "section": "conclusions_limitations",
+      "text": "Conclusions and limitations should be confirmed by the Ecoventure qualified person. This draft is based on structured field data only and does not replace professional judgment or regulatory review.",
+      "sources": [
+        "rag_corpus/phase1_alberta_aer.txt",
+        "rag_corpus/phase2_intro.txt",
+        "rag/phase2_intro.txt",
+        "source/lab_coa_example.pdf"
+      ],
+      "disclaimer": "AI-assisted draft \u2014 review and edit before including in a client report."
+    }
+  ],
+  "audit": {
+    "features": [
+      "narrative_draft"
+    ],
+    "used_llm": false,
+    "model": ""
+  }
+}

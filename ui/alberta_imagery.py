@@ -106,7 +106,7 @@ def render_hero_image() -> None:
     raw = st.session_state.get("hero_lake_bytes")
     if not raw:
         return
-    st.image(raw, use_container_width=True)
+    st.image(raw, width="stretch")
 
 
 def render_sidebar_accent() -> None:
@@ -114,7 +114,7 @@ def render_sidebar_accent() -> None:
     if not path:
         return
     with st.sidebar.expander("Alberta landscapes", expanded=False):
-        st.image(str(path), use_container_width=True)
+        st.image(str(path), width="stretch")
 
 
 def render_empty_state_banner() -> None:
@@ -122,11 +122,11 @@ def render_empty_state_banner() -> None:
     ensure_hero_lake_cached()
     raw = st.session_state.get("hero_lake_bytes")
     if raw:
-        st.image(raw, use_container_width=True)
+        st.image(raw, width="stretch")
         return
     path = pick_image(variant="empty")
     if path:
-        st.image(str(path), use_container_width=True)
+        st.image(str(path), width="stretch")
 
 
 def has_alberta_images() -> bool:

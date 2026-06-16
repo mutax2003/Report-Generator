@@ -1,0 +1,2 @@
+# Optional local dev / browser smoke (CI uses streamlit.testing AppTest instead)
+playwright>=1.49.0

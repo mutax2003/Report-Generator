@@ -24,9 +24,11 @@ DEFAULT_APPENDIX_DIR = ROOT / "samples" / "appendices"
 
 PHASE1_APPENDIX_PROFILES = frozenset({"phase1_alberta", "phase1_devon", "reclamation_certificate"})
 
-DEFAULT_LABELS = ("A", "D", "G")
+DEFAULT_LABELS: tuple[str, ...] | None = None
 
 _JINJA_ENV = SandboxedEnvironment(undefined=Undefined, autoescape=False)
+
+_META_SIDEBAR_KEYS = ("prepared_by", "date_of_issue", "template_version", "report_phase")
 
 
 def phase1_profile_includes_appendices(report_type: str, report_phase: str = "") -> bool:
@@ -54,8 +56,20 @@ def _report_type(meta: dict[str, str] | None, report_type: str = "") -> str:
 
 def get_appendix_templates(report_type: str) -> dict[str, str]:
     """Return appendix label -> template path (relative to samples/ or absolute)."""
+    return _appendix_templates_for_profile(report_type)
+
+
+@lru_cache(maxsize=8)
+def _appendix_templates_for_profile(report_type: str) -> dict[str, str]:
     raw = get_profile_spec(report_type).get("appendix_templates") or {}
     return {str(k).upper(): str(v) for k, v in raw.items()}
+
+
+@lru_cache(maxsize=32)
+def _resolved_appendix_path(rel_path: str, template_dir_str: str) -> str:
+    template_dir = Path(template_dir_str) if template_dir_str else DEFAULT_APPENDIX_DIR
+    path = resolve_appendix_template_path(rel_path, template_dir=template_dir)
+    return str(path)
 
 
 def resolve_appendix_template_path(
@@ -85,6 +99,9 @@ def _load_template_bytes(path: Path) -> bytes:
 def clear_appendix_template_cache() -> None:
     """Drop cached appendix template bytes (tests / template regeneration)."""
     _cached_template_bytes.cache_clear()
+    _appendix_templates_for_profile.cache_clear()
+    _resolved_appendix_path.cache_clear()
+    _recommended_fields.cache_clear()
 
 
 def should_generate_appendix(label: str, context: dict[str, Any]) -> bool:
@@ -147,19 +164,26 @@ def _default_appendix_filename(label: str, context: dict[str, Any]) -> str:
     return f"{stem}_{uwi}.docx"
 
 
+@lru_cache(maxsize=8)
+def _recommended_fields(report_type: str) -> tuple[str, ...]:
+    return tuple(get_profile_spec(report_type).get("recommended_fields") or [])
+
+
 def _appendix_render_context(
     context: dict[str, Any],
     meta: dict[str, str] | None,
+    *,
+    report_type: str = "",
 ) -> dict[str, Any]:
     """Merge context with sidebar meta keys required by appendix templates."""
     out = _render_ctx(context)
-    rt = _report_type(meta)
-    for key in get_profile_spec(rt).get("recommended_fields") or []:
+    rt = _report_type(meta, report_type)
+    for key in _recommended_fields(rt):
         if not _has_value(out.get(key)):
             val = (meta or {}).get(key)
             if _has_value(val):
                 out[key] = val
-    for key in ("prepared_by", "date_of_issue", "template_version", "report_phase"):
+    for key in _META_SIDEBAR_KEYS:
         val = (meta or {}).get(key)
         if _has_value(val):
             out[key] = val
@@ -168,12 +192,11 @@ def _appendix_render_context(
 
 def _render_appendix_docx(
     template_bytes: bytes,
-    context: dict[str, Any],
-    meta: dict[str, str] | None,
+    render_context: dict[str, Any],
 ) -> bytes:
     doc = DocxTemplate(io.BytesIO(template_bytes))
     try:
-        doc.render(_appendix_render_context(context, meta), jinja_env=_JINJA_ENV)
+        doc.render(render_context, jinja_env=_JINJA_ENV)
     except TemplateError as e:
         raise ValueError(f"Appendix template rendering failed: {e}") from e
     out = io.BytesIO()
@@ -187,7 +210,7 @@ def render_phase1_appendices(
     context: dict[str, Any],
     meta: dict[str, str] | None = None,
     *,
-    labels: tuple[str, ...] = DEFAULT_LABELS,
+    labels: tuple[str, ...] | None = DEFAULT_LABELS,
     template_dir: Path | None = None,
     report_type: str = "",
 ) -> tuple[list[AppendixFile], list[str]]:
@@ -201,13 +224,22 @@ def render_phase1_appendices(
     if not catalog:
         return [], []
 
+    label_keys = _appendix_labels_for_context(context, catalog, labels)
+    if not label_keys:
+        return [], []
+
+    render_context = _appendix_render_context(context, meta, report_type=rt)
+    template_dir_str = str(template_dir or DEFAULT_APPENDIX_DIR)
     results: list[AppendixFile] = []
     warnings: list[str] = []
-    for key in _appendix_labels_for_context(context, catalog, labels):
+    for key in label_keys:
         rel = catalog[key]
         try:
-            path = resolve_appendix_template_path(rel, template_dir=template_dir)
-            docx_bytes = _render_appendix_docx(_load_template_bytes(path), context, meta)
+            path = Path(_resolved_appendix_path(rel, template_dir_str))
+            docx_bytes = _render_appendix_docx(
+                _load_template_bytes(path),
+                render_context,
+            )
         except (FileNotFoundError, ValueError, OSError) as e:
             warnings.append(f"Appendix {key} not generated: {e}")
             continue
@@ -240,11 +272,15 @@ def attach_appendices_to_record(
     meta: dict[str, str] | None,
     uploaded: list[AppendixFile],
 ) -> tuple[list[AppendixFile], list[AppendixFile], list[str]]:
-    """Render D/G, merge with uploads, write manifest fields. Returns (generated, merged, warnings)."""
+    """Render A/D/G, merge with uploads, write manifest fields. Returns (generated, merged, warnings)."""
     generated, warnings = render_phase1_appendices(context, meta)
     merged = merge_appendix_lists(generated, uploaded)
-    record.appendix_files = appendix_manifest_entries(merged) if merged else []
-    record.generated_appendix_files = (
-        appendix_manifest_entries(generated) if generated else []
-    )
+    if merged:
+        record.appendix_files = appendix_manifest_entries(merged)
+    else:
+        record.appendix_files = []
+    if generated:
+        record.generated_appendix_files = appendix_manifest_entries(generated)
+    else:
+        record.generated_appendix_files = []
     return generated, merged, warnings

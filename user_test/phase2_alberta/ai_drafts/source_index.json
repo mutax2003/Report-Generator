@@ -1,0 +1,20 @@
+{
+  "disclaimer": "Source PDF index \u2014 review extracts before using in reports.",
+  "pdf_count": 1,
+  "items": [
+    {
+      "filename": "lab_coa_example.pdf",
+      "route": "lab",
+      "size_bytes": 68,
+      "char_count": 0,
+      "warnings": [
+        "Text extract failed: Stream has ended unexpectedly",
+        "Little or no text \u2014 scanned PDF may need OCR",
+        "Lab extract failed: Stream has ended unexpectedly"
+      ],
+      "esa_meta": null,
+      "lab_row_count": null,
+      "extract_file": "lab_coa_example.txt"
+    }
+  ]
+}

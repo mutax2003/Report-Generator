@@ -46,6 +46,7 @@ class GenerationRecord:
     generated_appendix_files: list[dict[str, str]] = field(default_factory=list)
     dry_run: bool = False
     ai_audit: list[dict[str, Any]] = field(default_factory=list)
+    project_folder: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

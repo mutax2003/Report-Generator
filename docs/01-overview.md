@@ -2,12 +2,12 @@
 
 ## Purpose
 
-The **ESA Report Generator** is an internal tool for producing **Phase 1** and **Phase 2 Environmental Site Assessment (ESA)** reports. Non-technical users upload:
+The **ESA Report Generator** is an internal tool for producing **Phase 1** and **Phase 2 Environmental Site Assessment (ESA)** reports. Authors can either:
 
-1. An **Excel workbook** (`.xlsx`) with project fields and optional lab results.
-2. A **Word or PDF template** (`.docx` preferred; `.pdf` converted to Word for merge) containing Jinja2 placeholders.
+1. **Upload** an **Excel workbook** (`.xlsx`) and a **Word or PDF template** (`.docx` preferred; `.pdf` converted to Word for merge), or
+2. Point to a **local project folder** with `project_data.xlsx`, `template.docx`, optional `source/`, `appendices/`, and `ai_drafts/` — see [22-project-folder-workflow.md](22-project-folder-workflow.md).
 
-The application merges data into the template and returns a finished Word document for review and client delivery.
+Templates contain Jinja2 placeholders; the application merges data and returns a finished Word document for review and client delivery.
 
 Design goals:
 
@@ -31,12 +31,13 @@ Design goals:
 ## High-level architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Streamlit (app.py)                        │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌─────────┐ │
-│  │ sidebar  │ │preflight │ │ preview  │ │ results  │ │ ai_panel│ │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬────┘ │
-└───────┼────────────┼────────────┼────────────┼────────────┼───────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         Streamlit (app.py)                                │
+│  workflow_mode ──► Excel upload  OR  project_folder + folder_picker       │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌─────────┐         │
+│  │ sidebar  │ │preflight │ │ preview  │ │ results  │ │ ai_panel│         │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬────┘         │
+└───────┼────────────┼────────────┼────────────┼────────────┼────────────────┘
         │            │            │            │            │
         └────────────┴────────────┴─────┬──────┴────────────┘
                                         ▼
@@ -47,16 +48,18 @@ Design goals:
                     ┌───────────────────┼───────────────────┐
                     ▼                   ▼                   ▼
             template_tools.py    field_validation.py   provenance.py
-            security.py
+            security.py          project_folder.py (CLI / folder enrich)
                     ▼
             Excel context dict + lab_results list
                     ▼
               docxtpl → .docx bytes
 ```
 
+**Ingress paths:** Streamlit uploads (`ui/helpers.py`) or local folder (`project_folder.py` → same `ReportEngine` bytes). CLI: `scripts/ingest_project_folder.py`, `automate/render.py`.
+
 ## Core data flow
 
-1. **Validate uploads** — File type, ZIP structure, size (see [07-security-and-deployment.md](07-security-and-deployment.md)).
+1. **Validate inputs** — Upload path: file type, ZIP structure, size. Folder path: `resolve_project_folder` layout (see [07-security-and-deployment.md](07-security-and-deployment.md)).
 2. **Prepare template** — `.docx` as-is; `.pdf` → DOCX via `template_attachments.py` (cached in UI).
 3. **Read Excel** — Sheet `ProjectData` → flat dict per row (batch: one report per data row). Optional `ReportConfig`, `LabResults`, table sheets per [report profile](13-flexible-report-profiles.md).
 4. **Merge metadata** — Sidebar (`report_type`, `report_phase`, `prepared_by`, `date_of_issue`, `template_version`, `executive_summary`) normalized and merged; sidebar overrides Excel on key collision.
@@ -82,26 +85,26 @@ Primary Alberta Phase I workflow: [11-alberta-phase1-esa.md](11-alberta-phase1-e
 | `engine.py` | `ReportEngine`, Excel parsing, docxtpl render, sample generators |
 | `report_profile.py` | Profile resolution, `ReportConfig`, recommended fields |
 | `template_attachments.py` | PDF → DOCX template preparation |
+| `project_folder.py` | Local folder resolve, AI enrich (`ai_drafts/`), render to `delivered/` |
 | `deliverable_pack.py` | Zip package, appendix manifest entries |
 | `phase1_narrative.py` | Auto executive summary (Alberta Phase I) |
 | `security.py` | Upload validation, zip-bomb guards, context clamps |
 | `template_tools.py` | Template scan, pre-flight, coverage |
 | `provenance.py` | `GenerationRecord` manifest |
 | `field_validation.py` | Warnings vs `schemas/report_profiles.json` (profiles first) |
-| `ui/` | Streamlit UI (`sidebar`, `preflight`, `appendix_panel`, …) |
+| `ui/` | Streamlit UI (`workflow_mode`, `project_folder`, `preflight`, `appendix_panel`, …) |
 | `ai/` | Optional LLM helpers (does not replace merge engine) |
 | `automate/` | Headless render API for scripts / HTTP / Power Automate |
 | `scripts/` | CLI utilities (samples, tag, E2E, inventory) |
 | `schemas/report_profiles.json` | **Canonical** recommended fields per profile |
 | `schemas/field_contract.json` | Legacy reference and AI tagger |
 | `samples/` | Committed demo and production-aligned fixtures |
-| `tests/` | Unit and integration tests (75) |
+| `tests/` | Unit and integration tests (176) |
 | `Dockerfile` | Container image for Streamlit |
 | `docs/` | This documentation set |
 
 ## What the system does not do
 
-- **Batch reports** — Only the first `ProjectData` data row is used (single report per run).
 - **PDF output** — Output is `.docx`; convert to PDF in Word if required. Appendix PDFs are zipped, not merged into one PDF in-app.
 - **Untrusted template sandbox for logic** — Jinja in templates is trusted author code (sandbox blocks unsafe Python, not malicious template design).
 - **Automatic tagging of full 100+ page reports** — Production merge documents require manual or semi-automated Jinja insertion (see [04-template-authoring.md](04-template-authoring.md)).
@@ -109,5 +112,6 @@ Primary Alberta Phase I workflow: [11-alberta-phase1-esa.md](11-alberta-phase1-e
 ## Related reading
 
 - [02-user-guide.md](02-user-guide.md) — Day-to-day Streamlit workflow
+- [22-project-folder-workflow.md](22-project-folder-workflow.md) — Local project folder + CLI
 - [05-developer-guide.md](05-developer-guide.md) — Code structure and extension
 - [06-api-reference.md](06-api-reference.md) — Programmatic access

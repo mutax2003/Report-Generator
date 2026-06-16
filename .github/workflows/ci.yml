@@ -1,3 +1,5 @@
+# CI: Phase II / groundwater / project-folder CLI E2E run on ubuntu (see docs/08-testing.md).
+
 name: CI
 
 on:
@@ -45,8 +47,20 @@ jobs:
       - name: Alberta Phase I E2E (Ecoventure)
         run: python scripts/phase1_alberta_e2e.py
 
+      - name: Alberta Phase II E2E
+        run: python scripts/phase2_alberta_e2e.py
+
+      - name: Groundwater monitoring E2E
+        run: python scripts/groundwater_e2e.py
+
+      - name: Create Phase II project folder fixture
+        run: python scripts/create_phase2_project_folder.py
+
+      - name: Project folder CLI render smoke
+        run: python scripts/ingest_project_folder.py --folder user_test/phase2_alberta --render --no-llm
+
       - name: User document test script (Alberta defaults)
         run: python scripts/test_with_your_documents.py
 
-      - name: Thirteen-step health check
+      - name: Fifteen-step health check
         run: python scripts/health_check.py

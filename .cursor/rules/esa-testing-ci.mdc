@@ -10,18 +10,34 @@ alwaysApply: false
 
 ```powershell
 python scripts\create_samples.py
+python scripts\create_appendix_templates.py
 python scripts\tag_production_template.py
 python -m unittest discover -s tests -v
 python scripts\render_cli.py
+python scripts\phase1_package_smoke.py
 python scripts\production_e2e.py
 python scripts\phase1_alberta_e2e.py
 python scripts\test_with_your_documents.py
 python scripts\health_check.py
 ```
 
+## Local-only E2E (pre-release; not in CI)
+
+Run before major releases or after profile/folder changes:
+
+```powershell
+python scripts\phase2_alberta_e2e.py
+python scripts\groundwater_e2e.py
+python scripts\phase3_remediation_e2e.py
+python scripts\reclamation_e2e.py
+python scripts\create_phase2_project_folder.py
+python scripts\ingest_project_folder.py --folder user_test\phase2_alberta --render --no-llm
+$env:ESA_ALLOW_LARGE_TEMPLATE="1"; python scripts\phase1_site_e2e.py
+```
+
 ## Conventions
 
-- Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates. Current count: **135 tests** (`test_appendix_generator`, `test_sed002_compliance`, `test_phrase_resolver`, `test_batch_render`, `test_phase1_markup`, `test_phase1_pdf_text`, etc.).
+- Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates. Current count: **179 tests** (`test_streamlit_smoke`, `test_folder_picker`, `test_source_ingest`, `test_project_folder`, etc.).
 - Prefer **real fixtures** in `samples/` over huge inline ZIP bytes; use `unittest.SkipTest` when optional large files are absent.
 - **`ESA_VALIDATION_BYPASS=1`**: tests only — never document for production.
 - **`ESA_RUN_HEALTH_CHECK=1`**: enables the slow `test_smoke_integration` health path; CI runs `health_check.py` separately.

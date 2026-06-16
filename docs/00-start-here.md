@@ -18,14 +18,29 @@ streamlit run app.py
 
 Browser: http://localhost:8501
 
-## 2. Upload files
+## 2. Choose your workflow
+
+On first open, pick one path:
+
+| Choice | When to use |
+|--------|-------------|
+| **Project folder + AI** | You have a local site folder (`project_data.xlsx`, `template.docx`, `source/`, `appendices/`, …). Optional AI drafts go to `ai_drafts/`. |
+| **Excel + Word template** | Upload `.xlsx` + `.docx`/`.pdf` directly — classic merge, no folder layout. |
+
+Use **Change** in the blue banner to switch workflows later.
+
+### Excel + template path
 
 | Upload | File |
 |--------|------|
 | **Excel Data Source** | Your `.xlsx` with sheet **`ProjectData`** (row 1 = headers, **row 2+** = one site per row) |
 | **Report template** | Your `.docx` (preferred) or `.pdf` layout |
 
-Optional: **Standard phrases** on the Report tab — preset paragraphs for tagged fields (see [04-template-authoring.md](04-template-authoring.md)).
+### Project folder path
+
+Enter the folder path (e.g. `C:\Projects\260109R`), click **Browse…** to pick a folder, or click **Load folder**. Optional: **Analyze folder** for AI drafts. See [22-project-folder-workflow.md](22-project-folder-workflow.md).
+
+Optional (both paths): **Standard phrases** on the Report tab — preset paragraphs for tagged fields (see [04-template-authoring.md](04-template-authoring.md)).
 
 **First time?** Use sidebar **Download Alberta Phase I Excel** and **Download Alberta Phase I template**.
 

@@ -1,0 +1,10 @@
+{
+  "disclaimer": "AI summaries of source/ PDFs \u2014 QP review required.",
+  "items": [
+    {
+      "filename": "lab_coa_example.pdf",
+      "route": "lab",
+      "summary": "lab_coa_example.pdf: no extractable text (scanned PDF may need OCR)."
+    }
+  ]
+}

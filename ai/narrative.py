@@ -122,6 +122,23 @@ def _rule_section(section: str, context: dict[str, Any]) -> str:
     )
 
 
+def _context_for_narrative_prompt(context: dict[str, Any]) -> dict[str, Any]:
+    skip = frozenset({"lab_results", "drilling_waste", "storage_tanks"})
+    return {
+        k: v
+        for k, v in context.items()
+        if k not in skip and not str(k).startswith("_")
+    }
+
+
+def _narrative_source_names(context: dict[str, Any]) -> list[str]:
+    names: list[str] = []
+    for item in context.get("_source_summaries") or []:
+        if isinstance(item, dict) and item.get("filename"):
+            names.append(f"source/{item['filename']}")
+    return names
+
+
 def draft_narratives(
     context: dict[str, Any],
     *,
@@ -140,8 +157,15 @@ def draft_narratives(
         str(context.get("report_phase", "")),
         "environmental site assessment",
     ]
-    rag_hits = retrieve(" ".join(query_parts))
+    extra_dirs: tuple[Path, ...] = ()
+    rag_dir = context.get("_project_rag_dir")
+    if rag_dir:
+        from pathlib import Path
+
+        extra_dirs = (Path(str(rag_dir)),)
+    rag_hits = retrieve(" ".join(query_parts), extra_dirs=extra_dirs)
     rag_context = "\n\n".join(f"[{src}]\n{chunk}" for src, chunk, _ in rag_hits)
+    draft_sources = [s for s, _, _ in rag_hits] + _narrative_source_names(context)
 
     for section in sections:
         if use_llm:
@@ -155,16 +179,7 @@ def draft_narratives(
                 user=json.dumps(
                     {
                         "section": section,
-                        "context": {
-                            k: v
-                            for k, v in context.items()
-                            if k
-                            not in (
-                                "lab_results",
-                                "drilling_waste",
-                                "storage_tanks",
-                            )
-                        },
+                        "context": _context_for_narrative_prompt(context),
                         "table_row_counts": {
                             "lab_results": len(context.get("lab_results") or []),
                             "drilling_waste": len(
@@ -185,6 +200,11 @@ def draft_narratives(
                             ),
                         },
                         "reference_snippets": rag_context[:8000],
+                        "source_document_summaries": context.get("_source_summaries")
+                        or [],
+                        "source_summaries_text": str(
+                            context.get("_source_summaries_text") or ""
+                        )[:10_000],
                     },
                     default=str,
                 )[:20_000],
@@ -196,7 +216,7 @@ def draft_narratives(
                     NarrativeDraft(
                         section=section,
                         text=llm_text,
-                        sources=[s for s, _, _ in rag_hits],
+                        sources=draft_sources,
                     )
                 )
                 continue
@@ -205,7 +225,7 @@ def draft_narratives(
             NarrativeDraft(
                 section=section,
                 text=_rule_section(section, context),
-                sources=[s for s, _, _ in rag_hits] if rag_hits else [],
+                sources=draft_sources if draft_sources else [],
             )
         )
 

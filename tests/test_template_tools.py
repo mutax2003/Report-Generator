@@ -49,6 +49,26 @@ class TestTemplateTools(unittest.TestCase):
         assert pf.coverage is not None
         self.assertIn("site_name", pf.coverage.matched)
 
+    def test_scan_template_cache(self) -> None:
+        from template_tools import clear_template_scan_cache, scan_template
+
+        clear_template_scan_cache()
+        first = scan_template(self.template_bytes)
+        second = scan_template(self.template_bytes)
+        self.assertIs(first, second)
+
+    def test_read_excel_meta_cache(self) -> None:
+        from report_profile import clear_excel_meta_cache, read_excel_meta
+
+        xlsx = ROOT / "samples" / "sample_data.xlsx"
+        if not xlsx.is_file():
+            self.skipTest("sample xlsx missing")
+        clear_excel_meta_cache()
+        data = xlsx.read_bytes()
+        first = read_excel_meta(data)
+        second = read_excel_meta(data)
+        self.assertIs(first, second)
+
     def test_preflight_missing_sheet(self) -> None:
         xlsx = _workbook(
             pd.DataFrame({"site_name": ["S"]}),

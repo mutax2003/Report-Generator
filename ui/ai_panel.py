@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import io
+import json
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -64,8 +66,8 @@ def _build_context_from_excel(excel_bytes: bytes, meta: dict[str, str]) -> dict[
                 pass
 
 
-def render_ai_settings_sidebar() -> None:
-    with st.sidebar.expander("AI options", expanded=False):
+def render_ai_settings_sidebar(*, folder_mode: bool = False) -> None:
+    with st.sidebar.expander("AI options", expanded=folder_mode):
         st.caption(ai_status_message())
         st.session_state.setdefault("ai_use_llm", ai_available())
         st.checkbox(
@@ -73,6 +75,10 @@ def render_ai_settings_sidebar() -> None:
             key="ai_use_llm",
             help="Requires OPENAI_API_KEY. Offline rules used otherwise.",
         )
+        if folder_mode:
+            st.caption(
+                "Turn off for offline heuristics only when using **Analyze folder**."
+            )
 
 
 def render_ai_panel(
@@ -81,19 +87,31 @@ def render_ai_panel(
     template_bytes: bytes | None,
     meta: dict[str, str],
     preflight: PreflightResult | None,
+    folder_mode: bool = False,
 ) -> None:
-    st.subheader("AI tools")
-    st.info(
-        "Optional helpers for tagging, lab PDF import, narratives, and QA. "
-        "**All AI output requires QP review** before client delivery."
-    )
+    st.subheader("AI drafts & tools" if folder_mode else "AI tools")
+    if folder_mode:
+        st.info(
+            "Use **Analyze folder** on step 1 to write inventory, narratives, and appendix "
+            "suggestions to `ai_drafts/` on disk. Tools below work on the loaded Excel + "
+            "template. **All AI output requires QP review** before client delivery."
+        )
+    else:
+        st.info(
+            "Optional helpers for tagging, lab PDF import, narratives, and QA. "
+            "**All AI output requires QP review** before client delivery."
+        )
 
     t1, t2 = st.tabs(["Data & templates", "QA & narratives"])
+
+    if folder_mode:
+        _tab_folder_drafts()
+        st.divider()
 
     with t1:
         _tab_template_tagger(template_bytes)
         st.divider()
-        _tab_lab_pdf(excel_bytes, meta)
+        _tab_lab_pdf(excel_bytes, meta, folder_mode=folder_mode)
         st.divider()
         _tab_well_log_pdf(excel_bytes)
         st.divider()
@@ -105,6 +123,54 @@ def render_ai_panel(
         _tab_gw_trends(excel_bytes, meta)
         st.divider()
         _tab_quality(excel_bytes, template_bytes, meta)
+
+
+def _tab_folder_drafts() -> None:
+    """Review on-disk ai_drafts/ from the loaded project folder."""
+    st.subheader("Folder AI drafts (on disk)")
+    root = st.session_state.get("project_folder_resolved")
+    if not root:
+        st.info("Load a project folder on step 1 to review `ai_drafts/` here.")
+        return
+    drafts_dir = Path(root) / "ai_drafts"
+    if not drafts_dir.is_dir():
+        st.info(
+            "No `ai_drafts/` folder yet — run **Analyze folder** on step 1 to create drafts."
+        )
+        return
+
+    review_files = (
+        ("inventory.md", "markdown"),
+        ("preflight_report.md", "markdown"),
+        ("source_summaries.json", "json"),
+        ("narratives.json", "json"),
+        ("excel_field_suggestions.json", "json"),
+        ("appendix_labels.json", "json"),
+    )
+    shown = 0
+    for name, kind in review_files:
+        path = drafts_dir / name
+        if not path.is_file():
+            continue
+        shown += 1
+        with st.expander(name, expanded=name in ("preflight_report.md", "narratives.json")):
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError as e:
+                st.error(user_safe_error(e))
+                continue
+            if kind == "json":
+                try:
+                    st.json(json.loads(text))
+                except json.JSONDecodeError:
+                    st.code(text)
+            else:
+                st.markdown(text)
+
+    if shown == 0:
+        st.caption("Run **Analyze folder** to populate inventory, preflight, and narratives.")
+    else:
+        st.caption(f"Files live under `{drafts_dir}` — edit on disk or copy into Excel as needed.")
 
 
 def _tab_template_tagger(template_bytes: bytes | None) -> None:
@@ -127,7 +193,7 @@ def _tab_template_tagger(template_bytes: bytes | None) -> None:
     if not template_bytes:
         st.info("Upload a Word template in the **Report** tab to analyze.")
         return
-    if st.button("Analyze template tags", key="ai_tag_btn", use_container_width=True):
+    if st.button("Analyze template tags", key="ai_tag_btn", width="stretch"):
         with st.spinner("Scanning document..."):
             try:
                 suggestions, audit = suggest_template_tags(
@@ -150,7 +216,7 @@ def _tab_template_tagger(template_bytes: bytes | None) -> None:
         data=md.encode("utf-8"),
         file_name="template_tagging_suggestions.md",
         mime="text/markdown",
-        use_container_width=True,
+        width="stretch",
     )
     with st.expander("Preview suggestions", expanded=True):
         for s in suggestions[:30]:
@@ -159,7 +225,12 @@ def _tab_template_tagger(template_bytes: bytes | None) -> None:
                 st.caption(s.notes)
 
 
-def _tab_lab_pdf(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
+def _tab_lab_pdf(
+    excel_bytes: bytes | None,
+    meta: dict[str, str],
+    *,
+    folder_mode: bool = False,
+) -> None:
     st.subheader("2. Lab PDF → Excel (LabResults / GroundwaterLab)")
     target = st.radio(
         "Target sheet",
@@ -167,11 +238,33 @@ def _tab_lab_pdf(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
         horizontal=True,
         key="ai_lab_target_sheet",
     )
+
+    pdf_bytes: bytes | None = None
+    pdf_label = ""
+    if folder_mode:
+        root = st.session_state.get("project_folder_resolved")
+        if root:
+            source_dir = Path(root) / "source"
+            folder_pdfs = sorted(source_dir.glob("*.pdf")) if source_dir.is_dir() else []
+            if folder_pdfs:
+                pick = st.selectbox(
+                    "Pick lab PDF from folder `source/`",
+                    options=["(upload instead)"] + [p.name for p in folder_pdfs],
+                    key="ai_lab_folder_pdf",
+                )
+                if pick != "(upload instead)":
+                    pdf_label = pick
+                    pdf_bytes = (source_dir / pick).read_bytes()
+
     pdf = st.file_uploader("Lab certificate / COA (PDF)", type=["pdf"], key="ai_lab_pdf")
-    if pdf and st.button("Extract lab table", key="ai_lab_extract", use_container_width=True):
-        with st.spinner("Parsing PDF..."):
+    if pdf is not None:
+        pdf_bytes = pdf.getvalue()
+        pdf_label = pdf.name or "uploaded.pdf"
+
+    if pdf_bytes and st.button("Extract lab table", key="ai_lab_extract", width="stretch"):
+        with st.spinner(f"Parsing PDF{' ' + pdf_label if pdf_label else ''}..."):
             try:
-                result = extract_lab_from_pdf(pdf.getvalue(), use_llm=_use_llm())
+                result = extract_lab_from_pdf(pdf_bytes, use_llm=_use_llm())
                 st.session_state["lab_extract"] = result
                 _merge_audit(
                     AiAudit(
@@ -190,7 +283,7 @@ def _tab_lab_pdf(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
     if result.rows:
         st.dataframe(
             [r.to_excel_dict() for r in result.rows],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
         if target.startswith("Groundwater"):
@@ -212,7 +305,7 @@ def _tab_lab_pdf(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
             data=xlsx,
             file_name=dl_name,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
         )
     with st.expander("PDF text preview"):
         st.text(result.raw_text_preview or "(empty)")
@@ -225,7 +318,7 @@ def _tab_well_log_pdf(excel_bytes: bytes | None) -> None:
         type=["pdf"],
         key="ai_well_log_pdf",
     )
-    if pdf and st.button("Extract monitoring wells", key="ai_well_extract", use_container_width=True):
+    if pdf and st.button("Extract monitoring wells", key="ai_well_extract", width="stretch"):
         with st.spinner("Parsing well log..."):
             try:
                 rows, warnings, audit = extract_wells_from_pdf(
@@ -244,7 +337,7 @@ def _tab_well_log_pdf(excel_bytes: bytes | None) -> None:
         st.warning(w)
     st.dataframe(
         [r.to_excel_dict() for r in rows],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     from engine import MONITORING_WELLS_SHEET, PROJECT_SHEET
@@ -269,7 +362,7 @@ def _tab_well_log_pdf(excel_bytes: bytes | None) -> None:
         data=out.getvalue(),
         file_name="monitoring_wells_import.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -281,7 +374,7 @@ def _tab_gw_trends(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
     if not ctx:
         st.info("Upload groundwater Excel on the **Report** tab or generate a report first.")
         return
-    if st.button("Analyze trends", key="ai_gw_trends_btn", use_container_width=True):
+    if st.button("Analyze trends", key="ai_gw_trends_btn", width="stretch"):
         notes, audit = analyze_groundwater_trends(ctx, use_llm=_use_llm())
         st.session_state["gw_trend_notes"] = notes
         _merge_audit(audit)
@@ -306,7 +399,7 @@ def _tab_narratives(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
         options=["executive_summary", "site_description", "conclusions_limitations"],
         default=["executive_summary", "conclusions_limitations"],
     )
-    if st.button("Draft narratives", key="ai_narrative_btn", use_container_width=True):
+    if st.button("Draft narratives", key="ai_narrative_btn", width="stretch"):
         with st.spinner("Drafting..."):
             drafts, audit = draft_narratives(ctx, sections=sections, use_llm=_use_llm())
             st.session_state["narrative_drafts"] = drafts
@@ -331,7 +424,7 @@ def _tab_copilot(preflight: PreflightResult | None, meta: dict[str, str]) -> Non
     if not preflight:
         st.info("Upload Excel + template on the **Report** tab to run pre-flight first.")
         return
-    if st.button("Explain pre-flight", key="ai_copilot_btn", use_container_width=True):
+    if st.button("Explain pre-flight", key="ai_copilot_btn", width="stretch"):
         advice, audit = explain_preflight(preflight, meta, use_llm=_use_llm())
         st.session_state["copilot_advice"] = advice
         _merge_audit(audit)
@@ -358,7 +451,7 @@ def _tab_quality(
     )
     if not ctx:
         st.info("Need Excel context — upload files or generate a report first.")
-    elif st.button("Run consistency check", key="ai_consistency_btn", use_container_width=True):
+    elif st.button("Run consistency check", key="ai_consistency_btn", width="stretch"):
         findings, audit = check_consistency(
             ctx,
             template_bytes=template_bytes,
@@ -383,7 +476,7 @@ def _tab_quality(
     if not isinstance(lab, list) or not lab:
         st.info("No lab_results in context.")
         return
-    if st.button("Generate exceedance notes", key="ai_exc_btn", use_container_width=True):
+    if st.button("Generate exceedance notes", key="ai_exc_btn", width="stretch"):
         notes, audit = notes_for_lab_rows(
             lab,
             site_name=str((ctx or {}).get("site_name", "")),

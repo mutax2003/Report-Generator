@@ -6,46 +6,36 @@ All notable changes to the ESA Report Generator. Manifest schema and profile IDs
 
 ### Added
 
-- **Phase I appendices D and G** auto-generated as `.docx` in the deliverable zip (from `ProjectData` + `DrillingWaste`).
-- **Phase I appendix A** — QP professional declaration (`.docx`) from sidebar meta and Excel fields.
-- `appendix_generator.py`: `render_phase1_appendices`, `attach_appendices_to_record`, `predicted_appendix_labels`, upload-over-generated merge.
-- Health check step 4: Phase I appendices; **135 unit tests** (appendix generator suite).
-- `render_cli.py --package` / `--appendices` / `--no-appendices`; batch deliverable packages in Streamlit.
-- `run.ps1 streamlit` — launch UI with venv Python on Windows.
-- **Groundwater monitoring:** profile `groundwater_monitoring`, samples, `groundwater_narrative.py`, [docs/18-groundwater-reports.md](docs/18-groundwater-reports.md), GW phrases and RAG corpus.
-- **Remediation / reclamation profiles:** `reclamation_certificate`, `phase3_remediation` (scaffold sheet mappings).
-- **AI:** well log PDF extract, groundwater trend notes, Lab PDF → `GroundwaterLab`; GW consistency checks.
-- [docs/19-charts-and-gis-embed.md](docs/19-charts-and-gis-embed.md) — Power BI / QGIS PNG workflow.
-- Team rollout: [docs/16-team-rollout.md](docs/16-team-rollout.md), [docs/17-server-update-runbook.md](docs/17-server-update-runbook.md), [sharepoint/PUBLISH_CHECKLIST.md](sharepoint/PUBLISH_CHECKLIST.md), `scripts/package_team_sharepoint.ps1`, `docker-compose.yml`, `.streamlit/config.production.toml.example`; expanded [docs/14-deployment.md](docs/14-deployment.md) (Entra ID, Azure, Compose).
+- (none)
 
-- Report profiles with `recommended_fields` in `schemas/report_profiles.json` (canonical field lists).
-- PDF template upload with cached conversion and **Download converted Word template**.
-- Pre-flight: profile-aware missing-field checklist; **Download ReportConfig sheet (Excel)**.
-- Sidebar: profile selectbox, phase↔profile sync, executive summary override.
-- Appendices A–F PDF uploader and **Download deliverable package (.zip)**.
-- Manifest fields: `report_type`, `template_source_format`, `appendix_files` (SHA-256 per appendix).
-- `deliverable_pack.py`, `template_attachments.py`, `phase1_narrative.py`, `ui/appendix_panel.py`.
-- Docs: [docs/00-start-here.md](docs/00-start-here.md), [docs/14-deployment.md](docs/14-deployment.md), [docs/15-power-automate-guide.md](docs/15-power-automate-guide.md).
-- `Dockerfile`, `.github/dependabot.yml`, smoke integration test.
-- **Standard phrases:** `schemas/phrase_catalog.json`, `phrase_resolver.py`, `ui/phrase_panel.py`, optional Excel `PhraseCatalog` sheet; Approaches A–D in [docs/04-template-authoring.md](docs/04-template-authoring.md).
-- **Batch reports:** `ReportEngine.render_batch()`, Streamlit **All N reports (batch)**, `render_cli.py --all-rows`; multi-row `ProjectData` (max 50 reports per run).
-- Phase I tooling: `phase1_markup.py`, `phase1_pdf_text.py`, scripts `phase1_pdf_to_markup.py`, `create_phase1_site_samples.py`, `phase1_site_e2e.py`.
-- Unit test suite: **93 tests** (`test_phrase_resolver`, `test_batch_render`, `test_phase1_markup`, `test_phase1_pdf_text`, and related).
+## [2.0.0] — 2026-06-16
+
+### Added
+
+- **Startup workflow choice** in Streamlit: **Project folder + AI** vs **Excel + Word template** — pick at launch, switch with **Change** in the banner.
+- **Source PDF ingest** (`ai/source_ingest.py`): read `source/` PDFs → `ai_drafts/source_summaries.json` + optional `rag/ingested/`; wired into folder enrich and narratives.
+- LLM provider docs: Ollama (free/local), Groq, gpt-4o-mini in `secrets.toml.example` and [docs/09-ai-assistant.md](docs/09-ai-assistant.md).
+- **Phase I appendices A, D, and G** auto-generated as `.docx` in the deliverable zip (from `ProjectData` + `DrillingWaste`).
+- **Project folder workflow:** local CLI + AI enrich (`project_folder.py`, `scripts/ingest_project_folder.py`); [docs/22-project-folder-workflow.md](docs/22-project-folder-workflow.md).
+- **176 unit tests**; **15-step** health check (appendices, project folder, source PDF ingest).
+- Streamlit **AppTest** smoke (`tests/test_streamlit_smoke.py`, `scripts/streamlit_smoke.py`).
 
 ### Changed
 
-- `field_validation.contract_warnings` reads report profiles first; `field_contract.json` is legacy reference.
-- Agent rules and documentation synced to current UI and module layout.
+- Docs/rules sync: README, overview, team rollout; Cursor rules and testing docs aligned to **176 tests** / **15** health checks.
+- Performance: template ZIP scan cache, upload bytes cache, folder mtime caches, appendix sig cache, preflight tuple cache, lazy sample generation in sidebar.
+- **Browse…** native folder picker for project-folder workflow (local Windows desktop).
+- CI: Phase II + groundwater E2E; project-folder CLI render smoke on GitHub Actions.
+- Streamlit buttons: `use_container_width` → `width="stretch"` across `ui/`.
 
-### Not in this release
+### Fixed
 
-- Single merged `Final_Report.pdf` (docx + all appendices).
-- Auto-generated appendices **C**, **E**, **F**, **H** (image/GIS paths — manual PDF upload).
-- Project library (remember last uploads).
-- Playwright browser UI tests (headless smoke test covers engine path).
+- Project folder **Load/Browse** template prep and Streamlit widget session-key conflicts (`project_folder_path_pending`).
+- **Analyze folder** auto-loads folder into session for immediate generate on the Report tab.
+- Folder picker handles tkinter dialog errors gracefully.
 
 ## [1.0.0] — baseline
 
 - Streamlit UI + `ReportEngine` (docxtpl).
 - Phase I Alberta samples (Ecoventure), Phase II lab tables, pre-flight, manifests.
-- Optional AI tab, automate HTTP/CLI, 67+ unit tests.
+- Optional AI tab, automate HTTP/CLI, batch reports, standard phrases, deliverable zip.

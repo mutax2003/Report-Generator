@@ -4,11 +4,12 @@ Template analysis: coverage vs Excel context, tag inventory, split-run lint.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from engine import LAB_SHEET, ReportEngine
+from engine import LAB_SHEET, ReportEngine, _labels_from_project_rows
 from report_profile import loops_from_block_tags, read_excel_meta, resolve_report_config
 from sed002_compliance import PHASE1_SED_PROFILES
 from security import SecurityError, ZipReadBudget, open_docx_zip, read_docx_xml_member
@@ -67,13 +68,42 @@ class PreflightResult:
         return len(self.errors) == 0
 
 
+_RUN_PATTERN = re.compile(r"<w:t[^>]*>([^<]*)</w:t>")
+_MUSTACHE_PATTERN = re.compile(r"\{\{-?\s*([^}|]+?)\s*-?\}\}")
+_BLOCK_PATTERN = re.compile(r"\{%\s*([^%]+?)\s*%\}")
+_ROOT_VAR_EXPR = re.compile(r"\{\{-?\s*([^}|]+?)\s*-?\}\}")
+_SPLIT_TAG_OPEN = re.compile(r"\{\{[^}]+\}\}")
+_SPLIT_BLOCK_OPEN = re.compile(r"\{%[^%]+%\}")
+
+_SCAN_CACHE_MAX = 32
+_scan_cache: dict[tuple[str, int], TemplateScan] = {}
+
+
+def clear_template_scan_cache() -> None:
+    """Drop cached template ZIP scans (tests)."""
+    _scan_cache.clear()
+
+
 def scan_template(template_bytes: bytes, *, max_split_issues: int = 15) -> TemplateScan:
     """One ZIP pass: root vars, expressions, blocks, split-run lint."""
+    digest = hashlib.sha256(template_bytes).hexdigest()
+    key = (digest, max_split_issues)
+    hit = _scan_cache.get(key)
+    if hit is not None:
+        return hit
+    result = _scan_template_impl(template_bytes, max_split_issues)
+    if len(_scan_cache) >= _SCAN_CACHE_MAX:
+        _scan_cache.pop(next(iter(_scan_cache)))
+    _scan_cache[key] = result
+    return result
+
+
+def _scan_template_impl(template_bytes: bytes, max_split_issues: int) -> TemplateScan:
+    """Uncached template ZIP scan."""
     roots: set[str] = set()
     mustache: set[str] = set()
     blocks: set[str] = set()
     split_issues: list[str] = []
-    run_pattern = re.compile(r"<w:t[^>]*>([^<]*)</w:t>")
 
     with open_docx_zip(template_bytes) as zf:
         budget = ZipReadBudget()
@@ -85,20 +115,18 @@ def scan_template(template_bytes: bytes, *, max_split_issues: int = 15) -> Templ
             except (KeyError, OSError):
                 continue
             roots |= _parse_root_vars(xml)
-            for m in re.finditer(r"\{\{-?\s*([^}|]+?)\s*-?\}\}", xml):
+            for m in _MUSTACHE_PATTERN.finditer(xml):
                 mustache.add(m.group(1).strip())
-            for m in re.finditer(r"\{%\s*([^%]+?)\s*%\}", xml):
+            for m in _BLOCK_PATTERN.finditer(xml):
                 blocks.add(m.group(1).strip())
             for para in re.split(r"</w:p>", xml):
-                runs = run_pattern.findall(para)
+                runs = _RUN_PATTERN.findall(para)
                 if len(runs) < 2:
                     continue
                 joined = "".join(runs)
                 if "{{" not in joined and "{%" not in joined:
                     continue
-                if re.search(r"\{\{[^}]+\}\}", joined) or re.search(
-                    r"\{%[^%]+%\}", joined
-                ):
+                if _SPLIT_TAG_OPEN.search(joined) or _SPLIT_BLOCK_OPEN.search(joined):
                     continue
                 for i, text in enumerate(runs):
                     if text.endswith("{{") or text.endswith("{%"):
@@ -125,7 +153,7 @@ def scan_template(template_bytes: bytes, *, max_split_issues: int = 15) -> Templ
 
 def _parse_root_vars(xml_text: str) -> set[str]:
     needed: set[str] = set()
-    for m in re.finditer(r"\{\{-?\s*([^}|]+?)\s*-?\}\}", xml_text):
+    for m in _ROOT_VAR_EXPR.finditer(xml_text):
         expr = m.group(1).strip()
         if not expr or expr.startswith("%"):
             continue
@@ -288,7 +316,8 @@ def run_preflight(
         try:
             ctx = engine.build_context(meta)
             result.project_row_count = int(ctx.get("_project_row_count", 0))
-            result.project_row_labels = engine.project_row_labels(meta)
+            project_rows, _ = engine._get_parsed_excel(runtime)
+            result.project_row_labels = _labels_from_project_rows(project_rows)
             result.coverage = engine.coverage(meta, context=ctx)
             cov = result.coverage
             if runtime.require_lab_sheet and cov and cov.lab_row_count == 0:
@@ -296,10 +325,9 @@ def run_preflight(
                     f"Sheet '{LAB_SHEET}' (lab_results) has no data rows."
                 )
             if cov and cov.table_row_counts:
+                template_loops = runtime.template_loops or set()
                 for loop_var, count in sorted(cov.table_row_counts.items()):
-                    if count == 0 and scan and any(
-                        loop_var in b for b in scan.block_tags
-                    ):
+                    if count == 0 and loop_var in template_loops:
                         result.warnings.append(
                             f"Table loop '{loop_var}' has 0 rows in Excel."
                         )

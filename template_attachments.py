@@ -7,6 +7,7 @@ conversion, or upload an already-tagged .docx template.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import logging
 import tempfile
@@ -149,3 +150,26 @@ def prepare_template_upload(data: bytes, filename: str = "") -> PreparedTemplate
         source_format="docx",
         warnings=[],
     )
+
+
+_PREPARED_CACHE_MAX = 16
+_prepared_template_cache: dict[tuple[str, str], PreparedTemplate] = {}
+
+
+def clear_prepared_template_cache() -> None:
+    """Drop cached PDF→DOCX / docx normalizations (tests)."""
+    _prepared_template_cache.clear()
+
+
+def prepare_template_upload_cached(data: bytes, filename: str = "") -> PreparedTemplate:
+    """Like prepare_template_upload but reuse results for identical bytes + filename."""
+    digest = hashlib.sha256(data).hexdigest()
+    key = (digest, (filename or "").lower())
+    hit = _prepared_template_cache.get(key)
+    if hit is not None:
+        return hit
+    result = prepare_template_upload(data, filename)
+    if len(_prepared_template_cache) >= _PREPARED_CACHE_MAX:
+        _prepared_template_cache.pop(next(iter(_prepared_template_cache)))
+    _prepared_template_cache[key] = result
+    return result

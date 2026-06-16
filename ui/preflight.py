@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-
 import streamlit as st
 
 from phrase_resolver import build_phrase_catalog_workbook_bytes
@@ -9,11 +7,10 @@ from report_profile import build_report_config_workbook_bytes
 from sed002_compliance import build_qp_review_checklist_markdown, sed002_section_summary
 from template_tools import PreflightResult, missing_fields_checklist, run_preflight
 from ui.appendix_panel import all_appendix_labels_from_session, appendix_labels_from_session
-from ui.helpers import get_cached_report_engine
+from ui.helpers import get_cached_report_engine, stable_upload_digest
 
 
-def _digest(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+_PREFLIGHT_CACHE_MAX = 16
 
 
 def run_preflight_check(
@@ -23,14 +20,13 @@ def run_preflight_check(
 ) -> PreflightResult | None:
     if not excel_bytes or not template_bytes:
         return None
-    import json
 
     appendix_labels = sorted(all_appendix_labels_from_session())
     cache_key = (
-        _digest(excel_bytes),
-        _digest(template_bytes),
-        json.dumps(meta, sort_keys=True),
-        json.dumps(appendix_labels),
+        stable_upload_digest("excel", "excel.xlsx", excel_bytes),
+        stable_upload_digest("template", "template.docx", template_bytes),
+        tuple(sorted(meta.items())),
+        tuple(appendix_labels),
     )
     box = st.session_state.setdefault("_preflight_result_cache", {})
     cached = box.get(cache_key)
@@ -45,6 +41,8 @@ def run_preflight_check(
         appendix_labels_present=set(appendix_labels),
         engine=engine,
     )
+    if len(box) >= _PREFLIGHT_CACHE_MAX:
+        box.pop(next(iter(box)))
     box[cache_key] = result
     return result
 
@@ -149,7 +147,7 @@ def render_preflight_panel(
                 data=build_qp_review_checklist_markdown(sed),
                 file_name="sed002_qp_review_checklist.md",
                 mime="text/markdown",
-                use_container_width=True,
+                width="stretch",
             )
 
     if cov:
@@ -167,7 +165,7 @@ def render_preflight_panel(
                     data=missing_fields_checklist(cov, report_type=rt),
                     file_name="missing_excel_columns.txt",
                     mime="text/plain",
-                    use_container_width=True,
+                    width="stretch",
                 )
             with d2:
                 st.download_button(
@@ -175,7 +173,7 @@ def render_preflight_panel(
                     data=build_report_config_workbook_bytes(rt),
                     file_name=f"report_config_{rt}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
+                    width="stretch",
                 )
             with d3:
                 st.download_button(
@@ -183,7 +181,7 @@ def render_preflight_panel(
                     data=build_phrase_catalog_workbook_bytes(),
                     file_name="phrase_catalog.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
+                    width="stretch",
                 )
         if cov.unused_in_template:
             with st.expander("Excel columns not used in template", expanded=False):

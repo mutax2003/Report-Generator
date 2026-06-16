@@ -21,6 +21,21 @@ class TestTemplateAttachments(unittest.TestCase):
         self.assertEqual(prepared.source_format, "docx")
         self.assertEqual(prepared.docx_bytes, raw)
 
+    def test_prepare_template_upload_cached(self) -> None:
+        from template_attachments import (
+            clear_prepared_template_cache,
+            prepare_template_upload_cached,
+        )
+
+        tpl = ROOT / "samples" / "sample_template.docx"
+        if not tpl.is_file():
+            self.skipTest("run create_samples.py")
+        clear_prepared_template_cache()
+        raw = tpl.read_bytes()
+        first = prepare_template_upload_cached(raw, "sample_template.docx")
+        second = prepare_template_upload_cached(raw, "sample_template.docx")
+        self.assertIs(first, second)
+
     def test_pdf_convert_to_docx(self) -> None:
         from pypdf import PdfWriter
         from template_attachments import prepare_template_upload

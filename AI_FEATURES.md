@@ -13,17 +13,18 @@ pip install -r requirements.txt
 Optional cloud LLM (improves PDF parsing, narratives, copilot prose):
 
 1. Set `OPENAI_API_KEY` in the environment, or
-2. Copy `.streamlit/secrets.toml.example` → `.streamlit/secrets.toml` and add your key.
+2. Copy `.streamlit/secrets.toml.example` → `.streamlit/secrets.toml` (supports **OpenAI**, **Ollama** local, **Groq**).
 
 Without a key, **offline rule-based** fallbacks run for every feature.
 
 ## Tier 1
 
-| Feature | Tab | What it does |
-|---------|-----|----------------|
+| Feature | Tab / CLI | What it does |
+|---------|-----------|----------------|
 | **Template tagger** | AI → Tier 1 | Finds `[Bracket]` and known phrases; suggests `{{ jinja }}` tags from `schemas/field_contract.json` (see also `report_profiles.json` for profile fields). Download `.md` guide. **Alberta Phase I:** pass `report_type=phase1_alberta` (CLI: `scripts/phase1_pdf_to_markup.py`). |
 | **Lab PDF → Excel** | AI → Tier 1 | Parses COA PDFs into `LabResults` rows; download merged `.xlsx`. |
-| **Narrative drafts** | AI → Tier 1 | Drafts executive summary / site / conclusions using project context + `rag_corpus/`. |
+| **Source PDF ingest** | Project folder / `--ai source-ingest` | Reads `source/*.pdf` → `ai_drafts/source_summaries.json` + optional `rag/ingested/` (see [docs/22-project-folder-workflow.md](docs/22-project-folder-workflow.md)). |
+| **Narrative drafts** | AI → Tier 1 | Drafts executive summary / site / conclusions using Excel context + `rag_corpus/` + ingested source summaries. |
 
 ## Tier 2
 

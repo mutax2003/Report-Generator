@@ -135,7 +135,7 @@ class AppendixGeneratorTests(unittest.TestCase):
     def test_missing_template_warns_not_crash(self) -> None:
         from unittest.mock import patch
 
-        from appendix_generator import render_phase1_appendices
+        from appendix_generator import clear_appendix_template_cache, render_phase1_appendices
 
         ctx = {
             "no_drilling_waste_on_site": "No",
@@ -148,8 +148,9 @@ class AppendixGeneratorTests(unittest.TestCase):
             "prepared_by": "QP",
             "date_of_issue": "2026-06-10",
         }
+        clear_appendix_template_cache()
         with patch(
-            "appendix_generator.resolve_appendix_template_path",
+            "appendix_generator._resolved_appendix_path",
             side_effect=FileNotFoundError("missing template"),
         ):
             appendices, warnings = render_phase1_appendices(ctx, meta)

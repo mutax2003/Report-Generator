@@ -33,7 +33,7 @@ def render_context_preview(context: dict[str, Any], *, max_rows: int = 15) -> No
         if k not in _LIST_KEYS
     ][:max_rows]
     if rows:
-        st.dataframe(rows, use_container_width=True, hide_index=True)
+        st.dataframe(rows, width="stretch", hide_index=True)
     for key in _LIST_KEYS:
         data = context.get(key)
         if isinstance(data, list) and data:
@@ -66,7 +66,9 @@ def render_batch_download_section(
             if item.appendices:
                 appendix_sites += 1
             all_warnings.extend(item.warnings)
-        zip_bytes = build_batch_reports_zip(zip_entries)
+        zip_bytes = st.session_state.get("batch_reports_zip")
+        if zip_bytes is None:
+            zip_bytes = build_batch_reports_zip(zip_entries)
         zip_name = f"esa_reports_batch_{len(batch)}.zip"
         cap = f"Download all as ZIP ({len(batch)} reports"
         if appendix_sites:
@@ -78,15 +80,17 @@ def render_batch_download_section(
             file_name=zip_name,
             mime="application/zip",
             type="primary",
-            use_container_width=True,
+            width="stretch",
         )
-        deliverable_zip = build_batch_deliverable_packages_zip(batch, meta)
+        deliverable_zip = st.session_state.get("batch_deliverable_zip")
+        if deliverable_zip is None:
+            deliverable_zip = build_batch_deliverable_packages_zip(batch, meta)
         st.download_button(
             label=f"Download all deliverable packages ({len(batch)} sites)",
             data=deliverable_zip,
             file_name=f"esa_deliverables_batch_{len(batch)}.zip",
             mime="application/zip",
-            use_container_width=True,
+            width="stretch",
         )
         st.caption(
             "Deliverable packages include report, manifest, auto-generated appendices, "
@@ -107,7 +111,7 @@ def render_batch_download_section(
                     file_name=item.filename,
                     mime=DOCX_MIME,
                     key=f"batch_dl_{item.project_row_index}_{item.filename}",
-                    use_container_width=True,
+                    width="stretch",
                 )
 
 
@@ -130,7 +134,7 @@ def render_download_section(
             file_name=filename or "esa_report.docx",
             mime=DOCX_MIME,
             type="primary",
-            use_container_width=True,
+            width="stretch",
         )
         if generation_record:
             st.download_button(
@@ -138,7 +142,7 @@ def render_download_section(
                 data=generation_record.to_json_bytes(),
                 file_name=record_filename(filename),
                 mime="application/json",
-                use_container_width=True,
+                width="stretch",
             )
         if generation_record:
             st.caption(

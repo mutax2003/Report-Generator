@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ESA project folder metadata",
+  "description": "Optional project.json in a local project folder root (see docs/22-project-folder-workflow.md).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "project_number": {
+      "type": "string",
+      "description": "Ecoventure project number (e.g. 260109R)"
+    },
+    "site_name": {
+      "type": "string"
+    },
+    "uwi": {
+      "type": "string"
+    },
+    "report_type": {
+      "type": "string",
+      "description": "Profile id from schemas/report_profiles.json",
+      "default": "phase1_alberta"
+    },
+    "report_phase": {
+      "type": "string",
+      "enum": ["Phase 1", "Phase 2"],
+      "default": "Phase 1"
+    },
+    "prepared_by": {
+      "type": "string"
+    },
+    "date_of_issue": {
+      "type": "string"
+    },
+    "template_version": {
+      "type": "string"
+    },
+    "excel_filename": {
+      "type": "string",
+      "description": "Override default project_data.xlsx"
+    },
+    "template_filename": {
+      "type": "string",
+      "description": "Override default template.docx or template.pdf"
+    }
+  }
+}
