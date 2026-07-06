@@ -1,6 +1,6 @@
 ---
 description: Upload validation, limits, and safe errors (security.py)
-globs: security.py,app.py,ui/helpers.py
+globs: security.py,app.py,ui/helpers.py,project_folder.py
 alwaysApply: false
 ---
 
@@ -27,3 +27,7 @@ Jinja in `.docx` is **trusted** (authors with template access). Untrusted input 
 ## Local project folder (not uploads)
 
 **Project folder** reads Excel/template/PDFs from disk via `project_folder.py` (`resolve_project_folder`, `_cached_file_bytes`). Paths must resolve under a validated folder layout; appendix/source PDFs still pass size and zip guards where applicable. Do not treat arbitrary local paths as trusted content — only expected filenames under `source/`, `appendices/`, etc.
+
+## Upload byte cache (`ui/helpers.py`)
+
+`cached_upload_bytes` / `stable_upload_digest` avoid re-reading uploads on Streamlit reruns. Engine cache keys include appendix labels and ecoventure workbook digest — not just Excel + template hashes.

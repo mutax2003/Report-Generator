@@ -14,7 +14,9 @@
       "sheet_mappings": {
         "LabResults": "lab_results",
         "DrillingWaste": "drilling_waste",
-        "StorageTanks": "storage_tanks"
+        "StorageTanks": "storage_tanks",
+        "DwdaChecklist": "dwda_checklist",
+        "DwdaCalculations": "dwda_calc_sheet"
       },
       "lab_loop_variable": null,
       "narrative_profile": "phase1_alberta",
@@ -29,6 +31,7 @@
         "company",
         "well_name",
         "uwi",
+        "well_depth_m",
         "report_title",
         "qp_names",
         "spud_date",
@@ -36,6 +39,14 @@
         "reentry_detail",
         "drilling_waste_summary",
         "aer_waste_compliance_option",
+        "cuttings_volume_on_lease_m3",
+        "directive_050_notification_ref",
+        "dwda_salinity_pathway",
+        "dwda_phase2_required",
+        "dwda_calc_summary",
+        "dwda_metal_sacks_per_metre",
+        "dwda_salt_sacks_per_m3",
+        "phase2_drilling_waste_required",
         "air_photo_observations",
         "site_visit_completed",
         "site_visit_date",
@@ -65,7 +76,9 @@
       "required_sheets": ["ProjectData"],
       "sheet_mappings": {
         "DrillingWaste": "drilling_waste",
-        "StorageTanks": "storage_tanks"
+        "StorageTanks": "storage_tanks",
+        "DwdaChecklist": "dwda_checklist",
+        "DwdaCalculations": "dwda_calc_sheet"
       },
       "lab_loop_variable": null,
       "narrative_profile": "phase1_alberta",
@@ -74,6 +87,7 @@
         "client_name",
         "well_name",
         "uwi",
+        "well_depth_m",
         "consultant_name",
         "company",
         "executive_summary",
@@ -81,6 +95,12 @@
         "interview_operator_summary",
         "aer_waste_compliance_option",
         "drilling_waste_summary",
+        "cuttings_volume_on_lease_m3",
+        "directive_050_notification_ref",
+        "dwda_salinity_pathway",
+        "dwda_calc_summary",
+        "dwda_metal_sacks_per_metre",
+        "dwda_salt_sacks_per_m3",
         "site_visit_completed",
         "phase2_esa_required",
         "qp_names",
@@ -172,6 +192,8 @@
       "sheet_mappings": {
         "DrillingWaste": "drilling_waste",
         "StorageTanks": "storage_tanks",
+        "DwdaChecklist": "dwda_checklist",
+        "DwdaCalculations": "dwda_calc_sheet",
         "ReclamationTasks": "reclamation_tasks",
         "SoilPlacement": "soil_placement",
         "Vegetation": "vegetation",
@@ -193,7 +215,13 @@
         "date_of_issue",
         "executive_summary",
         "conclusions_recommendations",
-        "certificate_status"
+        "certificate_status",
+        "aer_waste_compliance_option",
+        "drilling_waste_summary",
+        "cuttings_volume_on_lease_m3",
+        "directive_050_notification_ref",
+        "dwda_salinity_pathway",
+        "dwda_calc_summary"
       ],
       "appendix_templates": {
         "A": "appendices/appendix_a_qp_declaration.docx",

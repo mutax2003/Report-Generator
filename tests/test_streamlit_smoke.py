@@ -25,12 +25,15 @@ class StreamlitSmokeTests(unittest.TestCase):
                 cwd=str(ROOT),
             )
 
+    def _assert_no_exceptions(self, at: object) -> None:
+        self.assertEqual(len(at.exception), 0, msg=str(at.exception))  # type: ignore[attr-defined]
+
     def test_app_starts_with_workflow_picker(self) -> None:
         from streamlit.testing.v1 import AppTest
 
         at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=45)
         at.run()
-        self.assertEqual(len(at.exception), 0, msg=str(at.exception))
+        self._assert_no_exceptions(at)
         headlines = [m.value or "" for m in at.markdown] + [s.value or "" for s in at.subheader]
         self.assertTrue(
             any("How do you want to generate" in h for h in headlines),
@@ -43,8 +46,11 @@ class StreamlitSmokeTests(unittest.TestCase):
         at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=45)
         at.run()
         at.button(key="pick_workflow_upload").click().run()
-        self.assertEqual(len(at.exception), 0, msg=str(at.exception))
+        self._assert_no_exceptions(at)
         self.assertEqual(at.session_state["workflow_mode"], "upload")
+        stepper_md = " ".join(m.value or "" for m in at.markdown)
+        self.assertIn("Pre-flight", stepper_md)
+        self.assertIn("→ 1.", stepper_md)
 
     def test_folder_workflow_loads_test_folder(self) -> None:
         from streamlit.testing.v1 import AppTest
@@ -53,10 +59,10 @@ class StreamlitSmokeTests(unittest.TestCase):
         at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=60)
         at.run()
         at.button(key="pick_workflow_folder").click().run()
-        self.assertEqual(len(at.exception), 0, msg=str(at.exception))
+        self._assert_no_exceptions(at)
         at.text_input(key="project_folder_path_input").set_value(folder).run()
         at.button(key="load_project_folder").click().run()
-        self.assertEqual(len(at.exception), 0, msg=str(at.exception))
+        self._assert_no_exceptions(at)
         self.assertEqual(at.session_state["project_folder_path"], folder)
         self.assertIsNotNone(at.session_state["project_folder_loaded"])
 

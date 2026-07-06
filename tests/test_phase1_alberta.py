@@ -31,6 +31,8 @@ class TestPhase1Alberta(unittest.TestCase):
         self.assertGreater(len(ctx["drilling_waste"]), 0)
         self.assertIsInstance(ctx.get("storage_tanks"), list)
         self.assertEqual(ctx.get("lab_results"), [])
+        self.assertIn("dwda_compliance_summary", ctx)
+        self.assertIn("dwda_checklist_results", ctx)
 
     def test_preflight_and_render(self) -> None:
         from engine import ECOVENTURE_CONSULTANT, ReportEngine
@@ -45,6 +47,9 @@ class TestPhase1Alberta(unittest.TestCase):
         }
         pre = run_preflight(excel_bytes, template_bytes, meta)
         self.assertTrue(pre.can_generate, pre.errors)
+        self.assertIsNotNone(pre.dwda)
+        assert pre.dwda is not None
+        self.assertIn(pre.dwda.checklist_scope, ("option_1_full", "option_1_minimal", "option_2", "option_3", "none"))
         engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=template_bytes)
         docx, warnings, ctx, record = engine.render(meta=meta)
         self.assertGreater(len(docx), 2000)

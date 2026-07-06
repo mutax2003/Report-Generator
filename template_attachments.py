@@ -100,7 +100,13 @@ def convert_pdf_to_docx(pdf_bytes: bytes, *, max_pages: int | None = None) -> by
                 "PDF could not be converted to Word. "
                 "Try a simpler PDF or provide a .docx template with Jinja tags."
             )
-        return docx_path.read_bytes()
+        try:
+            return docx_path.read_bytes()
+        except OSError as e:
+            raise SecurityError(
+                "PDF conversion produced an invalid Word file. "
+                "Try a simpler PDF or upload a .docx template."
+            ) from e
 
 
 def prepare_template_upload(data: bytes, filename: str = "") -> PreparedTemplate:

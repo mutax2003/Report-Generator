@@ -12,8 +12,33 @@
         },
         {
           "id": "option_2",
-          "label": "Option 2 — alternative disposal",
-          "text": "Drilling waste was managed under an approved alternative disposal pathway. Details are summarized in the drilling waste table."
+          "label": "Option 2 — calculation-based",
+          "text": "Drilling waste was managed under Checklist Compliance Option 2. Calculation tables are provided in Appendix G."
+        },
+        {
+          "id": "option_3",
+          "label": "Option 3 — alternative pathway",
+          "text": "Drilling waste disposal areas were assessed under Compliance Option 3 per Assessing Drilling Waste Disposal Areas guidance."
+        },
+        {
+          "id": "approved_facility",
+          "label": "Approved waste management facility",
+          "text": "All drilling waste was managed at an AER-approved waste management facility. On-lease DWDA assessment is limited to documentation review."
+        }
+      ]
+    },
+    "dwda_salinity_note": {
+      "label": "DWDA salinity / Tier 1 scope",
+      "options": [
+        {
+          "id": "equivalent_salinity",
+          "label": "Equivalent Salinity in DWDA",
+          "text": "Salinity within each drilling waste disposal area may be assessed using Equivalent Salinity Guidelines. Hydrocarbons, metals, and other contaminants within the DWDA and across the remainder of the lease must meet Alberta Tier 1 or Tier 2 remediation guidelines."
+        },
+        {
+          "id": "pending_phase2",
+          "label": "Phase II sampling pending",
+          "text": "Salinity and other contaminants within identified disposal areas require Phase II sampling and comparison to Equivalent Salinity (salinity) and Alberta Tier 1/2 guidelines (other parameters) before reclamation certification."
         }
       ]
     },

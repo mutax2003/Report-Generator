@@ -111,7 +111,8 @@ def main() -> int:
     scalar_keys = [
         k
         for k in sorted(context)
-        if k not in ("lab_results", "drilling_waste", "storage_tanks")
+        if k not in ("lab_results", "drilling_waste", "storage_tanks", "dwda_checklist")
+        and not str(k).startswith("_")
     ]
     for k in scalar_keys[:12]:
         v = str(context[k])[:80]

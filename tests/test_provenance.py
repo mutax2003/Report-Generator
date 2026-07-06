@@ -41,6 +41,7 @@ class ProvenanceTests(unittest.TestCase):
             excel_filename="sample_data.xlsx",
             template_filename="sample_template.docx",
         )
+        self.assertTrue(all(not str(k).startswith("_") for k in ctx))
         self.assertIn("site_name", ctx)
         self.assertTrue(record.dry_run)
         self.assertIsNone(record.output_sha256)

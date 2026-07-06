@@ -47,6 +47,13 @@ class GenerationRecord:
     dry_run: bool = False
     ai_audit: list[dict[str, Any]] = field(default_factory=list)
     project_folder: str = ""
+    ecoventure_contract_version: str = ""
+    ecoventure_workbook_template_id: str = ""
+    sed002_completeness_pct: float | None = None
+    dwda_checklist_scope: str = ""
+    appendix_labels_evaluated: list[str] = field(default_factory=list)
+    phase2_reasons: list[str] = field(default_factory=list)
+    dwda_calc_source: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -70,8 +77,10 @@ def build_generation_record(
     dry_run: bool = False,
     template_source_format: str = "",
     appendix_files: list[dict[str, str]] | None = None,
+    context: dict[str, Any] | None = None,
 ) -> GenerationRecord:
     meta = meta or {}
+    ctx = context or {}
     cov = coverage
     return GenerationRecord(
         generated_at=datetime.now(timezone.utc).isoformat(),
@@ -94,9 +103,35 @@ def build_generation_record(
         warning_count=len(warnings),
         missing_variables=list(missing_variables),
         dry_run=dry_run,
+        ecoventure_contract_version=str(ctx.get("_ecoventure_contract_version", "")),
+        ecoventure_workbook_template_id=str(ctx.get("_ecoventure_workbook_template_id", "")),
     )
 
 
 def record_filename(docx_name: str | None) -> str:
     base = (docx_name or "esa_report.docx").rsplit(".", 1)[0]
     return f"{base}_manifest.json"
+
+
+def apply_compliance_snapshot(
+    record: GenerationRecord,
+    context: dict[str, Any],
+    appendix_labels: set[str] | frozenset[str] | None = None,
+) -> None:
+    """Persist compliance state at generation time for QP audit trail."""
+    from compliance_helpers import resolved_appendix_labels, sorted_appendix_label_list
+
+    record.appendix_labels_evaluated = sorted_appendix_label_list(
+        resolved_appendix_labels(context, appendix_labels)
+    )
+
+    record.dwda_checklist_scope = str(context.get("dwda_checklist_scope") or "")
+    record.dwda_calc_source = str(context.get("dwda_calc_source") or "")
+
+    sed = context.get("_sed002_compliance")
+    if sed is not None:
+        record.sed002_completeness_pct = float(getattr(sed, "completeness_pct", 0) or 0)
+
+    reasons = context.get("phase2_reasons")
+    if isinstance(reasons, list):
+        record.phase2_reasons = [str(r) for r in reasons if str(r).strip()]

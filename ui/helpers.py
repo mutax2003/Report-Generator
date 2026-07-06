@@ -120,23 +120,77 @@ def cached_upload_bytes(uploaded: Any, *, slot: str = "default") -> bytes | None
         size = int(uploaded.size)
     except (TypeError, AttributeError, ValueError):
         size = -1
-    data = uploaded.getvalue()
-    sig = (name, _upload_content_fingerprint(data))
     box = st.session_state.setdefault("_upload_bytes_cache", {})
     entry = box.get(slot)
-    if entry and entry[0] == sig:
-        return entry[1]
+    if entry:
+        stored_sig, stored_data = entry
+        if stored_sig[0] == name and stored_sig[1][0] == size:
+            return stored_data
+    data = uploaded.getvalue()
+    sig = (name, _upload_content_fingerprint(data))
     box[slot] = (sig, data)
     return data
+
+
+def merge_ecoventure_workbook_bytes(
+    base_excel_bytes: bytes,
+    ecoventure_bytes: bytes | None,
+) -> bytes:
+    """Merge optional Ecoventure Phase I workbook into engine Excel bytes."""
+    if not ecoventure_bytes:
+        return base_excel_bytes
+    from ecoventure_workbook import merge_into_engine_excel
+
+    return merge_into_engine_excel(base_excel_bytes, ecoventure_bytes)
+
+
+def effective_excel_bytes(
+    base_excel_bytes: bytes | None,
+    ecoventure_bytes: bytes | None = None,
+) -> bytes | None:
+    """Return Excel bytes with Ecoventure workbook merged when provided."""
+    if not base_excel_bytes:
+        return None
+    base_digest = stable_upload_digest("excel", "excel.xlsx", base_excel_bytes)
+    if base_digest != st.session_state.get("_ecoventure_base_excel_digest"):
+        st.session_state.pop("ecoventure_workbook_bytes", None)
+        st.session_state["_ecoventure_base_excel_digest"] = base_digest
+    eco = ecoventure_bytes or st.session_state.get("ecoventure_workbook_bytes")
+    if not eco:
+        return base_excel_bytes
+    try:
+        return merge_ecoventure_workbook_bytes(base_excel_bytes, eco)
+    except ValueError as e:
+        st.warning(str(e))
+        return base_excel_bytes
 
 
 def get_cached_report_engine(
     excel_bytes: bytes, template_bytes: bytes
 ) -> ReportEngine:
     """Reuse ReportEngine across Streamlit reruns when uploads are unchanged."""
+    from compliance_helpers import normalize_appendix_labels
+
+    appendix_sig = tuple(
+        sorted(
+            normalize_appendix_labels(
+                ap.label
+                for ap in (st.session_state.get("appendix_files") or {}).values()
+            )
+        )
+    )
+    folder_ap_sig = str(st.session_state.get("folder_appendix_sig") or "")
+    eco_sig = stable_upload_digest(
+        "ecoventure",
+        "ecoventure_workbook.xlsx",
+        st.session_state.get("ecoventure_workbook_bytes") or b"",
+    )
     key = (
         stable_upload_digest("excel", "excel.xlsx", excel_bytes),
         stable_upload_digest("template", "template.docx", template_bytes),
+        appendix_sig,
+        folder_ap_sig,
+        eco_sig,
     )
     cache = st.session_state.setdefault("_report_engine_cache", {})
     if cache.get("key") != key:

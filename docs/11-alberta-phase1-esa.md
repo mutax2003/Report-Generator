@@ -65,4 +65,5 @@ python scripts\render_cli.py --excel samples\phase1_alberta_data.xlsx --template
 - [04-template-authoring.md](04-template-authoring.md)  
 - [09-ai-assistant.md](09-ai-assistant.md) — Phase 1 narrative drafts (Alberta/AER tone when RAG loaded)  
 - [13-flexible-report-profiles.md](13-flexible-report-profiles.md)  
-- [20-aer-sed002-phase1-esa.md](20-aer-sed002-phase1-esa.md) — SED 002 checklist and OneStop export  
+- [20-aer-sed002-phase1-esa.md](20-aer-sed002-phase1-esa.md) — SED 002 checklist and OneStop export
+- [21-dwda-directive-050-compliance.md](21-dwda-directive-050-compliance.md) — Directive 050 / DWDA checklists  

@@ -48,7 +48,11 @@ Client in samples: **Example Energy Ltd.** (redacted; do not use Devon in commit
 | `reentry` | Yes |
 | `production_fluid` | gas with water |
 | `drilling_waste_summary` | Narrative (AER 2014 Option 1) |
-| `aer_waste_compliance_option` | Option 1 |
+| `aer_waste_compliance_option` | Option 1 (normalized: `option_1`, `option_2`, `option_3`, `approved_facility`, `no_on_site_waste`) |
+| `cuttings_volume_on_lease_m3` | On-lease cuttings volume (LWD >50 m³ → full Option 1 checklist) |
+| `directive_050_notification_ref` | Directive 050 notification / tour report reference |
+| `dwda_salinity_pathway` | `equivalent_salinity` \| `tier1` \| `pending_phase2` |
+| `dwda_phase2_required` | QP flag — Phase II for drilling waste |
 | `phase2_esa_required` | Yes — keyword Phase II |
 | `site_visit_completed` | No |
 | `executive_summary` | Full narrative (Signum structure; auto-built from fields if empty) |
@@ -70,8 +74,22 @@ Client in samples: **Example Energy Ltd.** (redacted; do not use Devon in commit
 | volume_m3 | 208 |
 | disposal_method | LWD, landspray, landspread onsite, remote site |
 | location | SW1/4 04-049-04 W4M; SE-09-049-04 W4M; etc. |
+| disposal_type | on-lease / off-lease |
+| gps_coordinates | Lat/long for appendix H sketch |
+| sump_depth_m / cover_depth_m | Sump/cover depths where applicable |
+| dwda_id / area_m2 / salinity_exceedance | DWDA footprint linkage (Phase I summary) |
 
 Jinja: `{%tr for item in drilling_waste %}`
+
+## DwdaChecklist sheet (optional)
+
+| Column | Example row |
+|--------|-------------|
+| checklist_item_id | `d050.notification` |
+| response | Yes / No / N/A / Unknown |
+| notes | QP comments |
+
+Item IDs match `schemas/dwda_compliance_checklist.json`. Preflight evaluates completeness; appendices D/G use `dwda_checklist_results`.
 
 ## StorageTanks sheet
 

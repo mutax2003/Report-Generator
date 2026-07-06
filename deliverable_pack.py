@@ -15,6 +15,12 @@ from typing import Any
 
 from provenance import sha256_hex
 
+from compliance_helpers import resolved_appendix_labels
+
+_PHASE1_QP_PROFILES = frozenset(
+    {"phase1_alberta", "phase1_devon", "reclamation_certificate"}
+)
+
 
 @dataclass
 class AppendixFile:
@@ -89,12 +95,9 @@ def build_batch_reports_zip(
 
 
 def _phase2_likely(context: dict[str, Any], meta: dict[str, str]) -> bool:
-    for key in ("phase2_recommended", "phase2_esa_required"):
-        for src in (context, meta):
-            val = str(src.get(key) or "").strip().lower()
-            if val.startswith("y") or val in ("required", "likely", "true", "1"):
-                return True
-    return False
+    from phase2_triggers import is_phase2_likely
+
+    return is_phase2_likely(context, meta)
 
 
 def build_onestop_phase1_summary(
@@ -126,6 +129,17 @@ def build_onestop_phase1_summary(
         "site_visit_date": str(context.get("site_visit_date", "")),
         "aer_waste_compliance_option": str(
             context.get("aer_waste_compliance_option", "")
+        ),
+        "dwda_compliance_option": str(context.get("dwda_compliance_option", "")),
+        "dwda_checklist_scope": str(context.get("dwda_checklist_scope", "")),
+        "dwda_checklist_complete": str(context.get("dwda_checklist_complete", "")),
+        "dwda_phase2_required": str(context.get("dwda_phase2_required", "")),
+        "dwda_calc_phase2_required": str(context.get("dwda_calc_phase2_required", "")),
+        "dwda_calc_summary": str(context.get("dwda_calc_summary", ""))[:500],
+        "dwda_metal_pass": str(context.get("dwda_metal_pass", "")),
+        "dwda_salt_pass": str(context.get("dwda_salt_pass", "")),
+        "cuttings_volume_on_lease_m3": str(
+            context.get("cuttings_volume_on_lease_m3", "")
         ),
         "phase2_esa_required": str(context.get("phase2_esa_required", "")),
         "phase2_recommended": phase2,
@@ -160,7 +174,9 @@ def build_onestop_export_bytes(
 
 References:
 - https://www.aer.ca/regulations-and-compliance-enforcement/site-closure-requirements/reclamation/oil-and-gas-sites/reclamation-certificate-application-submissions
+- https://www.aer.ca/regulations-and-compliance-enforcement/rules-and-regulations/directives/directive-050
 - SED 002 (July 2025)
+- Assessing Drilling Waste Disposal Areas (ADWDA) — Option 1/2 checklists
 """
     return json_bytes, csv_bytes, readme.encode("utf-8")
 
@@ -251,6 +267,68 @@ def write_deliverable_to_zip(
         zf.writestr(
             _zip_path(path_prefix, "onestop/SUBMISSION_LAYOUT.txt"),
             build_submission_folder_readme(labels),
+        )
+    _write_qp_templates(zf, path_prefix=path_prefix)
+    _write_qp_checklists(zf, package, path_prefix=path_prefix)
+
+
+def _write_qp_checklists(
+    zf: zipfile.ZipFile,
+    package: DeliverablePackage,
+    *,
+    path_prefix: str = "",
+) -> None:
+    """Include SED/DWDA QP review markdown in deliverable zip (render context only)."""
+    ctx = package.render_context
+    if not ctx:
+        return
+    meta = package.render_meta or {}
+    rt = str(ctx.get("_report_type") or meta.get("report_type") or "")
+    phase = str(ctx.get("report_phase") or meta.get("report_phase") or "")
+
+    if rt not in _PHASE1_QP_PROFILES or phase != "Phase 1":
+        return
+
+    sed = ctx.get("_sed002_compliance")
+    if sed is None:
+        from sed002_compliance import evaluate_sed002_compliance
+
+        labels = resolved_appendix_labels(
+            ctx, (a.label for a in (package.appendices or []))
+        )
+        sed = evaluate_sed002_compliance(
+            ctx, meta, report_type=rt, appendix_labels_present=set(labels)
+        )
+    if sed is not None:
+        from sed002_compliance import build_qp_review_checklist_markdown
+
+        zf.writestr(
+            _zip_path(path_prefix, "qp_checklists/sed002_phase1_qp_checklist.md"),
+            build_qp_review_checklist_markdown(sed).encode("utf-8"),
+        )
+
+    dwda = ctx.get("_dwda_compliance")
+    if dwda is not None:
+        from dwda_compliance import build_dwda_qp_checklist_markdown
+
+        zf.writestr(
+            _zip_path(path_prefix, "qp_checklists/dwda_directive050_qp_checklist.md"),
+            build_dwda_qp_checklist_markdown(
+                dwda, calc_result=ctx.get("_dwda_calc_result")
+            ).encode("utf-8"),
+        )
+
+
+def _write_qp_templates(zf: zipfile.ZipFile, *, path_prefix: str = "") -> None:
+    """Include Ecoventure QP Word/Excel templates in deliverable zip."""
+    try:
+        from ecoventure_workbook import list_qp_template_files, read_qp_template_bytes
+    except ImportError:
+        return
+    for zip_name, path in list_qp_template_files():
+        zf.writestr(
+            _zip_path(path_prefix, f"qp_templates/{zip_name}"),
+            read_qp_template_bytes(str(path)),
         )
 
 

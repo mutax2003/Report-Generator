@@ -43,7 +43,11 @@ def build_phase1_executive_summary(context: dict[str, Any]) -> str:
     reentry_detail = _s(context.get("reentry_detail"))
     option = _s(context.get("aer_waste_compliance_option")) or "Option 1 (AER, 2014)"
     waste_summary = _s(context.get("drilling_waste_summary"))
-    phase2_waste = _s(context.get("phase2_drilling_waste_required")) or "No"
+    phase2_waste = _s(context.get("phase2_drilling_waste_required")) or _s(
+        context.get("dwda_phase2_required")
+    ) or "No"
+    dwda_summary = _s(context.get("dwda_compliance_summary"))
+    salinity_note = _s(context.get("dwda_salinity_pathway"))
     air_photo = _s(context.get("air_photo_observations"))
     site_visit = _s(context.get("site_visit_completed")) or "No"
     investigate = _s(context.get("investigations_recommended")) or (
@@ -105,6 +109,23 @@ def build_phase1_executive_summary(context: dict[str, Any]) -> str:
             "[Add drilling_waste_summary in ProjectData.]"
         )
     paragraphs.append(waste_body)
+
+    if salinity_note or dwda_summary:
+        salinity_bits: list[str] = []
+        if salinity_note == "equivalent_salinity":
+            salinity_bits.append(
+                "Salinity within disposal areas may be assessed using Equivalent "
+                "Salinity Guidelines; other parameters must meet Alberta Tier 1/2."
+            )
+        elif salinity_note == "pending_phase2":
+            salinity_bits.append(
+                "Phase II sampling is required to assess salinity and other "
+                "contaminants against applicable guidelines."
+            )
+        if dwda_summary:
+            salinity_bits.append(dwda_summary.rstrip(".") + ".")
+        if salinity_bits:
+            paragraphs.append("  ".join(salinity_bits))
 
     # Paragraph 3 — Phase II for drilling waste + air photo + site visit (Signum)
     p3_parts: list[str] = []

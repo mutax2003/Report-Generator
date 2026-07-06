@@ -42,6 +42,8 @@ def check_phase1_context() -> bool:
     assert ctx["consultant_name"] == "Ecoventure Inc."
     assert len(ctx["drilling_waste"]) >= 1
     assert ctx["lab_results"] == []
+    assert ctx.get("dwda_compliance_summary")
+    assert ctx.get("dwda_checklist_scope")
     return True
 
 
@@ -81,6 +83,14 @@ def check_preflight_phase1() -> bool:
     pre = run_preflight(xlsx.read_bytes(), tpl.read_bytes(), {"report_phase": "Phase 1"})
     assert pre.can_generate, pre.errors
     assert pre.coverage and pre.coverage.drilling_waste_row_count >= 1
+    assert pre.dwda is not None, "DWDA preflight missing for Phase I"
+    assert pre.dwda.checklist_scope in (
+        "option_1_full",
+        "option_1_minimal",
+        "option_2",
+        "option_3",
+        "none",
+    )
     return True
 
 
@@ -230,19 +240,40 @@ def check_phase1_appendices() -> bool:
 
 
 def check_project_folder() -> bool:
+    import shutil
     import tempfile
 
-    from project_folder import enrich_project_folder, init_sample_project_folder, resolve_project_folder
+    from project_folder import (
+        effective_excel_bytes_for_folder,
+        enrich_project_folder,
+        init_sample_project_folder,
+        resolve_project_folder,
+        run_preflight_for_folder,
+    )
+
+    eco = ROOT / "samples" / "ecoventure_dwda" / "minimal_calc_workbook.xlsx"
+    if not eco.is_file():
+        import subprocess
+        import sys
+
+        subprocess.check_call(
+            [sys.executable, str(ROOT / "scripts" / "create_ecoventure_dwda_fixture.py")]
+        )
 
     with tempfile.TemporaryDirectory(prefix="esa_health_") as tmp:
         folder = init_sample_project_folder(Path(tmp), source_user_test=False)
+        shutil.copy(eco, Path(tmp) / "ecoventure_workbook.xlsx")
         resolved = resolve_project_folder(folder)
         assert resolved.excel_path.is_file()
         core1 = resolved.read_core_files()
         core2 = resolved.read_core_files()
         assert core1 is core2
+        pre = run_preflight_for_folder(resolved)
+        assert getattr(pre, "dwda_calc", None) is not None, "ecoventure_workbook.xlsx not merged in folder preflight"
         paths = enrich_project_folder(resolved, use_llm=False, modes=("inventory",))
         assert any(p.name == "preflight_report.md" for p in paths)
+        merged, _ = effective_excel_bytes_for_folder(resolved, core1[0])
+        assert len(merged) > len(core1[0])
     return True
 
 
@@ -267,6 +298,42 @@ def check_source_ingest() -> bool:
     return True
 
 
+def check_ecoventure_dwda_merge() -> bool:
+    from ecoventure_workbook import merge_into_engine_excel
+
+    base = ROOT / "samples" / "phase1_alberta_data.xlsx"
+    eco = ROOT / "samples" / "ecoventure_dwda" / "minimal_calc_workbook.xlsx"
+    if not eco.is_file():
+        import subprocess
+        import sys
+
+        subprocess.check_call(
+            [sys.executable, str(ROOT / "scripts" / "create_ecoventure_dwda_fixture.py")]
+        )
+    merged = merge_into_engine_excel(base.read_bytes(), eco.read_bytes())
+    from engine import ReportEngine
+
+    tpl = ROOT / "samples" / "phase1_alberta_template.docx"
+    ctx = ReportEngine(merged, tpl.read_bytes()).build_context(
+        {"report_phase": "Phase 1", "report_type": "phase1_alberta"}
+    )
+    assert ctx.get("dwda_calc_summary"), "missing dwda_calc_summary after Ecoventure merge"
+    assert ctx.get("_dwda_calc_result") is not None
+    return True
+
+
+def check_test_count() -> bool:
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "count_tests.py")],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError((result.stdout + result.stderr).strip() or "count_tests failed")
+    return True
+
+
 CHECKS = [
     check_imports,
     check_phase1_context,
@@ -283,6 +350,8 @@ CHECKS = [
     check_phrase_catalog_gw,
     check_project_folder,
     check_source_ingest,
+    check_ecoventure_dwda_merge,
+    check_test_count,
 ]
 
 CHECK_NAMES = [
@@ -301,6 +370,8 @@ CHECK_NAMES = [
     "phrase catalog GW keys",
     "project folder ingest",
     "source PDF ingest",
+    "ecoventure dwda merge",
+    "documented test count",
 ]
 
 

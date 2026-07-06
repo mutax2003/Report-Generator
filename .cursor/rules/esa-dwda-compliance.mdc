@@ -1,0 +1,56 @@
+---
+description: DWDA / Directive 050 compliance, Ecoventure calc ingest, appendix A/D/G
+globs: dwda_*.py,ecoventure_workbook.py,templates/ecoventure_dwda/**,schemas/dwda_*.json,schemas/ecoventure_dwda_cell_contract.json
+alwaysApply: false
+---
+
+# DWDA / Directive 050 compliance
+
+## Docs
+
+- [docs/21-dwda-directive-050-compliance.md](docs/21-dwda-directive-050-compliance.md) — checklist, appendices, OneStop fields
+- [docs/23-excel-calculation-workbook-integration.md](docs/23-excel-calculation-workbook-integration.md) — Ecoventure xltm cell contract ingest
+
+## Excel sheets (case-sensitive)
+
+| Sheet | Context key | Module |
+|-------|-------------|--------|
+| `DwdaChecklist` | `dwda_checklist` | `dwda_compliance.py` |
+| `DwdaCalculations` | calc rows | `dwda_calculations.py` |
+| `DrillingWaste` | `drilling_waste` | `engine.py` + appendix D/G |
+
+Ecoventure hybrid workbook merge: `ecoventure_workbook.merge_into_engine_excel`.
+
+## Appendices
+
+| Label | Source | Template |
+|-------|--------|----------|
+| **A** | Auto `.docx` | QP declaration (`appendix_generator.py`) |
+| **D** | Auto `.docx` | DWDA checklist companion |
+| **G** | Auto `.docx` | Calc tables |
+| **H** | Upload PDF | Site sketch — **required** for on-lease disposal checklist items |
+
+Profile mapping: `appendix_templates` in `schemas/report_profiles.json`.
+
+## Critical: `appendix_labels_present`
+
+DWDA and SED enrichment must know which appendix labels are present **before** Word merge:
+
+- Streamlit / CLI: pass uploaded labels via `RenderRequest.appendix_labels_present` or `uploaded_appendices`
+- Headless paths: use [`render_service.py`](render_service.py) — do not call `ReportEngine.render()` without labels when appendices were uploaded
+
+## Compliance outputs
+
+- Render context: `dwda_checklist_scope`, `dwda_checklist_complete`, `dwda_checklist_results`, `_dwda_compliance`
+- Manifest snapshot: `apply_compliance_snapshot` → `dwda_checklist_scope`, `appendix_labels_evaluated`, `phase2_reasons`, `dwda_calc_source`
+- Deliverable zip: `qp_checklists/dwda_directive050_qp_checklist.md`
+
+## Schemas
+
+- [`schemas/dwda_compliance_checklist.json`](schemas/dwda_compliance_checklist.json)
+- [`schemas/dwda_salt_additives.json`](schemas/dwda_salt_additives.json)
+- [`schemas/ecoventure_dwda_cell_contract.json`](schemas/ecoventure_dwda_cell_contract.json)
+
+## After changes
+
+Run `python scripts\dwda_workflow_e2e.py`, `tests/test_render_path_parity.py`, and `tests/test_dwda_*.py`.

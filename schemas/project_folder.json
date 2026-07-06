@@ -41,6 +41,10 @@
     "template_filename": {
       "type": "string",
       "description": "Override default template.docx or template.pdf"
+    },
+    "ecoventure_workbook_filename": {
+      "type": "string",
+      "description": "Override default ecoventure_workbook.xlsx (Ecoventure Phase I + DWDA calcs)"
     }
   }
 }

@@ -44,6 +44,8 @@ Evaluation code: [`sed002_compliance.py`](../sed002_compliance.py). Phase 2 hint
 | `remote_cert_number` | 10.4 remote sump |
 | `waste_manifest_refs` | 10.4 manifests |
 
+See [21-dwda-directive-050-compliance.md](21-dwda-directive-050-compliance.md) for Directive 050 / DWDA fields and `DwdaChecklist` sheet.
+
 ## Word template
 
 Gold sample: `samples/phase1_alberta_template.docx` (headings **10.1–10.8**).  
@@ -71,6 +73,7 @@ After upload, the **Report** tab shows:
 
 - Report `.docx` + manifest JSON
 - `appendices/` — auto-generated **D** and **G** as `.docx` (from DrillingWaste / ProjectData) plus uploaded A–H PDFs
+- `qp_checklists/sed002_phase1_qp_checklist.md` — SED 002 §10 QP review checklist (same content as preflight download)
 - `onestop/phase1_esa_summary.json` and `.csv` — field reference for the Phase 1 ESA summary module
 - `onestop/SUBMISSION_LAYOUT.txt` — suggested PDF filenames for upload
 

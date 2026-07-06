@@ -79,6 +79,17 @@ def generate_appendix_d_template(path: Path) -> None:
     doc.add_paragraph("Summary narrative:")
     doc.add_paragraph("{{ drilling_waste_summary }}")
     doc.add_paragraph("")
+    doc.add_paragraph("Guideline scope: {{ dwda_guideline_summary }}")
+    doc.add_paragraph("Compliance summary: {{ dwda_compliance_summary }}")
+    doc.add_paragraph("")
+    _add_docx_table_loop(
+        doc,
+        "DWDA compliance checklist (companion to official AER form):",
+        "dwda_checklist_results",
+        ["Section", "Item", "Status", "Response", "Detail"],
+        ["section", "label", "status", "response", "detail"],
+    )
+    doc.add_paragraph("")
     _add_docx_table_loop(
         doc,
         "Drilling waste disposal events (checklist reference):",
@@ -121,7 +132,14 @@ def generate_appendix_g_template(path: Path) -> None:
     doc.add_paragraph("Prepared for: {{ client_name }}")
     doc.add_paragraph("Well: {{ well_name }} | UWI: {{ uwi }}")
     doc.add_paragraph("Compliance option: {{ aer_waste_compliance_option }}")
+    doc.add_paragraph("Checklist scope: {{ dwda_checklist_scope }}")
     doc.add_paragraph("Report date: {{ date_of_issue }}")
+    doc.add_paragraph("")
+    doc.add_paragraph(
+        "Salinity within each DWDA may be assessed using Equivalent Salinity Guidelines. "
+        "Hydrocarbons, metals, and other parameters must meet Alberta Tier 1/2 within the "
+        "DWDA and across the remainder of the lease."
+    )
     doc.add_paragraph("")
     _add_docx_table_loop(
         doc,
@@ -138,6 +156,9 @@ def generate_appendix_g_template(path: Path) -> None:
             "Cover (m)",
             "Remote cert #",
             "Manifests",
+            "DWDA ID",
+            "Area (m2)",
+            "Salinity exceedance",
         ],
         [
             "mud_type",
@@ -150,7 +171,32 @@ def generate_appendix_g_template(path: Path) -> None:
             "cover_depth_m",
             "remote_cert_number",
             "waste_manifest_refs",
+            "dwda_id",
+            "area_m2",
+            "salinity_exceedance",
         ],
+    )
+    doc.add_paragraph("")
+    doc.add_heading("DWDA calculation summary", level=2)
+    doc.add_paragraph("{{ dwda_calc_summary }}")
+    doc.add_paragraph(
+        "Metal (barite sacks per metre): {{ dwda_metal_sacks_per_metre }} — "
+        "Pass: {{ dwda_metal_pass }}"
+    )
+    doc.add_paragraph(
+        "Salt (NaOH-equiv sacks per m³): {{ dwda_salt_sacks_per_m3 }} — "
+        "Pass: {{ dwda_salt_pass }}"
+    )
+    doc.add_paragraph(
+        "DST resistivity sacks: {{ dwda_dst_resistivity_sacks_total }} | "
+        "Chloride sacks: {{ dwda_dst_chloride_sacks_total }}"
+    )
+    _add_docx_table_loop(
+        doc,
+        "Calculation detail:",
+        "dwda_calculations",
+        ["Type", "Result", "Objective", "Pass", "Notes"],
+        ["calc_type", "result_value", "objective", "pass", "notes"],
     )
     doc.add_paragraph("")
     doc.add_paragraph(

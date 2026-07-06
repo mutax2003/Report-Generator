@@ -34,6 +34,8 @@ Write-Step "Generate samples"
 if (-not $SkipSamples) {
     & $DevVenvPython (Join-Path $Root "scripts\create_samples.py")
     & $DevVenvPython (Join-Path $Root "scripts\tag_production_template.py")
+    & $DevVenvPython (Join-Path $Root "scripts\create_appendix_templates.py")
+    & $DevVenvPython (Join-Path $Root "scripts\create_ecoventure_dwda_fixture.py")
 }
 
 Write-Step "Copy application files"
@@ -70,7 +72,7 @@ foreach ($pat in $trimPatterns) {
 }
 
 Write-Step "Fetch brand assets"
-& $DevVenvPython (Join-Path $Root "scripts\fetch_ecoventure_assets.py") 2>$null
+& $DevVenvPython (Join-Path $Root "scripts\fetch_ecoventure_assets.py")
 
 if (-not $SkipVenvInstall) {
     Write-Step "Create portable runtime venv (may take several minutes)"
@@ -125,7 +127,7 @@ if ($BuildExe) {
             --clean `
             esa_launcher.py
         Move-Item -Force (Join-Path $Out "dist\ESA-Report-Generator.exe") (Join-Path $Out "ESA-Report-Generator.exe")
-        Remove-Item -Recurse -Force (Join-Path $Out "build"), (Join-Path $Out "dist\ESA-Report-Generator") -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force (Join-Path $Out "build"), (Join-Path $Out "dist") -ErrorAction SilentlyContinue
         Remove-Item (Join-Path $Out "ESA-Report-Generator.spec") -ErrorAction SilentlyContinue
     } finally {
         Pop-Location
@@ -160,6 +162,11 @@ Created by Andrew Liu, Ecoventure Inc., Copyright 2026
 Built: $(Get-Date -Format 'yyyy-MM-dd HH:mm')
 "@
 Set-Content -Path (Join-Path $Out "README-DEPLOY.txt") -Value $readme -Encoding UTF8
+
+if (-not $SkipVenvInstall -and (Test-Path (Join-Path $RuntimeVenv "Scripts\python.exe"))) {
+    Write-Step "Post-build smoke (health_check.py)"
+    & (Join-Path $RuntimeVenv "Scripts\python.exe") (Join-Path $Out "scripts\health_check.py")
+}
 
 Write-Step "Done"
 Write-Host "Deployment package: $Out" -ForegroundColor Green

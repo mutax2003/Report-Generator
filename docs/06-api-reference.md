@@ -2,7 +2,63 @@
 
 Programmatic interfaces for rendering reports without the Streamlit UI.
 
-## `ReportEngine` (primary API)
+## `render_service` (recommended headless API)
+
+**Module:** `render_service.py`
+
+Use this for CLI, Power Automate, project folder, and Streamlit — it wraps `ReportEngine` with appendix-aware DWDA/SED context, appendix attachment, and compliance snapshot on the manifest.
+
+### `RenderRequest`
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `excel_bytes` | `bytes` | Required |
+| `template_bytes` | `bytes` | `.docx` or `.pdf` (PDF converted via cache) |
+| `meta` | `dict[str, str]` | Sidebar / profile keys (see below) |
+| `excel_filename` | `str` | Stored in manifest |
+| `template_filename` | `str` | Stored in manifest |
+| `project_row_index` | `int` | `ProjectData` row (0 = row 2) |
+| `uploaded_appendices` | `list[AppendixFile]` | PDF uploads; labels derived from filenames/heuristics |
+| `appendix_labels_present` | `set[str] \| None` | Explicit A–H labels; overrides upload inference when set |
+| `include_appendices` | `bool` | Auto-render A/D/G and merge uploads (default `True`) |
+| `include_coverage` | `bool` | Template coverage on manifest (default `True`) |
+
+### Functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `render_report(req)` | `RenderResult` | Single report + appendices + compliance snapshot |
+| `render_batch_reports(req)` | `list[BatchReportResult]` | One report per non-blank `ProjectData` row |
+| `render_deliverable_package(req, report_filename=...)` | `RenderResult` | Above + `package_bytes` deliverable zip |
+
+### Example
+
+```python
+from deliverable_pack import AppendixFile
+from render_service import RenderRequest, render_report
+
+with open("data.xlsx", "rb") as f:
+    excel_bytes = f.read()
+with open("template.docx", "rb") as f:
+    template_bytes = f.read()
+
+result = render_report(
+    RenderRequest(
+        excel_bytes=excel_bytes,
+        template_bytes=template_bytes,
+        meta={"prepared_by": "API", "date_of_issue": "2026-05-20", "report_phase": "Phase 1", "report_type": "phase1_alberta"},
+        uploaded_appendices=[
+            AppendixFile(label="H", data=b"...", filename="appendix_h.pdf", format="pdf"),
+        ],
+    )
+)
+Path("out.docx").write_bytes(result.docx_bytes)
+Path("out_manifest.json").write_bytes(result.record.to_json_bytes())
+```
+
+Deliverable zip includes `qp_checklists/sed002_phase1_qp_checklist.md` and `qp_checklists/dwda_directive050_qp_checklist.md` for Phase I Alberta profiles when compliance data is present.
+
+## `ReportEngine` (low-level API)
 
 **Module:** `engine.py`
 
@@ -20,7 +76,7 @@ Validates uploads unless `ESA_VALIDATION_BYPASS=1`.
 |--------|---------|-------------|
 | `build_context(meta)` | `dict` | Excel + sidebar merged; no render |
 | `dry_run(meta, excel_filename=..., template_filename=...)` | `(context, warnings, GenerationRecord)` | Context + manifest; no Word file |
-| `render(meta, excel_filename=..., template_filename=...)` | `(docx_bytes, warnings, context, GenerationRecord)` | Full merge |
+| `render(meta, ..., appendix_labels_present=..., project_row_index=...)` | `(docx_bytes, warnings, context, GenerationRecord)` | Full merge |
 | `render_batch(meta, excel_filename=..., template_filename=...)` | `list[BatchReportResult]` | One `.docx` per non-blank `ProjectData` row (max 50) |
 | `project_row_count(meta)` | `int` | Non-blank data rows on `ProjectData` |
 | `coverage(meta)` | `TemplateCoverage` | Tag match analysis |
@@ -67,7 +123,7 @@ Path("out_manifest.json").write_bytes(record.to_json_bytes())
 
 ## `automate` package
 
-**Module:** `automate/render.py`
+**Module:** `automate/render.py` — delegates to **`render_service`** (`render_report_from_bytes`, `render_deliverable_zip_from_bytes`, `render_report_from_paths`).
 
 ```python
 from automate.render import render_report_from_paths, render_report_from_bytes
@@ -162,15 +218,17 @@ scan = scan_template(template_bytes)
 ## `provenance` API
 
 ```python
-from provenance import build_generation_record, sha256_hex, GenerationRecord
+from provenance import build_generation_record, sha256_hex, GenerationRecord, apply_compliance_snapshot
 ```
+
+Manifest compliance fields (set by `apply_compliance_snapshot` after render): `sed002_completeness_pct`, `dwda_checklist_scope`, `appendix_labels_evaluated`, `phase2_reasons`, `dwda_calc_source`.
 
 ## Power Automate integration pattern
 
 1. Retrieve Excel + template binary from SharePoint.
-2. Call Azure Function or on-premises Python using `render_report_from_bytes`.
+2. Call Azure Function or on-premises Python using **`render_service.render_report`** or `automate.render.render_report_from_bytes`.
 3. Write output `.docx` + manifest JSON to document library.
-4. Do not duplicate merge logic in Power Automate expressions — keep single `ReportEngine` path.
+4. Do not duplicate merge logic in Power Automate expressions — keep single render path through `render_service`.
 
 See [../AUTOMATE.md](../AUTOMATE.md).
 

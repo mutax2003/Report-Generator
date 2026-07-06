@@ -53,7 +53,16 @@ Row 2+: | Surface    | 110       | LWD             | SW1/4... |
 
 Each data row → `drilling_waste` list. Word loop: `{%tr for item in drilling_waste %}` … `{%tr endfor %}`.
 
-Typical columns (any subset; extras pass through): `mud_type`, `volume_m3`, `disposal_method`, `location`.
+Typical columns: `mud_type`, `volume_m3`, `disposal_method`, `location`, `disposal_type`, `gps_coordinates`, `sump_depth_m`, `cover_depth_m`, `remote_cert_number`, `waste_manifest_refs`, `dwda_id`, `area_m2`, `salinity_exceedance`.
+
+### DwdaChecklist layout (optional — Directive 050 / ADWDA)
+
+```
+Row 1:  | checklist_item_id   | response | notes |
+Row 2+: | d050.notification   | Yes      | ...   |
+```
+
+Each row → `dwda_checklist` list. Item IDs match [`schemas/dwda_compliance_checklist.json`](../schemas/dwda_compliance_checklist.json). See [21-dwda-directive-050-compliance.md](21-dwda-directive-050-compliance.md).
 
 ### StorageTanks layout (optional)
 

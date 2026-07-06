@@ -72,38 +72,58 @@ def render_generated_appendix_downloads() -> None:
         )
 
 
-def render_appendix_uploader() -> list[AppendixFile]:
-    """Collect labeled appendix PDFs from session state."""
+def render_appendix_step(
+    *,
+    report_type: str = "",
+    expanded: bool | None = None,
+    show_header: bool = False,
+) -> list[AppendixFile]:
+    """Step-level appendix uploader (Report tab main path)."""
     _init_appendix_state()
-    st.subheader("Appendices (optional)")
-    st.caption(
-        "Upload PDF appendices A–H for external documents (B ABADATA, C air photos, "
-        "E survey, F land title, H site sketch). Appendices **D** and **G** are "
-        "auto-generated from DrillingWaste data when you generate the report."
-    )
-    store: dict[str, AppendixFile] = st.session_state.appendix_files
-    for label in APPENDIX_LABELS:
-        uploaded = st.file_uploader(
-            f"Appendix {label} (PDF)" + (" — auto-generated if empty" if label in ("D", "G") else ""),
-            type=["pdf"],
-            key=f"appendix_upload_{label}",
-            accept_multiple_files=False,
+    if show_header:
+        st.caption(
+            "Upload PDF appendices for the deliverable package (Phase I: B, C, E, F, H). "
+            "Auto-generated A, D, G are included when you generate."
         )
-        if uploaded is not None:
-            data = cached_upload_bytes(uploaded, slot=f"appendix_{label}") or b""
-            store[label] = AppendixFile(
-                label=label,
-                data=data,
-                filename=uploaded.name or f"appendix_{label}.pdf",
-                format="pdf",
-                source="uploaded",
+    store: dict[str, AppendixFile] = st.session_state.appendix_files
+    has_uploads = bool(store)
+    if expanded is None:
+        expanded = report_type == "phase1_alberta" or has_uploads
+
+    with st.expander("Appendices (PDF uploads)", expanded=expanded):
+        st.caption(
+            "Upload PDF appendices **B, C, E, F, H** (and others as needed). "
+            "Appendices **A, D, and G** can be auto-generated from Excel when you generate. "
+            "Included in the deliverable package at step 4."
+        )
+        for label in APPENDIX_LABELS:
+            uploaded = st.file_uploader(
+                f"Appendix {label} (PDF)"
+                + (" — auto-generated if empty" if label in ("D", "G") else ""),
+                type=["pdf"],
+                key=f"appendix_upload_{label}",
+                accept_multiple_files=False,
             )
-        elif label in store:
-            del store[label]
-    if st.button("Clear all appendices", width="stretch"):
-        st.session_state.appendix_files = {}
-        st.rerun()
+            if uploaded is not None:
+                data = cached_upload_bytes(uploaded, slot=f"appendix_{label}") or b""
+                store[label] = AppendixFile(
+                    label=label,
+                    data=data,
+                    filename=uploaded.name or f"appendix_{label}.pdf",
+                    format="pdf",
+                    source="uploaded",
+                )
+            elif label in store:
+                del store[label]
+        if st.button("Clear all appendices", width="stretch", key="clear_appendix_step"):
+            st.session_state.appendix_files = {}
+            st.rerun()
     return list(store.values())
+
+
+def render_appendix_uploader() -> list[AppendixFile]:
+    """Collect labeled appendix PDFs from session state (legacy / optional tools)."""
+    return render_appendix_step(expanded=False)
 
 
 def render_deliverable_downloads(

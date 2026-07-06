@@ -5,13 +5,14 @@ Executive summary structure (Signum Consulting Ltd. sample reports, Ecoventure v
 
 1. Opening: "{Consultant} was contracted by {Client} to conduct a Phase I Environmental Site Assessment on the wellsite and associated facilities known as {Well name}."
 2. Well history: spud date, cased date, re-entry and total depth, current status, production fluid.
-3. Drilling waste: "The drilling waste was assessed using Checklist Compliance Option 1 (AER, 2014);" then volumes and disposal methods (LWD, landspray, landspread, remote haul).
-4. Phase II for drilling waste if applicable; historical air photo observations; site visit status.
-5. Closing: "After reviewing regulatory information and records, and conducting informational interviews; it is recommended that well centre and the production areas be investigated. The {Client} keyword is Phase II."
+3. Drilling waste: "The drilling waste was assessed using Checklist Compliance Option 1 (AER, 2014);" then volumes and disposal methods (LWD, landspray, landspread, remote haul). Document AER Directive 050 notifications and disposal records.
+4. DWDA thresholds: Equivalent Salinity Guidelines apply to salinity within each disposal area only; hydrocarbons, metals, and other COPCs in the DWDA and the rest of the lease must meet Alberta Tier 1/2.
+5. Phase II for drilling waste if applicable; historical air photo observations; site visit status.
+6. Closing: "After reviewing regulatory information and records, and conducting informational interviews; it is recommended that well centre and the production areas be investigated. The {Client} keyword is Phase II."
 
 Ecoventure Inc. prepares Phase I Environmental Site Assessments for upstream oil and gas facilities in Alberta in support of AER SED 002 Section 10 and reclamation certificate applications submitted through OneStop. The assessment is non-intrusive and does not include subsurface sampling unless otherwise stated.
 
-The scope includes review of regulatory records (AER, Alberta Environment and Protected Areas databases where applicable), historical land use, available aerial photography, and interviews with knowledgeable persons. Drilling waste management is documented against AER Assessing Drilling Waste Disposal Areas compliance options (Option 1/2 checklists and calculation tables as appendices). Production infrastructure such as access roads, wellheads, berms, flare pits, and storage tanks is described from file information and site reconnaissance when completed.
+The scope includes review of regulatory records (AER, Alberta Environment and Protected Areas databases where applicable), historical land use, available aerial photography, and interviews with knowledgeable persons. Drilling waste management is documented against AER Directive 050 and Assessing Drilling Waste Disposal Areas compliance options (Option 1/2 checklists and calculation tables as appendices D and G). Complete the official AER Drilling Waste Assessment Disposal Checklists [DOC] for OneStop; generated Appendix D is a pre-filled companion only. Production infrastructure such as access roads, wellheads, berms, flare pits, and storage tanks is described from file information and site reconnaissance when completed.
 
 SED 002 Section 10.6 requires a site visit when practicable, with photographs and operations- or construction-phase sketches showing facilities and spill locations. Section 10.7 records review should reference ABADATA, pipeline and spill searches, and air photo years. Section 10.8 interviews document operator and landowner knowledge.
 

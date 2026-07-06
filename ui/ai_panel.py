@@ -27,6 +27,10 @@ from security import user_safe_error
 from template_tools import PreflightResult, run_preflight
 
 
+def _step1_input_hint(folder_mode: bool) -> str:
+    return "Load folder on **step 1**" if folder_mode else "Upload on **step 1**"
+
+
 def _use_llm() -> bool:
     return st.session_state.get("ai_use_llm", ai_available())
 
@@ -109,20 +113,20 @@ def render_ai_panel(
         st.divider()
 
     with t1:
-        _tab_template_tagger(template_bytes)
+        _tab_template_tagger(template_bytes, folder_mode=folder_mode)
         st.divider()
         _tab_lab_pdf(excel_bytes, meta, folder_mode=folder_mode)
         st.divider()
-        _tab_well_log_pdf(excel_bytes)
+        _tab_well_log_pdf(excel_bytes, folder_mode=folder_mode)
         st.divider()
-        _tab_narratives(excel_bytes, meta)
+        _tab_narratives(excel_bytes, meta, folder_mode=folder_mode)
 
     with t2:
-        _tab_copilot(preflight, meta)
+        _tab_copilot(preflight, meta, folder_mode=folder_mode)
         st.divider()
-        _tab_gw_trends(excel_bytes, meta)
+        _tab_gw_trends(excel_bytes, meta, folder_mode=folder_mode)
         st.divider()
-        _tab_quality(excel_bytes, template_bytes, meta)
+        _tab_quality(excel_bytes, template_bytes, meta, folder_mode=folder_mode)
 
 
 def _tab_folder_drafts() -> None:
@@ -173,7 +177,7 @@ def _tab_folder_drafts() -> None:
         st.caption(f"Files live under `{drafts_dir}` — edit on disk or copy into Excel as needed.")
 
 
-def _tab_template_tagger(template_bytes: bytes | None) -> None:
+def _tab_template_tagger(template_bytes: bytes | None, *, folder_mode: bool = False) -> None:
     st.subheader("1. Template tagger")
     st.markdown(
         "Suggests `{{ jinja }}` replacements for bracket placeholders and common phrases. "
@@ -191,7 +195,7 @@ def _tab_template_tagger(template_bytes: bytes | None) -> None:
             "then upload the `-markup.docx`."
         )
     if not template_bytes:
-        st.info("Upload a Word template in the **Report** tab to analyze.")
+        st.info(f"Load a Word template on {_step1_input_hint(folder_mode)} to analyze.")
         return
     if st.button("Analyze template tags", key="ai_tag_btn", width="stretch"):
         with st.spinner("Scanning document..."):
@@ -311,7 +315,7 @@ def _tab_lab_pdf(
         st.text(result.raw_text_preview or "(empty)")
 
 
-def _tab_well_log_pdf(excel_bytes: bytes | None) -> None:
+def _tab_well_log_pdf(excel_bytes: bytes | None, *, folder_mode: bool = False) -> None:
     st.subheader("3. Well log PDF → MonitoringWells")
     pdf = st.file_uploader(
         "Borehole / well construction PDF",
@@ -366,13 +370,18 @@ def _tab_well_log_pdf(excel_bytes: bytes | None) -> None:
     )
 
 
-def _tab_gw_trends(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
-    st.subheader("5. Groundwater trend notes")
+def _tab_gw_trends(
+    excel_bytes: bytes | None, meta: dict[str, str], *, folder_mode: bool = False
+) -> None:
+    st.subheader("2. Groundwater trend notes")
     ctx = st.session_state.get("last_context") or (
         _build_context_from_excel(excel_bytes, meta) if excel_bytes else None
     )
     if not ctx:
-        st.info("Upload groundwater Excel on the **Report** tab or generate a report first.")
+        st.info(
+            f"Load groundwater Excel on {_step1_input_hint(folder_mode)} "
+            "or generate a report first."
+        )
         return
     if st.button("Analyze trends", key="ai_gw_trends_btn", width="stretch"):
         notes, audit = analyze_groundwater_trends(ctx, use_llm=_use_llm())
@@ -385,13 +394,18 @@ def _tab_gw_trends(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
             st.info(note.message)
 
 
-def _tab_narratives(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
+def _tab_narratives(
+    excel_bytes: bytes | None, meta: dict[str, str], *, folder_mode: bool = False
+) -> None:
     st.subheader("4. Narrative drafts (RAG-assisted)")
     ctx = st.session_state.get("last_context") or (
         _build_context_from_excel(excel_bytes, meta) if excel_bytes else None
     )
     if not ctx:
-        st.info("Upload Excel on the **Report** tab (or generate once) to draft narratives.")
+        st.info(
+            f"Load Excel on {_step1_input_hint(folder_mode)} "
+            "(or generate once) to draft narratives."
+        )
         return
 
     sections = st.multiselect(
@@ -419,10 +433,18 @@ def _tab_narratives(excel_bytes: bytes | None, meta: dict[str, str]) -> None:
         )
 
 
-def _tab_copilot(preflight: PreflightResult | None, meta: dict[str, str]) -> None:
-    st.subheader("4. Pre-flight copilot")
+def _tab_copilot(
+    preflight: PreflightResult | None,
+    meta: dict[str, str],
+    *,
+    folder_mode: bool = False,
+) -> None:
+    st.subheader("1. Pre-flight copilot")
     if not preflight:
-        st.info("Upload Excel + template on the **Report** tab to run pre-flight first.")
+        st.info(
+            f"Load Excel + template on {_step1_input_hint(folder_mode)} "
+            "to run pre-flight first."
+        )
         return
     if st.button("Explain pre-flight", key="ai_copilot_btn", width="stretch"):
         advice, audit = explain_preflight(preflight, meta, use_llm=_use_llm())
@@ -444,13 +466,18 @@ def _tab_quality(
     excel_bytes: bytes | None,
     template_bytes: bytes | None,
     meta: dict[str, str],
+    *,
+    folder_mode: bool = False,
 ) -> None:
-    st.subheader("5. Consistency checker")
+    st.subheader("3. Consistency & exceedance notes")
     ctx = st.session_state.get("last_context") or (
         _build_context_from_excel(excel_bytes, meta) if excel_bytes else None
     )
     if not ctx:
-        st.info("Need Excel context — upload files or generate a report first.")
+        st.info(
+            f"Need Excel context — load files on {_step1_input_hint(folder_mode)} "
+            "or generate a report first."
+        )
     elif st.button("Run consistency check", key="ai_consistency_btn", width="stretch"):
         findings, audit = check_consistency(
             ctx,
@@ -471,7 +498,7 @@ def _tab_quality(
             st.caption(f"→ {f.suggestion}")
 
     st.divider()
-    st.subheader("6. Exceedance notes")
+    st.markdown("**Exceedance notes**")
     lab = (ctx or {}).get("lab_results") if ctx else None
     if not isinstance(lab, list) or not lab:
         st.info("No lab_results in context.")

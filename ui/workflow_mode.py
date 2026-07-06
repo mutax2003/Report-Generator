@@ -108,13 +108,33 @@ def _has_generated_report() -> bool:
     )
 
 
+def _has_loaded_inputs() -> bool:
+    if st.session_state.get("project_folder_loaded"):
+        return True
+    if st.session_state.get("project_folder_excel_bytes"):
+        return True
+    if st.session_state.get("upload_excel") or st.session_state.get("upload_template"):
+        return True
+    return False
+
+
+def _needs_workflow_change_confirm() -> bool:
+    return _has_generated_report() or _has_loaded_inputs()
+
+
 def render_workflow_banner(mode: WorkflowMode) -> None:
     """Compact reminder of the active workflow with a switch control."""
     if st.session_state.get("confirm_workflow_change"):
-        st.warning(
-            "You have a generated report in this session. Switching workflows clears "
-            "uploads, folder state, and download buttons."
-        )
+        if _has_generated_report():
+            st.warning(
+                "You have a generated report in this session. Switching workflows clears "
+                "uploads, folder state, and download buttons."
+            )
+        else:
+            st.warning(
+                "You have loaded files in this session. Switching workflows clears "
+                "uploads, folder state, and sidebar progress."
+            )
         yes, no = st.columns(2)
         if yes.button("Yes, switch workflow", type="primary", key="confirm_workflow_yes"):
             st.session_state.pop("confirm_workflow_change", None)
@@ -135,7 +155,7 @@ def render_workflow_banner(mode: WorkflowMode) -> None:
             st.info(f"**{workflow_label(mode)}** — upload Excel and template below")
     with right:
         if st.button("Change", width="stretch", key="change_workflow_mode"):
-            if _has_generated_report():
+            if _needs_workflow_change_confirm():
                 st.session_state.confirm_workflow_change = True
             else:
                 _reset_workflow_session()
@@ -145,8 +165,8 @@ def render_workflow_banner(mode: WorkflowMode) -> None:
 def render_workflow_hint(mode: WorkflowMode) -> None:
     if mode == WORKFLOW_FOLDER:
         st.markdown(
-            "**Steps:** Sidebar settings → **Browse…** or paste folder path → optional "
-            "**Analyze folder** (AI drafts) → **Report** tab (pre-flight & generate) → download"
+            "**Steps:** Sidebar settings → **Browse…** (loads immediately) or paste path + "
+            "**Load folder** → optional **Analyze folder** → **Report** tab → download"
         )
     else:
         st.markdown(

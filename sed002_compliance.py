@@ -5,11 +5,16 @@ AER SED 002 Section 10 Phase 1 ESA compliance evaluation for pre-flight and expo
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+from compliance_helpers import (
+    context_value as _context_value,
+    has_value as _has_value,
+    meta_value as _meta_value,
+)
 
 from engine import DRILLING_WASTE_SHEET, PROJECT_SHEET, STORAGE_TANKS_SHEET
 
@@ -56,45 +61,9 @@ class Sed002ComplianceResult:
         return len(self.required_missing) == 0
 
 
-def _norm_key(name: str) -> str:
-    s = str(name).strip()
-    s = re.sub(r"\s+", "_", s)
-    return s.lower()
-
-
 @lru_cache(maxsize=1)
 def load_checklist() -> dict[str, Any]:
     return json.loads(CHECKLIST_PATH.read_text(encoding="utf-8"))
-
-
-def _has_value(val: Any) -> bool:
-    if val is None:
-        return False
-    s = str(val).strip()
-    return bool(s) and s.lower() not in ("nan", "none", "n/a", "")
-
-
-def _meta_value(meta: dict[str, str], field_name: str) -> Any:
-    target = _norm_key(field_name)
-    for key, val in meta.items():
-        if _norm_key(key) == target and _has_value(val):
-            return val
-    return None
-
-
-def _context_value(
-    context: dict[str, Any],
-    meta: dict[str, str],
-    field_name: str,
-) -> Any:
-    meta_val = _meta_value(meta, field_name)
-    if meta_val is not None:
-        return meta_val
-    target = _norm_key(field_name)
-    for key, val in context.items():
-        if _norm_key(key) == target:
-            return val
-    return None
 
 
 def evaluate_sed002_compliance(

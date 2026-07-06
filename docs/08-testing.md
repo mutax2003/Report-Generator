@@ -36,6 +36,7 @@ Framework: Python `unittest` (stdlib).
 | `test_folder_picker.py` | Native folder picker + UI load bundle |
 | `test_source_ingest.py` | Source PDF ingest → `ai_drafts/` |
 | `test_workflow_mode.py` | Startup workflow picker labels |
+| `test_upload_helpers.py` | Upload digest + session byte cache |
 | `test_streamlit_smoke.py` | AppTest — workflow picker + folder load |
 | `test_phase2_vertical.py` | Phase II / remediation / reclamation verticals |
 | `test_report_profiles.py` | Profile resolution and exports |
@@ -44,10 +45,19 @@ Framework: Python `unittest` (stdlib).
 | `test_branding.py` | App header branding |
 | `test_alberta_imagery.py` | Hero imagery cache |
 | `test_smoke_integration.py` | Optional slow health script path |
+| `test_render_path_parity.py` | Engine vs automate vs project-folder DWDA parity |
+| `test_schema_parity.py` | field_contract vs report_profiles parity |
+| `test_compliance_helpers.py` | Appendix label normalization, `yes_value`, `resolved_appendix_labels` |
+| `test_phase2_triggers.py` | Unified Phase II trigger collection |
+| `test_reclamation_compliance.py` | Reclamation certificate checklist evaluation |
+| `test_dwda_calculations.py` | DWDA metal/salt/DST calculation engine |
+| `test_ecoventure_workbook.py` | Ecoventure cell contract ingest + merge |
+| `test_dwda_compliance.py` | DWDA compliance evaluation + enrichment |
+| `test_dwda_edge_cases.py` | DWDA / Ecoventure ingest edge cases |
 
-## Fifteen-step health check
+## Seventeen-step health check
 
-Quick regression pass (imports, Phase I Ecoventure render, appendices A/D/G, project folder ingest, source PDF ingest, security, batch, groundwater):
+Quick regression pass (imports, Phase I Ecoventure render, appendices A/D/G, project folder ingest with Ecoventure merge, source PDF ingest, security, batch, groundwater, DWDA merge):
 
 ```powershell
 python scripts\health_check.py
@@ -63,7 +73,9 @@ python scripts\create_samples.py
 python -m unittest discover -s tests -v
 ```
 
-Expected: **179 tests OK** (3 may skip; includes Streamlit AppTest smoke, folder picker, source PDF ingest, project folder, Phase I appendix generator, automate package smoke, Phase II/remediation verticals, SED 002 compliance, groundwater monitoring, phrase resolver, batch render, deliverable pack, smoke integration).
+Expected: **284 tests OK** (3 may skip; includes render-path parity, phase2 triggers, reclamation compliance, schema parity, compliance helpers, DWDA/Ecoventure calc + ingest, upload cache helpers, Streamlit AppTest smoke, folder picker, source PDF ingest, project folder, Phase I appendix generator, automate package smoke, Phase II/remediation verticals, SED 002 compliance, groundwater monitoring, phrase resolver, batch render, deliverable pack, smoke integration).
+
+Run `python scripts\count_tests.py` to verify the documented count matches `unittest discover`.
 
 Optional slow tests (Devon full template render): `ESA_RUN_SLOW=1 python -m unittest discover -s tests -v`
 
@@ -82,8 +94,9 @@ Some tests skip if `samples/` missing — committed samples in repo prevent skip
 | `scripts/tag_production_template.py` | Production template tagging | Yes |
 | `scripts/production_e2e.py` | Production data + template preflight + render | Yes |
 | `scripts/phase1_alberta_e2e.py` | Alberta Phase I Ecoventure preflight + render | Yes |
+| `scripts/dwda_workflow_e2e.py` | DWDA calculate + preflight + appendix H + D/G + OneStop zip | Yes |
 | `scripts/test_with_your_documents.py` | Pre-flight, dry run, render for any Excel + template pair | Yes |
-| `scripts/health_check.py` | 15-step regression | Yes |
+| `scripts/health_check.py` | 17-step regression (incl. test count parity) | Yes |
 | `scripts/phase2_alberta_e2e.py` | Alberta Phase II sample preflight + render | Yes |
 | `scripts/groundwater_e2e.py` | Groundwater monitoring profile render | Yes |
 | `scripts/create_phase2_project_folder.py` | Phase II test folder under `user_test/` | Yes |
@@ -169,11 +182,13 @@ On push/PR to `main` or `master`:
 13. `python scripts/create_phase2_project_folder.py`
 14. `python scripts/ingest_project_folder.py --folder user_test/phase2_alberta --render --no-llm`
 15. `python scripts/test_with_your_documents.py`
-16. `python scripts/health_check.py` (15-step regression)
+16. `python scripts/create_ecoventure_dwda_fixture.py`
+17. `python scripts/dwda_workflow_e2e.py`
+18. `python scripts/health_check.py` (17-step regression)
 
-Unit tests include `tests/test_streamlit_smoke.py` (AppTest workflow + folder load).
+Unit tests include `tests/test_streamlit_smoke.py` (AppTest workflow + folder load) and `tests/test_render_path_parity.py` (appendix-aware render paths).
 
-Profile E2E scripts (`phase2_alberta_e2e.py`, `groundwater_e2e.py`, etc.) and project-folder CLI render are **local pre-release** checks — see table above.
+**Local pre-release only:** `phase3_remediation_e2e.py`, `reclamation_e2e.py`, `phase1_site_e2e.py` (large templates), `playwright_smoke.py`.
 
 ## Test environment bypass
 
@@ -188,7 +203,7 @@ Profile E2E scripts (`phase2_alberta_e2e.py`, `groundwater_e2e.py`, etc.) and pr
 
 ## Coverage gaps (known)
 
-- Streamlit UI not browser-automated
+- Streamlit UI not browser-automated (optional `playwright_smoke.py` locally)
 - Full 100+ page production merge doc not in CI (local gitignored file)
 - OpenAI API paths tested in offline mode only in CI
-- Phase II / groundwater / project-folder CLI E2E not in GitHub Actions (run locally)
+- `phase1_site_e2e.py` requires `ESA_ALLOW_LARGE_TEMPLATE=1` (local)

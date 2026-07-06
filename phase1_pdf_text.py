@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import io
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
+
+_PYPDF_LOGGER = logging.getLogger("pypdf")
 
 
 @dataclass
@@ -24,24 +27,38 @@ class Phase1PdfMeta:
 
 def extract_pdf_text_local(pdf_bytes: bytes, max_pages: int = 12) -> str:
     """Read PDF text; decrypt with empty password when encrypted."""
+    if not pdf_bytes or not pdf_bytes.lstrip().startswith(b"%PDF"):
+        return ""
     try:
         from pypdf import PdfReader
+        from pypdf.errors import PdfReadError, PdfStreamError
     except ImportError as e:
         raise RuntimeError("pypdf required. Run: pip install pypdf cryptography") from e
 
-    reader = PdfReader(io.BytesIO(pdf_bytes))
+    try:
+        prev_level = _PYPDF_LOGGER.level
+        _PYPDF_LOGGER.setLevel(logging.ERROR)
+        try:
+            reader = PdfReader(io.BytesIO(pdf_bytes), strict=False)
+        finally:
+            _PYPDF_LOGGER.setLevel(prev_level)
+    except (PdfReadError, PdfStreamError, ValueError):
+        return ""
     if reader.is_encrypted:
-        status = reader.decrypt("")
+        try:
+            status = reader.decrypt("")
+        except (PdfReadError, PdfStreamError, ValueError):
+            return ""
         if status == 0:
-            raise RuntimeError(
-                "PDF is encrypted and could not be opened with an empty password. "
-                "Re-export an unencrypted copy or pass --pdf-password."
-            )
+            return ""
     pages: list[str] = []
-    for page in reader.pages[:max_pages]:
-        t = page.extract_text() or ""
-        if t.strip():
-            pages.append(t)
+    try:
+        for page in reader.pages[:max_pages]:
+            t = page.extract_text() or ""
+            if t.strip():
+                pages.append(t)
+    except (PdfReadError, PdfStreamError, ValueError, IndexError):
+        return "\n".join(pages)
     return "\n".join(pages)
 
 

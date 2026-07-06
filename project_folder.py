@@ -15,6 +15,8 @@ from typing import Any
 
 from report_profile import profile_id_for_phase
 
+from ecoventure_workbook import maybe_merge_ecoventure_from_folder
+
 ROOT = Path(__file__).resolve().parent
 
 EXCEL_CANDIDATES = ("project_data.xlsx", "my_project_data.xlsx")
@@ -319,6 +321,15 @@ def inventory_markdown(resolved: ResolvedProjectFolder) -> str:
     return "\n".join(lines) + "\n"
 
 
+def effective_excel_bytes_for_folder(
+    resolved: ResolvedProjectFolder,
+    excel_bytes: bytes | None = None,
+) -> tuple[bytes, list[str]]:
+    """Apply optional ecoventure_workbook.xlsx merge from project folder root."""
+    raw = excel_bytes if excel_bytes is not None else resolved.read_core_files()[0]
+    return maybe_merge_ecoventure_from_folder(raw, resolved.root)
+
+
 def run_preflight_for_folder(
     resolved: ResolvedProjectFolder,
     *,
@@ -327,6 +338,7 @@ def run_preflight_for_folder(
     from template_tools import run_preflight
 
     excel_bytes, template_bytes = core_files or resolved.read_core_files()
+    excel_bytes, _ = effective_excel_bytes_for_folder(resolved, excel_bytes)
     return run_preflight(excel_bytes, template_bytes, resolved.meta)
 
 
@@ -439,6 +451,7 @@ def draft_narratives_for_folder(
     from template_attachments import prepare_template_upload_cached
 
     excel_bytes, template_bytes = core_files or resolved.read_core_files()
+    excel_bytes, _ = effective_excel_bytes_for_folder(resolved, excel_bytes)
     prepared = prepare_template_upload_cached(template_bytes, resolved.template_path.name)
     engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=prepared.docx_bytes)
     ctx = engine.build_context(resolved.meta)
@@ -514,7 +527,7 @@ def extract_lab_pdf_to_drafts(
         encoding="utf-8",
     )
     if write_excel and result.rows:
-        excel_bytes, _ = resolved.read_core_files()
+        excel_bytes, _ = effective_excel_bytes_for_folder(resolved)
         xlsx_bytes = lab_rows_to_xlsx_bytes(
             result.rows,
             existing_excel=excel_bytes,
@@ -624,13 +637,14 @@ def render_project_folder(
 ) -> dict[str, Path]:
     """Render report (+ optional package) into delivered/."""
     from appendix_generator import phase1_profile_includes_appendices
-    from automate.render import render_report_from_bytes
     from deliverable_pack import build_deliverable_zip_bytes
     from engine import suggested_download_name
     from provenance import sha256_hex
+    from render_service import RenderRequest, render_report
 
     resolved.delivered_dir.mkdir(parents=True, exist_ok=True)
     excel_bytes, template_bytes = resolved.read_core_files()
+    excel_bytes, eco_warnings = effective_excel_bytes_for_folder(resolved, excel_bytes)
     meta = dict(resolved.meta)
 
     uploaded = load_manual_appendices(resolved) if include_appendices else []
@@ -638,15 +652,22 @@ def render_project_folder(
         meta.get("report_type", ""), meta.get("report_phase", "")
     )
 
-    docx_bytes, warnings, context, record, appendices = render_report_from_bytes(
-        excel_bytes,
-        template_bytes,
-        meta=meta,
-        excel_filename=resolved.excel_path.name,
-        template_filename=resolved.template_path.name,
-        include_appendices=inc_ap,
-        uploaded_appendices=uploaded,
+    result = render_report(
+        RenderRequest(
+            excel_bytes=excel_bytes,
+            template_bytes=template_bytes,
+            meta=meta,
+            excel_filename=resolved.excel_path.name,
+            template_filename=resolved.template_path.name,
+            include_appendices=inc_ap,
+            uploaded_appendices=uploaded,
+        )
     )
+    docx_bytes = result.docx_bytes
+    warnings = list(eco_warnings) + result.warnings
+    context = result.context
+    record = result.record
+    appendices = result.appendices
 
     out_name = suggested_download_name(context, meta)
     record.output_filename = out_name
@@ -676,8 +697,9 @@ def render_project_folder(
         outputs["package"] = zip_path
 
     warn_path = resolved.delivered_dir / "render_warnings.txt"
-    if warnings:
-        warn_path.write_text("\n".join(warnings) + "\n", encoding="utf-8")
+    all_warnings = list(warnings) + list(eco_warnings)
+    if all_warnings:
+        warn_path.write_text("\n".join(all_warnings) + "\n", encoding="utf-8")
         outputs["warnings"] = warn_path
 
     return outputs

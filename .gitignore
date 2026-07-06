@@ -46,6 +46,7 @@ dist/
 
 # Local test outputs
 out/
+user_test/**/delivered/
 user_test/*.docx
 user_test/*.xlsx
 !user_test/README.txt

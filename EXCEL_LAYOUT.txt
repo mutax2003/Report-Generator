@@ -22,7 +22,13 @@ SED 002 Section 10 (reclamation Phase I) — see docs/20-aer-sed002-phase1-esa.m
   ProjectData: asset_activity_type, records_review_summary, interview_*,
     site_visit_date, flare_pit_used, no_drilling_waste_on_site
   DrillingWaste: disposal_type, gps_coordinates, sump_depth_m, cover_depth_m,
-    remote_cert_number, waste_manifest_refs
+    remote_cert_number, waste_manifest_refs, dwda_id, area_m2, salinity_exceedance
+  DwdaChecklist: checklist_item_id, response, notes (maps to dwda_checklist loop)
+  ProjectData (DWDA): cuttings_volume_on_lease_m3, directive_050_notification_ref,
+    dwda_salinity_pathway, dwda_phase2_required
+  DwdaCalculations: metal_sacks_per_metre, salt_sacks_per_m3, salt_naoh_equiv_total,
+    salt_waste_volume_m3, dst_resistivity_sacks_total, dst_chloride_sacks_total
+  See docs/21-dwda-directive-050-compliance.md
 
 Sheet: LabResults (exact name)
 ------------------------------
@@ -41,9 +47,19 @@ Sheet: LabResults (exact name)
 Sheet: DrillingWaste (optional — Alberta Phase I)
 -------------------------------------------------
 - Row 1: headers; each data row -> drilling_waste list.
-- Example: mud_type, volume_m3, disposal_method, location
+- Example: disposal_type, gps_coordinates, sump_depth_m, cover_depth_m,
+  disposal_method, volume_m3, location, waste_manifest_refs
 
   Template: {%tr for item in drilling_waste %} ... {%tr endfor %}
+
+Sheet: DwdaCalculations (optional — DWDA calc ingest)
+----------------------------------------------------
+- Row 1: headers; optional row from Ecoventure xltm ingest or manual entry.
+- Promoted to context scalars by dwda_calculations.py at render time.
+
+Sheet: DwdaChecklist (optional — QP checklist responses)
+---------------------------------------------------------
+- checklist_item_id, response, notes -> dwda_checklist loop
 
 Sheet: MonitoringWells (groundwater_monitoring profile)
 -------------------------------------------------------

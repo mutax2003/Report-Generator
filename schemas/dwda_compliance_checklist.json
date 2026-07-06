@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DWDA / AER Directive 050 compliance checklist",
+  "version": "1.0.0",
+  "profile_ids": ["phase1_alberta", "phase1_devon", "reclamation_certificate"],
+  "regulatory_notes": [
+    "AER Directive 050 (Nov 2024) sets treatment, disposal, sampling, and documentation requirements for drilling waste.",
+    "Assessing Drilling Waste Disposal Areas (ADWDA) Option 1/2 checklists demonstrate reclamation readiness.",
+    "Equivalent Salinity Guidelines apply to salinity within the DWDA footprint only.",
+    "Hydrocarbons, metals, and other COPCs within the DWDA and the rest of the lease must meet Alberta Tier 1/2 guidelines.",
+    "Official AER Drilling Waste Assessment Disposal Checklists [DOC] remain the legal submission form; generated Appendix D is a pre-filled companion."
+  ],
+  "compliance_options": {
+    "option_1": "Checklist Compliance Option 1 (AER, 2014)",
+    "option_2": "Checklist Compliance Option 2 (calculation-based)",
+    "option_3": "Compliance Option 3 (alternative pathway per ADWDA)",
+    "approved_facility": "All waste at approved waste management facility",
+    "no_on_site_waste": "No on-site drilling waste disposal"
+  },
+  "checklist_scopes": {
+    "option_1_minimal": "Option 1 sections 1.0-1.3 only (off-lease disposal and <50 m3 cuttings on lease)",
+    "option_1_full": "Full Option 1 checklist (LWD on lease with >50 m3 cuttings or on-lease disposal)",
+    "option_2": "Option 2 calculation tables and supporting data",
+    "option_3": "Option 3 alternative documentation",
+    "approved_facility": "Approved facility disposal records only",
+    "none": "No DWDA checklist required"
+  },
+  "items": [
+    {
+      "id": "d050.notification",
+      "section": "1.0",
+      "label": "Directive 050 disposal notification or tour report reference",
+      "requirement": "required",
+      "applies_when": ["option_1_minimal", "option_1_full", "option_2", "option_3"],
+      "source": "projectdata",
+      "field": "directive_050_notification_ref"
+    },
+    {
+      "id": "d050.compliance_option",
+      "section": "1.0",
+      "label": "AER waste compliance option documented",
+      "requirement": "required",
+      "applies_when": ["option_1_minimal", "option_1_full", "option_2", "option_3", "approved_facility"],
+      "source": "projectdata",
+      "field": "aer_waste_compliance_option"
+    },
+    {
+      "id": "d050.waste_summary",
+      "section": "1.0",
+      "label": "Drilling waste disposal summary narrative",
+      "requirement": "required",
+      "applies_when": ["option_1_minimal", "option_1_full", "option_2", "option_3"],
+      "source": "projectdata",
+      "field": "drilling_waste_summary"
+    },
+    {
+      "id": "d050.waste_table",
+      "section": "1.0",
+      "label": "Drilling waste disposal table (DrillingWaste sheet)",
+      "requirement": "required",
+      "applies_when": ["option_1_minimal", "option_1_full", "option_2"],
+      "source": "drilling_waste",
+      "min_rows": 1
+    },
+    {
+      "id": "d050.cuttings_volume",
+      "section": "1.1",
+      "label": "On-lease cuttings volume documented (m3)",
+      "requirement": "required",
+      "applies_when": ["option_1_full"],
+      "source": "projectdata",
+      "field": "cuttings_volume_on_lease_m3"
+    },
+    {
+      "id": "d050.gps_on_lease",
+      "section": "1.1",
+      "label": "GPS coordinates for on-lease disposal area(s)",
+      "requirement": "required",
+      "applies_when": ["option_1_minimal", "option_1_full"],
+      "source": "drilling_waste_field",
+      "field": "gps_coordinates",
+      "when_on_lease": true
+    },
+    {
+      "id": "d050.sump_dimensions",
+      "section": "1.1",
+      "label": "Sump depth and cover depth for on-lease sumps",
+      "requirement": "conditional",
+      "applies_when": ["option_1_full"],
+      "source": "drilling_waste_field",
+      "fields": ["sump_depth_m", "cover_depth_m"],
+      "when_on_lease": true
+    },
+    {
+      "id": "d050.remote_cert",
+      "section": "1.2",
+      "label": "Remote sump certificate number (if applicable)",
+      "requirement": "conditional",
+      "applies_when": ["option_1_minimal", "option_1_full"],
+      "source": "drilling_waste_field",
+      "field": "remote_cert_number",
+      "when_remote": true
+    },
+    {
+      "id": "d050.manifests",
+      "section": "1.3",
+      "label": "Waste manifest or haul-off references",
+      "requirement": "recommended",
+      "applies_when": ["option_1_minimal", "option_1_full", "option_2"],
+      "source": "drilling_waste_field",
+      "field": "waste_manifest_refs"
+    },
+    {
+      "id": "d050.salinity_pathway",
+      "section": "1.4",
+      "label": "Salinity assessment pathway documented (Equivalent Salinity vs Tier 1)",
+      "requirement": "recommended",
+      "applies_when": ["option_1_full", "option_2"],
+      "source": "projectdata",
+      "field": "dwda_salinity_pathway"
+    },
+    {
+      "id": "d050.appendix_d",
+      "section": "1.5",
+      "label": "Appendix D compliance checklist attached or generated",
+      "requirement": "required",
+      "applies_when": ["option_1_minimal", "option_1_full", "option_2"],
+      "source": "appendix",
+      "appendix": "D"
+    },
+    {
+      "id": "d050.appendix_g",
+      "section": "1.5",
+      "label": "Appendix G calculation tables (Option 2 or full Option 1)",
+      "requirement": "conditional",
+      "applies_when": ["option_2", "option_1_full"],
+      "source": "appendix",
+      "appendix": "G"
+    },
+    {
+      "id": "d050.appendix_h",
+      "section": "1.5",
+      "label": "Appendix H site sketch showing disposal locations",
+      "requirement": "required",
+      "applies_when": ["option_1_minimal", "option_1_full"],
+      "source": "appendix",
+      "appendix": "H"
+    },
+    {
+      "id": "d050.checklist_responses",
+      "section": "2.0",
+      "label": "DwdaChecklist sheet responses complete for applicable items",
+      "requirement": "recommended",
+      "applies_when": ["option_1_minimal", "option_1_full", "option_2"],
+      "source": "dwda_checklist_complete"
+    },
+    {
+      "id": "d050.approved_facility",
+      "section": "1.0",
+      "label": "Approved facility disposal documentation",
+      "requirement": "required",
+      "applies_when": ["approved_facility"],
+      "source": "projectdata",
+      "field": "drilling_waste_summary"
+    }
+  ]
+}

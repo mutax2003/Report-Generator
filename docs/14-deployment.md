@@ -44,6 +44,18 @@ $env:ESA_BIND_ALL = "1"
 
 Faster rebuild without re-installing pip packages: `.\scripts\build_windows_deploy.ps1 -BuildExe -SkipVenvInstall`
 
+Skip sample regeneration (copy-only): `.\scripts\build_windows_deploy.ps1 -SkipSamples`
+
+**Post-build verification:** the build script runs `runtime\.venv\Scripts\python.exe scripts\health_check.py` inside the output folder when the portable venv is created.
+
+**Trim policy:** the build removes large/confidential samples from the deploy copy (`samples\*.pdf`, Devon pairs, large site docx, markup uploads). Consultants keep full samples in the git repo; portable builds ship Alberta demo + Ecoventure DWDA fixture only.
+
+**Shipped assets:** `templates/ecoventure_dwda/` (QP xltm/dotm), `schemas/` (DWDA + SED checklists), `samples/appendices/` (A/D/G Word templates when `create_appendix_templates.py` ran).
+
+**SmartScreen:** unsigned `ESA-Report-Generator.exe` may trigger Windows Defender SmartScreen — use internal code signing or AV exclusions for pilot rollout. The exe is a launcher only; the app requires the full folder + `runtime\.venv`.
+
+**Alternative server deploy:** copy `dist\ESA-Report-Generator\` to a Windows Server share and register `esa_launcher.py` or the exe with **NSSM** as a service (see Windows Server VM section below).
+
 ## Docker (recommended for internal team host)
 
 ### Build and run

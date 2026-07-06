@@ -273,6 +273,17 @@ def attach_appendices_to_record(
     uploaded: list[AppendixFile],
 ) -> tuple[list[AppendixFile], list[AppendixFile], list[str]]:
     """Render A/D/G, merge with uploads, write manifest fields. Returns (generated, merged, warnings)."""
+    from dwda_compliance import enrich_dwda_context, resolve_dwda_appendix_labels
+
+    rt = _report_type(meta, "")
+    uploaded_labels = {ap.label.upper() for ap in uploaded}
+    labels = resolve_dwda_appendix_labels(
+        context, meta, extra_labels=uploaded_labels, report_type=rt
+    )
+    if context.get("_dwda_appendix_labels_evaluated") != labels:
+        context = enrich_dwda_context(
+            context, meta, appendix_labels_present=set(labels)
+        )
     generated, warnings = render_phase1_appendices(context, meta)
     merged = merge_appendix_lists(generated, uploaded)
     if merged:

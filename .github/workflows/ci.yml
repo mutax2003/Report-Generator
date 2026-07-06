@@ -62,5 +62,42 @@ jobs:
       - name: User document test script (Alberta defaults)
         run: python scripts/test_with_your_documents.py
 
-      - name: Fifteen-step health check
+      - name: Create Ecoventure DWDA fixture
+        run: python scripts/create_ecoventure_dwda_fixture.py
+
+      - name: DWDA workflow E2E
+        run: python scripts/dwda_workflow_e2e.py
+
+      - name: Seventeen-step health check
         run: python scripts/health_check.py
+
+  windows-smoke:
+    runs-on: windows-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build Windows deploy folder
+        shell: pwsh
+        run: .\scripts\build_windows_deploy.ps1 -SkipExe
+
+      - name: Verify deploy output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path dist\ESA-Report-Generator\runtime\.venv\Scripts\python.exe)) {
+            throw "Missing bundled runtime python"
+          }
+
+      - name: Post-build health check
+        shell: pwsh
+        run: dist\ESA-Report-Generator\runtime\.venv\Scripts\python.exe scripts\health_check.py
+        working-directory: dist\ESA-Report-Generator

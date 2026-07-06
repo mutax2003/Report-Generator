@@ -11,6 +11,30 @@ Guide for maintaining and extending the ESA Report Generator codebase.
 
 ## Module reference
 
+### `render_service.py`
+
+Unified render pipeline for Streamlit, CLI, project folder, and automation. Derives appendix labels **before** Word merge so DWDA/SED enrichment matches uploaded appendices.
+
+| Symbol | Role |
+|--------|------|
+| `RenderRequest` | Excel/template bytes, meta, row index, uploaded appendices, optional `appendix_labels_present` |
+| `RenderResult` | `docx_bytes`, `context`, `record`, `appendices`, `warnings`, optional `package_bytes` |
+| `render_report` | Single report: engine render + attach appendices + `apply_compliance_snapshot` |
+| `render_batch_reports` | One report per `ProjectData` row; same appendix set for all rows (batch limitation) |
+| `render_deliverable_package` | `render_report` + deliverable zip bytes |
+
+```mermaid
+flowchart LR
+  Req[RenderRequest] --> Prep[prepare_template_upload_cached]
+  Prep --> Engine[ReportEngine.render]
+  Engine --> Enrich[enrich_phase1_alberta_context]
+  Enrich --> Attach[attach_appendices_to_record]
+  Attach --> Snap[apply_compliance_snapshot]
+  Snap --> Result[RenderResult]
+```
+
+**Agent note:** When changing DWDA/SED enrichment, update `tests/test_render_path_parity.py` and run `scripts/dwda_workflow_e2e.py`.
+
 ### `engine.py`
 
 | Symbol | Role |
@@ -61,11 +85,32 @@ Environment bypass for tests only: `ESA_VALIDATION_BYPASS=1`.
 
 ### `appendix_generator.py`
 
-`render_phase1_appendices`, `attach_appendices_to_record`, `predicted_appendix_labels`, `merge_appendix_lists` — auto-render SED 002 appendices **D** (drilling waste checklist) and **G** (calc tables) from the same Jinja context as the main report. Templates in `samples/appendices/`; profile mapping via `appendix_templates` in `schemas/report_profiles.json`. No Streamlit imports.
+`render_phase1_appendices`, `attach_appendices_to_record`, `predicted_appendix_labels`, `merge_appendix_lists` — auto-render SED 002 appendices **A**, **D**, and **G** from the same Jinja context as the main report. Templates in `samples/appendices/`; profile mapping via `appendix_templates` in `schemas/report_profiles.json`. No Streamlit imports.
 
 ### `deliverable_pack.py`
 
-`build_deliverable_zip`, `build_deliverable_zip_bytes`, `build_onestop_export_bytes`, `AppendixFile`, `appendix_manifest_entries`, `enrich_manifest_dict`, `build_batch_reports_zip` — zip includes `appendices/` (uploaded PDFs + generated D/G `.docx`) and `onestop/` summary JSON/CSV for OneStop upload prep.
+`build_deliverable_zip`, `build_deliverable_zip_bytes`, `build_onestop_export_bytes`, `AppendixFile`, `appendix_manifest_entries`, `enrich_manifest_dict`, `build_batch_reports_zip` — zip includes:
+
+- Report `.docx` + manifest JSON
+- `appendices/` — uploaded PDFs + generated A/D/G `.docx`
+- `qp_checklists/` — SED 002 and DWDA QP review markdown (Phase I Alberta profiles)
+- `onestop/` — summary JSON/CSV for OneStop upload prep
+
+### `compliance_helpers.py`
+
+Shared helpers for SED/DWDA/Ecoventure: `normalize_appendix_labels`, `resolved_appendix_labels`, `yes_value`, `has_value`, `parse_float`.
+
+### `phase2_triggers.py`
+
+`collect_phase2_reasons`, `is_phase2_likely` — unified Phase II trigger collection from ProjectData, drilling waste rows, and DWDA calc/compliance objects.
+
+### `dwda_compliance.py` / `dwda_calculations.py` / `ecoventure_workbook.py`
+
+- **`dwda_compliance.py`** — Directive 050 checklist evaluation, `enrich_dwda_context`, QP checklist markdown
+- **`dwda_calculations.py`** — metal/salt/DST calc engine; reads [`schemas/dwda_salt_additives.json`](../schemas/dwda_salt_additives.json)
+- **`ecoventure_workbook.py`** — hybrid ingest from Ecoventure xltm/xlsx cell contract
+
+See [21-dwda-directive-050-compliance.md](21-dwda-directive-050-compliance.md) and [23-excel-calculation-workbook-integration.md](23-excel-calculation-workbook-integration.md).
 
 ### `phase1_narrative.py`
 
@@ -73,7 +118,7 @@ Environment bypass for tests only: `ESA_VALIDATION_BYPASS=1`.
 
 ### `phase1_decision.py`
 
-`evaluate_phase2_triggers`, `enrich_context_phase2_decision` — Phase II ESA heuristics aligned with SED 002; adds `phase2_recommended` and `phase2_reasons` to render context.
+`evaluate_phase2_triggers`, `enrich_context_phase2_decision`, **`enrich_phase1_alberta_context`** — Phase II ESA heuristics aligned with SED 002; DWDA + SED enrichment for Alberta Phase I; adds `phase2_recommended`, `phase2_reasons`, and stores `_sed002_compliance` on context for deliverable zip QP checklists. Phase II reasons delegate to **`phase2_triggers.collect_phase2_reasons`**.
 
 ### `sed002_compliance.py`
 
@@ -81,7 +126,11 @@ Environment bypass for tests only: `ESA_VALIDATION_BYPASS=1`.
 
 ### `provenance.py`
 
-`GenerationRecord` dataclass (`report_type`, `template_source_format`, `appendix_files`, `generated_appendix_files`), `build_generation_record`, `sha256_hex`.
+`GenerationRecord` dataclass, `build_generation_record`, `sha256_hex`, **`apply_compliance_snapshot`**.
+
+Compliance snapshot fields on manifest (via `apply_compliance_snapshot`): `sed002_completeness_pct`, `dwda_checklist_scope`, `appendix_labels_evaluated`, `phase2_reasons`, `dwda_calc_source`.
+
+Also: `report_type`, `template_source_format`, `appendix_files`, `generated_appendix_files`.
 
 ### `field_validation.py`
 
@@ -103,7 +152,7 @@ CLI: `scripts/ingest_project_folder.py` · Streamlit: `ui/project_folder.py` · 
 
 ### `app.py`
 
-Streamlit orchestration only: session state, workflow picker, uploads or folder load, calls `ui/*`, instantiates `ReportEngine` on generate.
+Streamlit orchestration only: session state, workflow picker, uploads or folder load, calls `ui/*`, **`render_service`** on generate (single + batch).
 
 ### `ui/` package
 
@@ -180,7 +229,8 @@ Extend `_lab_frame_to_records` in `engine.py`.
 ### Batch reports
 
 - Multiple non-blank `ProjectData` rows (row 1 = headers).
-- `ReportEngine.render_batch()` / Streamlit **All N reports (batch)** / `render_cli.py --all-rows`.
+- `ReportEngine.render_batch()` / Streamlit **All N reports (batch)** via `render_service.render_batch_reports` / `render_cli.py --all-rows`.
+- **Batch limitation:** the same uploaded appendix set applies to every row; per-row appendix labels are not supported yet.
 - Table sheets can link per site via `site_name`, `project_number`, `uwi`, `well_name`, or `project_id`.
 - Limits: `MAX_PROJECT_ROWS` (100), `MAX_BATCH_REPORTS` (50).
 
@@ -206,7 +256,7 @@ streamlit run app.py
 
 ## CI
 
-GitHub Actions: `.github/workflows/ci.yml` — install, samples, appendix templates, tag, unittest, CLI smoke, package smoke, production E2E, Phase I E2E, user docs test, 15-step health check. Profile E2E and project-folder CLI are local-only (see [08-testing.md](08-testing.md)).
+GitHub Actions: `.github/workflows/ci.yml` — install, samples, appendix templates, tag, unittest, CLI smoke, package smoke, production E2E, Phase I E2E, user docs test, 17-step health check. Profile E2E and project-folder CLI are local-only (see [08-testing.md](08-testing.md)).
 
 ## Related
 

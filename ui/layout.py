@@ -30,6 +30,20 @@ def compute_workflow_step(
     return 1
 
 
+def render_workflow_stepper(current_step: int) -> None:
+    """Horizontal 1–4 progress indicator (read-only; no extra widgets)."""
+    labels = ("Inputs", "Pre-flight", "Generate", "Download")
+    cols = st.columns(len(labels))
+    for i, (col, label) in enumerate(zip(cols, labels), start=1):
+        with col:
+            if i < current_step:
+                st.markdown(f"**{i}. {label}** ✓")
+            elif i == current_step:
+                st.markdown(f"**→ {i}. {label}**")
+            else:
+                st.markdown(f"{i}. {label}")
+
+
 def render_workflow_hint() -> None:
     """Deprecated — use ui.workflow_mode.render_workflow_hint(mode)."""
     st.markdown(
@@ -80,6 +94,20 @@ def render_upload_step() -> tuple[Any, Any, Any, list[str]]:
                 label_visibility="collapsed",
             )
             show_upload_status("Excel", excel_file)
+            with st.expander("Optional: Ecoventure Phase I + DWDA workbook", expanded=False):
+                st.caption(
+                    "Upload a filled `.xlsx` saved from the Ecoventure xltm to merge "
+                    "ProjectData, DrillingWaste, and calculation outputs."
+                )
+                eco_file = st.file_uploader(
+                    "Ecoventure workbook",
+                    type=["xlsx", "xlsm"],
+                    accept_multiple_files=False,
+                    key="upload_ecoventure_workbook",
+                    label_visibility="collapsed",
+                )
+                if eco_file is not None:
+                    st.session_state["ecoventure_workbook_bytes"] = eco_file.getvalue()
 
     with col2:
         with st.container(border=True):
@@ -103,6 +131,11 @@ def render_upload_step() -> tuple[Any, Any, Any, list[str]]:
                 st.info(w)
             render_converted_template_download(prepared_tpl)
 
+    if excel_file and not template_file:
+        st.info("Upload your **Word or PDF template** in the column on the right.")
+    elif template_file and not excel_file:
+        st.info("Upload your **Excel** file (.xlsx) in the column on the left.")
+
     if not excel_file and not template_file:
         render_upload_empty_state()
 
@@ -125,6 +158,28 @@ def _prepare_template_from_upload(template_file: Any) -> tuple[Any, list[str]]:
         return None, []
 
 
+_LARGE_TEMPLATE_BYTES = 10 * 1024 * 1024
+
+
+def generate_blockers(
+    *,
+    rendering: bool,
+    has_excel: bool,
+    has_template: bool,
+    can_generate: bool,
+) -> list[str]:
+    if rendering:
+        return []
+    blockers: list[str] = []
+    if not has_excel:
+        blockers.append("Excel not loaded (step 1)")
+    if not has_template:
+        blockers.append("Template not loaded (step 1)")
+    if has_excel and has_template and not can_generate:
+        blockers.append("Fix pre-flight **errors** (step 2)")
+    return blockers
+
+
 def render_phrase_expander(render_fn: Any) -> dict[str, str]:
     with st.expander("Standard phrases (optional)", expanded=False):
         return render_fn(compact=True)
@@ -138,17 +193,25 @@ def render_generate_cta(
     has_template: bool,
     project_row_count: int,
     project_row_labels: list[str],
+    template_bytes: bytes | None = None,
 ) -> tuple[bool, bool, int]:
     render_section_header(
         3,
         "Generate report",
-        caption="Green pre-flight above means you can merge and download.",
+        caption="Pre-flight must pass with no blocking errors (warnings are OK).",
     )
 
     batch_mode = False
     project_row_index = 0
 
     with st.container(border=True):
+        if rendering:
+            st.info("Generating report — please wait.")
+        elif template_bytes and len(template_bytes) > _LARGE_TEMPLATE_BYTES:
+            st.caption(
+                "Large template — generation may take **30–60 seconds**."
+            )
+
         if project_row_count > 1:
             st.caption(
                 f"**{project_row_count} sites** on `ProjectData` "
@@ -178,18 +241,16 @@ def render_generate_cta(
         generate_disabled = (
             rendering or not has_excel or not has_template or not can_generate
         )
-        if generate_disabled:
-            hints: list[str] = []
-            if not has_excel:
-                hints.append("upload Excel")
-            if not has_template:
-                hints.append("upload template")
-            if has_excel and has_template and not can_generate:
-                hints.append("fix pre-flight errors")
-            if rendering:
-                hints.append("wait for current run")
-            if hints:
-                st.caption("To enable: " + ", ".join(hints))
+        blockers = generate_blockers(
+            rendering=rendering,
+            has_excel=has_excel,
+            has_template=has_template,
+            can_generate=can_generate,
+        )
+        if blockers:
+            st.markdown("**To enable Generate:**")
+            for b in blockers:
+                st.markdown(f"- {b}")
 
         btn_label = (
             f"Generate {project_row_count} reports"

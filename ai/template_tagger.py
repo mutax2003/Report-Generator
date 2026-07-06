@@ -8,7 +8,6 @@ from typing import Any
 from ai.client import complete_json, prompt_version
 from ai.docx_extract import extract_docx_full_text
 from ai.models import AiAudit, TagSuggestion
-from field_validation import load_field_contract
 
 # From PRODUCTION_TEMPLATE_GUIDE + common ESA placeholders
 _BRACKET_MAP: dict[str, str] = {
@@ -40,31 +39,22 @@ _PHASE1_PHRASE_MAP: list[tuple[str, str]] = [
 
 
 def _allowed_keys(report_type: str | None = None) -> set[str]:
-    if report_type == "phase1_alberta":
-        from report_profile import get_recommended_fields
+    from report_profile import get_recommended_fields
 
-        keys = set(get_recommended_fields("phase1_alberta"))
-        keys.update(
-            {
-                "prepared_by",
-                "date_of_issue",
-                "report_phase",
-                "template_version",
-                "executive_summary",
-                "drilling_waste_intro",
-                "site_recon_intro",
-                "phase2_recommendation",
-            }
-        )
-        return keys
-
-    contract = load_field_contract()
-    keys: set[str] = set()
-    pd = contract.get("sheets", {}).get("ProjectData", {})
-    keys.update(pd.get("recommended_all_phases", []))
-    keys.update(pd.get("recommended_phase_2", []))
-    keys.update(contract.get("sidebar_meta", {}).keys())
-    keys.discard("report_phase")
+    rt = (report_type or "phase1_alberta").strip()
+    keys = set(get_recommended_fields(rt))
+    keys.update(
+        {
+            "prepared_by",
+            "date_of_issue",
+            "report_phase",
+            "template_version",
+            "executive_summary",
+            "drilling_waste_intro",
+            "site_recon_intro",
+            "phase2_recommendation",
+        }
+    )
     return keys
 
 

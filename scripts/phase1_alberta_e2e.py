@@ -38,6 +38,12 @@ def main() -> int:
     template_bytes = TEMPLATE.read_bytes()
     pre = run_preflight(excel_bytes, template_bytes, meta)
     print(f"Preflight can_generate={pre.can_generate}")
+    if pre.dwda:
+        print(
+            f"DWDA scope={pre.dwda.checklist_scope} "
+            f"complete={pre.dwda.completeness_pct}% "
+            f"items={pre.dwda.satisfied_count}/{pre.dwda.total_items}"
+        )
     if not pre.can_generate:
         for e in pre.errors:
             print(f"  error: {e}")
@@ -49,6 +55,8 @@ def main() -> int:
         excel_filename=XLSX.name,
         template_filename=TEMPLATE.name,
     )
+    assert "dwda_compliance_summary" in ctx
+    assert ctx.get("dwda_checklist_scope")
     appendices, ap_warnings = render_phase1_appendices(ctx, meta)
     labels = {a.label for a in appendices}
     expected = {"A", "D", "G"}

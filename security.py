@@ -340,6 +340,11 @@ def clamp_string(value: Any, *, max_len: int = MAX_CONTEXT_STRING_LEN) -> str:
     return s
 
 
+def strip_internal_context_keys(context: dict[str, Any]) -> dict[str, Any]:
+    """Remove underscore-prefixed engine keys from exported / preview context."""
+    return {k: v for k, v in context.items() if not str(k).startswith("_")}
+
+
 def clamp_context(context: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """
     Enforce row/column/string limits on render context. Returns (context, warnings).

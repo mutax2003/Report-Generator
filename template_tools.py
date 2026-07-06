@@ -59,6 +59,8 @@ class PreflightResult:
     phase2: Any = None  # Phase2ComplianceResult | None
     groundwater: Any = None  # GroundwaterComplianceResult | None
     reclamation: Any = None  # ReclamationComplianceResult | None
+    dwda: Any = None  # DwdaComplianceResult | None
+    dwda_calc: Any = None  # DwdaCalcResult | None
     project_row_count: int = 0
     project_row_labels: list[str] = field(default_factory=list)
     predicted_appendix_labels: set[str] = field(default_factory=set)
@@ -314,7 +316,10 @@ def run_preflight(
 
     if not result.errors:
         try:
-            ctx = engine.build_context(meta)
+            ctx = engine.build_context(
+                meta,
+                appendix_labels_present=set(appendix_labels_present or set()),
+            )
             result.project_row_count = int(ctx.get("_project_row_count", 0))
             project_rows, _ = engine._get_parsed_excel(runtime)
             result.project_row_labels = _labels_from_project_rows(project_rows)
@@ -369,6 +374,29 @@ def run_preflight(
                         )
                     for pw in sed.phase2_warnings[:5]:
                         result.warnings.append(f"Phase 2 hint: {pw}")
+                result.dwda = ctx.get("_dwda_compliance")
+                result.dwda_calc = ctx.get("_dwda_calc_result")
+                dwda = result.dwda
+                if dwda:
+                    result.warnings.append(
+                        f"DWDA / Directive 050: {dwda.completeness_pct}% "
+                        f"({dwda.satisfied_count}/{dwda.total_items}) "
+                        f"scope={dwda.checklist_scope}"
+                    )
+                    for ir in dwda.required_missing[:6]:
+                        result.warnings.append(
+                            f"DWDA required: {ir.section} — {ir.label}"
+                        )
+                    for pr in dwda.phase2_reasons[:4]:
+                        result.warnings.append(f"DWDA Phase II: {pr}")
+                calc = result.dwda_calc
+                if calc and getattr(calc, "cross_check_warnings", None):
+                    for w in calc.cross_check_warnings[:3]:
+                        result.warnings.append(f"DWDA calc cross-check: {w}")
+                if calc and getattr(calc, "phase2_required", False):
+                    result.warnings.append(
+                        "DWDA calculations indicate Phase II may be required"
+                    )
             if runtime.report_type == "phase2_esa" or runtime.narrative_profile == "phase2":
                 from phase2_compliance import evaluate_phase2_compliance
 

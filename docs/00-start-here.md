@@ -38,7 +38,7 @@ Use **Change** in the blue banner to switch workflows later.
 
 ### Project folder path
 
-Enter the folder path (e.g. `C:\Projects\260109R`), click **Browse…** to pick a folder, or click **Load folder**. Optional: **Analyze folder** for AI drafts. See [22-project-folder-workflow.md](22-project-folder-workflow.md).
+Enter the folder path (e.g. `C:\Projects\260109R`), click **Browse…** to pick a folder (loads immediately), or paste the path and click **Load folder**. Optional: **Analyze folder** for AI drafts. See [22-project-folder-workflow.md](22-project-folder-workflow.md).
 
 Optional (both paths): **Standard phrases** on the Report tab — preset paragraphs for tagged fields (see [04-template-authoring.md](04-template-authoring.md)).
 
@@ -69,8 +69,9 @@ Use **Download missing-fields checklist** or **Download ReportConfig sheet** if 
 3. **Download Report (.docx)** — or batch zip when multiple sites were generated
 4. **Download generation manifest (JSON)** — save with the report on SharePoint
 5. **Download Generated appendices D/G** (and **A** QP declaration when shown) — export each `.docx` to PDF in Word before OneStop
-6. Upload appendix PDFs **B/C/E/F/H** (air photos, ABADATA, land title, site sketch, …) under **Optional tools** if needed
-7. **Download deliverable package (.zip)** — report + manifest + appendices + OneStop export
+6. Upload appendix PDFs **B/C/E/F/H** (air photos, ABADATA, land title, site sketch, …) on the **Report** tab **Appendices** section if needed
+7. Review **DWDA / Directive 050** pre-flight panel; download DWDA QP checklist if needed
+8. **Download deliverable package (.zip)** — report + manifest + appendices + **`qp_checklists/`** (SED 002 + DWDA QP review markdown) + OneStop export
 
 For batch runs, use **Download all deliverable packages** for one zip with a folder per site.
 
@@ -82,6 +83,7 @@ Export to client PDF in Word if needed; the app does not merge appendices into o
 |-------|-----|
 | Full Streamlit workflow | [02-user-guide.md](02-user-guide.md) |
 | Alberta Phase I fields | [11-alberta-phase1-esa.md](11-alberta-phase1-esa.md) |
+| DWDA / Directive 050 | [21-dwda-directive-050-compliance.md](21-dwda-directive-050-compliance.md) |
 | Excel columns | [03-excel-data-guide.md](03-excel-data-guide.md) |
 | Word tags | [04-template-authoring.md](04-template-authoring.md) |
 | FAQ | [10-glossary-faq.md](10-glossary-faq.md) |

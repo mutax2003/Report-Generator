@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ecoventure DWDA workbook — ingest cell contract",
+  "description": "Fixed cell addresses in the Ecoventure Phase I xltm for calculation output ingest.",
+  "contract_version": "1.0.0",
+  "workbook_template_id": "ecoventure_phase1_2025",
+  "workbook_signature_sheets": [
+    "Phase 1 Data",
+    "Metal Calcs (Options 1 &2)",
+    "Salt Calculations (Option 2)",
+    "Drill Stem Test Returns"
+  ],
+  "calculation_outputs": {
+    "metal_barite_sacks": { "sheet": "Metal Calcs (Options 1 &2)", "cell": "B20" },
+    "metal_well_depth_m": { "sheet": "Metal Calcs (Options 1 &2)", "cell": "E20" },
+    "metal_mix_ratio": { "sheet": "Metal Calcs (Options 1 &2)", "cell": "G20" },
+    "metal_sacks_per_metre": { "sheet": "Metal Calcs (Options 1 &2)", "cell": "I20" },
+    "metal_objective": { "constant": 0.22 },
+    "salt_naoh_equiv_total": { "sheet": "Salt Calculations (Option 2)", "cell": "H48" },
+    "salt_waste_volume_m3": { "sheet": "Salt Calculations (Option 2)", "cell": "H49" },
+    "salt_sacks_per_m3": { "sheet": "Salt Calculations (Option 2)", "cell": "H50" },
+    "dst_resistivity_sacks_total": { "sheet": "Drill Stem Test Returns", "cell": "J28" },
+    "dst_chloride_sacks_total": { "sheet": "Drill Stem Test Returns", "cell": "J45" }
+  },
+  "phase1_data_mapping": {
+    "header_row": 4,
+    "data_row": 5,
+    "columns": {
+      "client_name": "Authorization Holder\n (Client Name)",
+      "well_name": "Well name or UWI",
+      "uwi": "Well name or UWI",
+      "spud_date": "Spud Date",
+      "cased_date": "Final Drill Date",
+      "well_depth_m": "Well Depth (m)",
+      "drilling_type": "Drilling Type",
+      "aer_waste_compliance_option": "Drilling Waste Disposal -  [Select all that apply]",
+      "drilling_waste_summary": "Are there any other drilling waste comments you wish to add?"
+    },
+    "drilling_waste_columns": {
+      "volume_m3": "Volume (m3)",
+      "disposal_method": "Disposal Method",
+      "disposal_type": "Sump Type",
+      "location": "Disposal Location(s)"
+    }
+  }
+}

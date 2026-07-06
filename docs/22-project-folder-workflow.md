@@ -6,9 +6,10 @@ Consultants can organize one site per **project folder** on disk, run AI enrichm
 
 ```
 C:\Projects\260109R\
-  project_data.xlsx      # Required — ProjectData + optional sheets
-  template.docx          # Required — Jinja Word template (or template.pdf)
-  project.json           # Optional — profile + sidebar meta (see schemas/project_folder.json)
+  project_data.xlsx           # Required — ProjectData + optional sheets
+  template.docx               # Required — Jinja Word template (or template.pdf)
+  ecoventure_workbook.xlsx    # Optional — Ecoventure Phase I + DWDA calcs (Save As from xltm)
+  project.json                # Optional — profile + sidebar meta (see schemas/project_folder.json)
   source\                # Raw PDFs (lab COA, ABADATA, legacy report)
   figures\               # PNG/JPG for manual Word paste or path columns
   appendices\            # Manual PDFs B/C/E/F/H (A/D/G auto-generated at render)
@@ -34,8 +35,11 @@ python scripts\ingest_project_folder.py --init-sample --folder C:\Projects\demo_
 | `template_version` | `2.1` |
 | `excel_filename` | Override default Excel name |
 | `template_filename` | Override default template name |
+| `ecoventure_workbook_filename` | Override default `ecoventure_workbook.xlsx` |
 
 Schema: [`schemas/project_folder.json`](../schemas/project_folder.json)
+
+**AI drafts:** `--ai enrich` writes advisory text to `ai_drafts/` only. Render uses `project_data.xlsx` + sidebar meta — copy draft content into Excel or use the executive summary override if you want it in the report.
 
 ## CLI commands
 
@@ -95,6 +99,7 @@ Requires local/desktop Streamlit (not multi-tenant hosted).
 
 ## Related docs
 
+- [23-excel-calculation-workbook-integration.md](23-excel-calculation-workbook-integration.md) — optional `ecoventure_workbook.xlsx` hybrid ingest
 - [00-start-here.md](00-start-here.md) — consultant Streamlit path
 - [09-ai-assistant.md](09-ai-assistant.md) — AI tab features
 - [15-power-automate-guide.md](15-power-automate-guide.md) — SharePoint (future same layout)

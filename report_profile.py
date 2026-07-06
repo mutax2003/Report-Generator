@@ -20,6 +20,8 @@ PROJECT_SHEET = "ProjectData"
 LAB_SHEET = "LabResults"
 DRILLING_WASTE_SHEET = "DrillingWaste"
 STORAGE_TANKS_SHEET = "StorageTanks"
+DWDA_CHECKLIST_SHEET = "DwdaChecklist"
+DWDA_CALCULATIONS_SHEET = "DwdaCalculations"
 
 
 def _norm_key(name: str) -> str:

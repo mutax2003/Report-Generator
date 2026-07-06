@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from phase1_pdf_text import parse_phase1_pdf_meta
+from phase1_pdf_text import extract_pdf_text_local, parse_phase1_pdf_meta
 
 ROOT = Path(__file__).resolve().parents[1]
 PDF_260109 = (
@@ -14,6 +14,9 @@ PDF_260109 = (
 
 
 class TestPhase1PdfText(unittest.TestCase):
+    def test_extract_stub_pdf_returns_empty_without_error(self) -> None:
+        self.assertEqual(extract_pdf_text_local(b"%PDF-1.4\n"), "")
+
     @unittest.skipUnless(PDF_260109.is_file(), "sample PDF not present")
     def test_parse_260109_meta(self) -> None:
         meta = parse_phase1_pdf_meta(PDF_260109)

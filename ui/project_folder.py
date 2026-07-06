@@ -201,6 +201,18 @@ def _render_folder_controls() -> FolderLoadResult | None:
     if last_analyzed:
         st.caption(f"Last analyzed (ai_drafts/): **{last_analyzed}**")
 
+    loaded_path = st.session_state.get("project_folder_path", "")
+    path_changed = bool(
+        folder_path and loaded_path and folder_path != loaded_path
+    )
+    if path_changed:
+        st.warning("Path changed — click **Load folder** to refresh loaded files.")
+
+    st.caption(
+        "**Browse…** loads the folder immediately. Or paste a path and click **Load folder**. "
+        "On servers without a desktop, paste the path only."
+    )
+
     col1, col2, col3 = st.columns(3)
     load_clicked = col1.button(
         "Load folder", width="stretch", key="load_project_folder"
@@ -220,13 +232,7 @@ def _render_folder_controls() -> FolderLoadResult | None:
         _run_folder_analyze(folder_path)
 
     loaded_path = st.session_state.get("project_folder_path", "")
-    if (
-        folder_path
-        and loaded_path
-        and folder_path != loaded_path
-        and not load_clicked
-        and not analyze_clicked
-    ):
+    if path_changed and not load_clicked and not analyze_clicked:
         _invalidate_folder_load()
 
     if load_clicked and folder_path:
@@ -259,12 +265,20 @@ def _render_folder_controls() -> FolderLoadResult | None:
         clear_folder_session()
         st.warning("Folder session was invalid — please load the folder again.")
 
-    st.info(
-        "Click **Browse…** to choose a folder, or paste a path, then click **Load folder**. "
-        "Use **Analyze folder** first if you want AI drafts in `ai_drafts/` "
-        "before generating."
-    )
+    _render_folder_idle_state()
     return None
+
+
+def _render_folder_idle_state() -> None:
+    from ui.alberta_imagery import has_alberta_images, render_empty_state_banner
+
+    if has_alberta_images():
+        render_empty_state_banner()
+    st.info(
+        "Click **Browse…** to choose a folder (loads immediately), or paste a path and "
+        "click **Load folder**. Use **Analyze folder** first if you want AI drafts in "
+        "`ai_drafts/` before generating."
+    )
 
 
 def _handle_browse_folder(fallback_initial: str) -> None:
@@ -288,7 +302,7 @@ def _handle_browse_folder(fallback_initial: str) -> None:
     st.session_state.project_folder_path_pending = picked
     try:
         loaded = _load_folder(picked)
-    except (FileNotFoundError, ValueError, OSError) as e:
+    except (FileNotFoundError, ValueError, OSError, TypeError) as e:
         st.error(_format_folder_error(e))
         return
     st.session_state.project_folder_path = picked
@@ -307,7 +321,8 @@ def render_project_folder_step() -> FolderLoadResult | None:
         "Select project folder",
         caption=(
             "Folder must contain `project_data.xlsx` and `template.docx` (or `.pdf`). "
-            "Optional: `source/`, `appendices/`, `rag/`, `project.json`."
+            "Optional: `source/`, `appendices/`, `rag/`, `project.json`. "
+            "On Docker/Linux servers, paste the path (Browse is unavailable)."
         ),
     )
     return _render_folder_controls()
@@ -349,6 +364,9 @@ def _load_folder_from_resolved(
 
     sig = sig or _folder_core_sig(resolved)
     excel_bytes, template_bytes = core_files or resolved.read_core_files()
+    from project_folder import effective_excel_bytes_for_folder
+
+    excel_bytes, eco_warnings = effective_excel_bytes_for_folder(resolved, excel_bytes)
     excel_file = _PathUpload(resolved.excel_path.name, excel_bytes)
     template_file = _PathUpload(
         resolved.template_path.name,
@@ -369,7 +387,7 @@ def _load_folder_from_resolved(
     ver = parse_template_version_from_filename(template_file.name)
     if ver:
         st.session_state.suggested_template_version = ver
-    warnings = list(prepared_tpl.warnings)
+    warnings = list(prepared_tpl.warnings) + eco_warnings
     inv = resolved.inventory
     summaries_path = resolved.root / "ai_drafts" / "source_summaries.json"
     st.session_state.project_folder_meta = dict(resolved.meta)

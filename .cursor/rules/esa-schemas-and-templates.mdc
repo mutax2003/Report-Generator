@@ -8,12 +8,27 @@ alwaysApply: false
 
 ## Source of truth
 
-- **Recommended fields per report type:** `schemas/report_profiles.json` (`phase1_alberta`, `phase2_esa`, `template_driven`).
-- **Legacy / AI tagger alignment:** `schemas/field_contract.json` — update only when tagger or legacy docs need the same names.
+- **Recommended fields per report type:** `schemas/report_profiles.json` — all **7** profiles: `phase1_alberta`, `phase1_devon`, `phase2_esa`, `groundwater_monitoring`, `reclamation_certificate`, `phase3_remediation`, `template_driven`.
+- **Legacy / AI tagger alignment:** `schemas/field_contract.json` — sync with profile DWDA fields; AI tagger uses `get_recommended_fields(report_type)` for all profiles.
+
+## Key schema files
+
+| File | Purpose |
+|------|---------|
+| `report_profiles.json` | Profiles, `recommended_fields`, `sheet_mappings`, `appendix_templates` |
+| `field_contract.json` | Legacy ProjectData + sheet row fields |
+| `sed002_phase1_checklist.json` | SED 002 §10 preflight |
+| `dwda_compliance_checklist.json` | Directive 050 / DWDA checklist |
+| `ecoventure_dwda_cell_contract.json` | Ecoventure xltm cell ingest (`contract_version`) |
+| `dwda_salt_additives.json` | Salt additive factors for calc engine |
+| `project_folder.json` | `project.json` layout (`ecoventure_workbook_filename`) |
+| `phase2_esa_checklist.json`, `groundwater_checklist.json`, `reclamation_checklist.json` | Vertical profile preflight |
 
 ## Excel layout
 
 - **`ProjectData`**: row 1 = headers (→ snake_case keys), **row 2+ = one site per row** (batch: all rows or pick one in UI).
+- **DWDA sheets:** `DwdaChecklist`, `DwdaCalculations` (see [docs/21-dwda-directive-050-compliance.md](docs/21-dwda-directive-050-compliance.md)).
+- **Groundwater:** `MonitoringWells`, `WaterLevels`, `GroundwaterLab`, `FieldNotes`.
 - Sheet names are **case-sensitive** — see [EXCEL_LAYOUT.txt](EXCEL_LAYOUT.txt) and the always-on architecture rule.
 
 ## Word templates
@@ -27,4 +42,4 @@ alwaysApply: false
 - **Missing template vars** → warn, render empty (do not block).
 - **Invalid files / required sheets missing / split tags** → block generation.
 
-When adding production fields: extend **`report_profiles.json`** first; run preflight/tests with `samples/` pairs.
+When adding production fields: extend **`report_profiles.json`** first; sync **`field_contract.json`** for AI tagger; run `tests/test_schema_parity.py`.

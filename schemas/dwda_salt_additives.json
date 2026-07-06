@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DWDA salt additive NaOH equivalency factors",
+  "description": "From Ecoventure Salt Calculations (Option 2) sheet — sacks × factor = NaOH equivalent sacks.",
+  "sack_weight_kg_default": 25,
+  "additives": [
+    { "name": "Caustic Soda", "naoh_factor": 1.0 },
+    { "name": "Soda Ash", "naoh_factor": 0.75 },
+    { "name": "Sodium Chloride", "naoh_factor": 0.68 },
+    { "name": "Sodium Bicarbonate", "naoh_factor": 0.95 },
+    { "name": "Sodium Silicate", "naoh_factor": 1.37 },
+    { "name": "Sodium acid pyrophosphate (SAPP)", "naoh_factor": 0.22 },
+    { "name": "Potassium chloride", "naoh_factor": 0.54 },
+    { "name": "Potassium sulphate", "naoh_factor": 0.46 },
+    { "name": "Caustic potash", "naoh_factor": 0.71 },
+    { "name": "Potassium formate", "naoh_factor": 0.47 },
+    { "name": "Potassium silicate", "naoh_factor": 0.32 },
+    { "name": "Potassium nitrate", "naoh_factor": 0.4 },
+    { "name": "Diammonium phosphate", "naoh_factor": 0.63 },
+    { "name": "Ammonium nitrate", "naoh_factor": 0.57 },
+    { "name": "Ammonium sulphate", "naoh_factor": 0.61 },
+    { "name": "Drill Stem Test Returns", "naoh_factor": 0.68 }
+  ],
+  "salt_max_sacks_per_m3_factor": 0.02,
+  "metal_objective_sacks_per_m": 0.22,
+  "dst_chloride_divisor": 7600,
+  "dst_resistivity_default": 0.28
+}

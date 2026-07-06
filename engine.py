@@ -47,6 +47,8 @@ MONITORING_WELLS_SHEET = "MonitoringWells"
 WATER_LEVELS_SHEET = "WaterLevels"
 DRILLING_WASTE_SHEET = "DrillingWaste"
 STORAGE_TANKS_SHEET = "StorageTanks"
+DWDA_CHECKLIST_SHEET = "DwdaChecklist"
+DWDA_CALCULATIONS_SHEET = "DwdaCalculations"
 
 ECOVENTURE_CONSULTANT = "Ecoventure Inc."
 
@@ -64,6 +66,27 @@ def _norm_key(name: str) -> str:
     s = str(name).strip()
     s = re.sub(r"\s+", "_", s)
     return s.lower()
+
+
+def _merge_dwda_calc_sheet(ctx: dict[str, Any]) -> None:
+    """Promote DwdaCalculations sheet row into scalar context for calc engine."""
+    from ecoventure_workbook import (
+        cell_contract_provenance,
+        flat_calc_row_from_sheet_record,
+    )
+
+    rows = ctx.pop("dwda_calc_sheet", None) or []
+    if not isinstance(rows, list) or not rows or not isinstance(rows[0], dict):
+        return
+    ingested = flat_calc_row_from_sheet_record(rows[0])
+    for nk, v in ingested.items():
+        if nk not in ctx or not _s(ctx.get(nk)):
+            ctx[nk] = v
+    if ingested:
+        ctx["_ecoventure_ingested"] = ingested
+        prov = cell_contract_provenance()
+        ctx["_ecoventure_contract_version"] = prov["contract_version"]
+        ctx["_ecoventure_workbook_template_id"] = prov["workbook_template_id"]
 
 
 def _cell_str(v: Any) -> str:
@@ -495,6 +518,7 @@ class ReportEngine:
         *,
         project_row_index: int = 0,
         parsed_excel: tuple[list[dict[str, Any]], dict[str, list]] | None = None,
+        appendix_labels_present: set[str] | None = None,
     ) -> dict[str, Any]:
         meta = sanitize_meta(meta)
         runtime = self.resolve_config(meta)
@@ -544,8 +568,11 @@ class ReportEngine:
             "confirmatory_sampling",
             "waste_manifests",
             "sample_locations",
+            "dwda_checklist",
+            "dwda_calc_sheet",
         ):
             ctx.setdefault(legacy, [])
+        _merge_dwda_calc_sheet(ctx)
         ctx["_report_type"] = runtime.report_type
         phase = str(ctx.get("report_phase", "")).strip()
         if runtime.narrative_profile == "groundwater_monitoring":
@@ -581,14 +608,18 @@ class ReportEngine:
         elif (
             runtime.narrative_profile == "phase1_alberta"
             and phase == "Phase 1"
-            and not _s(ctx.get("executive_summary"))
         ):
-            ctx["executive_summary"] = build_phase1_executive_summary(ctx)
-            ctx["_executive_summary_auto_generated"] = True
-        if runtime.narrative_profile == "phase1_alberta" and phase == "Phase 1":
-            from phase1_decision import enrich_context_phase2_decision
+            from phase1_decision import enrich_phase1_alberta_context
 
-            ctx = enrich_context_phase2_decision(ctx)
+            ctx = enrich_phase1_alberta_context(
+                ctx,
+                meta,
+                appendix_labels_present=appendix_labels_present,
+                report_type=runtime.report_type,
+            )
+            if not _s(ctx.get("executive_summary")):
+                ctx["executive_summary"] = build_phase1_executive_summary(ctx)
+                ctx["_executive_summary_auto_generated"] = True
         return ctx
 
     def missing_template_vars(
@@ -661,8 +692,11 @@ class ReportEngine:
             template_filename=template_filename,
             dry_run=True,
             template_source_format=str((meta or {}).get("template_source_format", "")),
+            context=context,
         )
-        return context, warnings, record
+        from security import strip_internal_context_keys
+
+        return strip_internal_context_keys(context), warnings, record
 
     def render(
         self, meta: dict[str, str] | None = None,
@@ -672,6 +706,7 @@ class ReportEngine:
         project_row_index: int = 0,
         parsed_excel: tuple[list[dict[str, Any]], dict[str, list]] | None = None,
         include_coverage: bool = True,
+        appendix_labels_present: set[str] | None = None,
     ) -> tuple[bytes, list[str], dict[str, Any], "GenerationRecord"]:
         """
         Returns (docx_bytes, warnings, context).
@@ -682,6 +717,7 @@ class ReportEngine:
             meta,
             project_row_index=project_row_index,
             parsed_excel=parsed_excel,
+            appendix_labels_present=appendix_labels_present,
         )
         auto_exec = context.pop("_executive_summary_auto_generated", False)
         phrase_warnings = context.pop("_phrase_warnings", [])
@@ -741,6 +777,7 @@ class ReportEngine:
             template_filename=template_filename,
             dry_run=False,
             template_source_format=str((meta or {}).get("template_source_format", "")),
+            context=context,
         )
         return docx_bytes, warnings, context, record
 
@@ -750,6 +787,7 @@ class ReportEngine:
         *,
         excel_filename: str = "",
         template_filename: str = "",
+        appendix_labels_present: set[str] | None = None,
     ) -> list[BatchReportResult]:
         """Render one .docx per non-blank ProjectData row."""
         runtime = self.resolve_config(meta)
@@ -780,6 +818,7 @@ class ReportEngine:
                 project_row_index=i,
                 parsed_excel=(project_rows, filtered_per_row[i]),
                 include_coverage=(i == n - 1),
+                appendix_labels_present=appendix_labels_present,
             )
             filename = suggested_download_name(
                 context, meta or {}, project_row_index=i, batch_size=n
@@ -1089,6 +1128,10 @@ def generate_phase1_alberta_excel(path: str) -> None:
             "the remote site at Example 10-04-048-06 W4M"
         ),
         "phase2_drilling_waste_required": "No",
+        "cuttings_volume_on_lease_m3": "55",
+        "directive_050_notification_ref": "Directive 050 notification on file; tour reports reviewed",
+        "dwda_salinity_pathway": "equivalent_salinity",
+        "dwda_phase2_required": "No",
         "phase2_esa_required": "Yes",
         "client_phase_keyword": "Phase II",
         "site_visit_completed": "No",
@@ -1130,15 +1173,87 @@ def generate_phase1_alberta_excel(path: str) -> None:
         [
             {
                 "mud_type": "Gel Chem",
-                "volume_m3": "208",
-                "disposal_method": "LWD, landspray, landspread onsite, remote site",
-                "location": "SW1/4 04-049-04 W4M; SE-09-049-04 W4M; onsite; remote site",
-                "disposal_type": "off-lease and on-lease",
+                "volume_m3": "110",
+                "disposal_method": "LWD",
+                "location": "SW1/4 04-049-04 W4M well centre",
+                "disposal_type": "on-lease",
+                "gps_coordinates": "51.1234,-114.5678",
+                "sump_depth_m": "2.5",
+                "cover_depth_m": "1.0",
+                "remote_cert_number": "",
+                "waste_manifest_refs": "",
+                "dwda_id": "DWDA-1",
+                "area_m2": "450",
+                "salinity_exceedance": "pending",
+            },
+            {
+                "mud_type": "Mainhole mud",
+                "volume_m3": "35",
+                "disposal_method": "landspray",
+                "location": "SE-09-049-04 W4M",
+                "disposal_type": "off-lease",
                 "gps_coordinates": "",
                 "sump_depth_m": "",
                 "cover_depth_m": "",
                 "remote_cert_number": "",
-                "waste_manifest_refs": "",
+                "waste_manifest_refs": "Manifest 2017-042",
+                "dwda_id": "",
+                "area_m2": "",
+                "salinity_exceedance": "",
+            },
+            {
+                "mud_type": "Mainhole mud",
+                "volume_m3": "60",
+                "disposal_method": "remote haul",
+                "location": "Example 10-04-048-06 W4M remote site",
+                "disposal_type": "off-lease",
+                "gps_coordinates": "",
+                "sump_depth_m": "",
+                "cover_depth_m": "",
+                "remote_cert_number": "RC-2017-009",
+                "waste_manifest_refs": "Manifest 2017-043",
+                "dwda_id": "",
+                "area_m2": "",
+                "salinity_exceedance": "",
+            },
+        ]
+    )
+    dwda_checklist = pd.DataFrame(
+        [
+            {
+                "checklist_item_id": "d050.notification",
+                "response": "Yes",
+                "notes": "Tour report on file",
+            },
+            {
+                "checklist_item_id": "d050.compliance_option",
+                "response": "Yes",
+                "notes": "Option 1 AER 2014",
+            },
+            {
+                "checklist_item_id": "d050.waste_summary",
+                "response": "Yes",
+                "notes": "",
+            },
+            {
+                "checklist_item_id": "d050.waste_table",
+                "response": "Yes",
+                "notes": "Three disposal events in DrillingWaste",
+            },
+            {
+                "checklist_item_id": "d050.cuttings_volume",
+                "response": "Yes",
+                "notes": "110 m3 LWD on lease",
+            },
+            {
+                "checklist_item_id": "d050.gps_on_lease",
+                "response": "Yes",
+                "notes": "",
+            },
+            {
+                "checklist_item_id": "d050.salinity_pathway",
+                "response": "Yes",
+                "notes": "Equivalent Salinity within DWDA-1",
             },
         ]
     )
@@ -1167,6 +1282,7 @@ def generate_phase1_alberta_excel(path: str) -> None:
     with pd.ExcelWriter(path, engine="openpyxl") as w:
         project.to_excel(w, sheet_name=PROJECT_SHEET, index=False)
         waste.to_excel(w, sheet_name=DRILLING_WASTE_SHEET, index=False)
+        dwda_checklist.to_excel(w, sheet_name=DWDA_CHECKLIST_SHEET, index=False)
         tanks.to_excel(w, sheet_name=STORAGE_TANKS_SHEET, index=False)
         if not phrase_catalog.empty:
             phrase_catalog.to_excel(w, sheet_name=PHRASE_CATALOG_SHEET, index=False)

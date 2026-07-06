@@ -9,7 +9,7 @@ alwaysApply: true
 
 **Primary use case:** Alberta O&G **Phase I ESA** for **Ecoventure Inc.** (`consultant_name` / `company` = Ecoventure Inc.). Samples: `samples/phase1_alberta_data.xlsx` + `samples/phase1_alberta_template.docx`.
 
-**Authoritative docs:** [docs/README.md](docs/README.md) · [docs/00-start-here.md](docs/00-start-here.md) (consultants) · Phase I: [docs/11-alberta-phase1-esa.md](docs/11-alberta-phase1-esa.md) · SED 002: [docs/20-aer-sed002-phase1-esa.md](docs/20-aer-sed002-phase1-esa.md) · Profiles: [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md) · Project folder: [docs/22-project-folder-workflow.md](docs/22-project-folder-workflow.md) · Deploy: [docs/14-deployment.md](docs/14-deployment.md) · Power Automate: [docs/15-power-automate-guide.md](docs/15-power-automate-guide.md) · User testing: [docs/12-testing-with-your-documents.md](docs/12-testing-with-your-documents.md)
+**Authoritative docs:** [docs/README.md](docs/README.md) · [docs/00-start-here.md](docs/00-start-here.md) (consultants) · Phase I: [docs/11-alberta-phase1-esa.md](docs/11-alberta-phase1-esa.md) · DWDA: [docs/21-dwda-directive-050-compliance.md](docs/21-dwda-directive-050-compliance.md) · Excel calc ingest: [docs/23-excel-calculation-workbook-integration.md](docs/23-excel-calculation-workbook-integration.md) · SED 002: [docs/20-aer-sed002-phase1-esa.md](docs/20-aer-sed002-phase1-esa.md) · Profiles: [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md) · Project folder: [docs/22-project-folder-workflow.md](docs/22-project-folder-workflow.md) · Phase II/remediation: [docs/24-remediation-reports.md](docs/24-remediation-reports.md) · Deploy: [docs/14-deployment.md](docs/14-deployment.md) (incl. Windows exe via `scripts/build_windows_deploy.ps1`) · Power Automate: [docs/15-power-automate-guide.md](docs/15-power-automate-guide.md) · User testing: [docs/12-testing-with-your-documents.md](docs/12-testing-with-your-documents.md)
 
 **Setup (required before scripts):**
 
@@ -30,12 +30,19 @@ Use venv `python` or `.\.venv\Scripts\python.exe` — system `python` lacks `pan
 | `StorageTanks` | Optional | Optional | `storage_tanks` list |
 | `PhraseCatalog` | Optional | Optional | Phrase options + `phrase_key_selected` columns (see `phrase_resolver.py`) |
 | `ReportConfig` | Optional | Optional | key/value overrides (`report_type`, `map_*`) |
+| `DwdaCalculations` | Optional | — | Ecoventure DWDA calc ingest (`dwda_calculations.py`) |
+| `DwdaChecklist` | Optional | — | QP checklist responses (`dwda_compliance.py`) |
+| `MonitoringWells` | GW profile | — | `monitoring_wells` list |
+| `WaterLevels` | GW profile | — | `water_levels` list |
+| `GroundwaterLab` | GW profile | — | `groundwater_results` list |
 
-**Code layout:** `app.py` + `ui/*` (Streamlit, incl. `workflow_mode`, `project_folder`, `folder_picker`, `phrase_panel`, `preflight`, `appendix_panel`) · `engine.py` (`ReportEngine`, `render_batch`) · `project_folder.py` (local folder resolve, enrich, render to `delivered/`) · `appendix_generator.py` (Phase I appendices D/G from `DrillingWaste`) · `phrase_resolver.py` · `report_profile.py` · `template_attachments.py` (PDF→DOCX) · `template_size.py` · `deliverable_pack.py` · `phase1_narrative.py` · `phase1_decision.py` · `sed002_compliance.py` · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `ai/*` (incl. `source_ingest.py`, `narrative.py`) · `schemas/report_profiles.json` (incl. `appendix_templates` per profile) · `schemas/sed002_phase1_checklist.json` · `schemas/phrase_catalog.json` · `schemas/field_contract.json` (legacy/AI) · `samples/appendices/` (D/G Word templates) · `scripts/` (`create_appendix_templates.py`, `ingest_project_folder.py`, `create_phase2_project_folder.py`) · `automate/`.
+Full sheet inventory: [`EXCEL_LAYOUT.txt`](EXCEL_LAYOUT.txt) and [`schemas/report_profiles.json`](schemas/report_profiles.json) `sheet_mappings`.
 
-**Report profiles:** `phase1_alberta`, `phase1_devon`, `phase2_esa`, `groundwater_monitoring`, `template_driven` — see [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md). Recommended fields per profile in `schemas/report_profiles.json`. Optional Excel `ReportConfig` sheet for overrides.
+**Code layout:** `app.py` + `ui/*` (Streamlit, incl. `workflow_mode`, `project_folder`, `layout`, `folder_picker`, `phrase_panel`, `preflight`, `appendix_panel`) · `render_service.py` (unified headless render) · `engine.py` (`ReportEngine`, `render_batch`) · `project_folder.py` · `appendix_generator.py` (Phase I appendices **A/D/G**) · `compliance_helpers.py` (shared SED/DWDA/Ecoventure helpers) · `ecoventure_workbook.py` · `dwda_calculations.py` · `dwda_compliance.py` · `phase2_triggers.py` · `phrase_resolver.py` · `report_profile.py` · `template_attachments.py` · `template_size.py` · `deliverable_pack.py` · `phase1_narrative.py` · `phase1_decision.py` · `sed002_compliance.py` · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `esa_launcher.py` · `ai/*` · `schemas/*` · `templates/ecoventure_dwda/` · `scripts/` · `automate/`.
 
-**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (179 tests) · regression: `python scripts\health_check.py` (15 checks)
+**Report profiles (7):** `phase1_alberta`, `phase1_devon`, `phase2_esa`, `groundwater_monitoring`, `reclamation_certificate`, `phase3_remediation`, `template_driven` — see [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md).
+
+**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (**284 tests**, 3 may skip) · regression: `python scripts\health_check.py` (**17 checks**)
 
 **Multiple-choice phrases:** [`schemas/phrase_catalog.json`](schemas/phrase_catalog.json) · Excel `PhraseCatalog` sheet · Streamlit **Standard phrases** panel · see [docs/04-template-authoring.md](docs/04-template-authoring.md)
 
@@ -83,13 +90,14 @@ Web-based **Environmental Report Generation Engine**: Excel + Word or PDF templa
 
 - **Modular:** UI separate from `ReportEngine`
 - **Session state** for generated bytes and manifest
-- **M365 / portability:** Reuse `engine.py` in Power Automate later; only change data ingress
+- **M365 / portability:** Reuse `render_service.py` (wraps `ReportEngine`) for headless paths; Streamlit uses the same service on generate
 
 ## Deliverables (present in repo)
 
-- `app.py`, `engine.py`, `project_folder.py`, `appendix_generator.py`, `deliverable_pack.py`
+- `app.py`, `engine.py`, `project_folder.py`, `appendix_generator.py`, `deliverable_pack.py`, `esa_launcher.py`
 - `EXCEL_LAYOUT.txt`, `JINJA2_CHEATSHEET.txt`
 - `scripts/create_samples.py` — demo + production + phase1_alberta fixtures
+- `scripts/build_windows_deploy.ps1` — Windows portable folder + optional `.exe` (`dist/ESA-Report-Generator/`)
 - `Dockerfile`, `docs/14-deployment.md`, `docs/15-power-automate-guide.md`
 
 ## Agent guidance

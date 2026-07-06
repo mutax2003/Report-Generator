@@ -283,6 +283,48 @@ class AppendixGeneratorTests(unittest.TestCase):
         self.assertTrue(any(n.startswith("Test_Site/") for n in names))
         self.assertTrue(any("/appendices/A_" in n for n in names))
 
+    def test_render_injects_dwda_checklist_results(self) -> None:
+        from appendix_generator import render_phase1_appendices
+        from dwda_compliance import enrich_dwda_context
+
+        ctx = {
+            "client_name": "Client",
+            "well_name": "Well",
+            "uwi": "00/01-01-001-01W1/0",
+            "consultant_name": "Ecoventure Inc.",
+            "company": "Ecoventure Inc.",
+            "qp_names": "QP Name",
+            "no_drilling_waste_on_site": "No",
+            "aer_waste_compliance_option": "Option 1",
+            "drilling_waste_summary": "Summary",
+            "directive_050_notification_ref": "NOT-1",
+            "cuttings_volume_on_lease_m3": "60",
+            "drilling_waste": [
+                {
+                    "mud_type": "Gel",
+                    "volume_m3": "1",
+                    "disposal_method": "LWD",
+                    "location": "on lease",
+                    "gps_coordinates": "51,-114",
+                }
+            ],
+            "dwda_checklist": [
+                {"checklist_item_id": "d050.notification", "response": "Yes"},
+            ],
+            "_report_type": "phase1_alberta",
+        }
+        meta = {
+            "report_type": "phase1_alberta",
+            "prepared_by": "Sidebar QP",
+            "date_of_issue": "2026-06-10",
+        }
+        ctx = enrich_dwda_context(ctx, meta, appendix_labels_present={"D", "G"})
+        appendices, warnings = render_phase1_appendices(ctx, meta)
+        self.assertFalse(warnings, warnings)
+        self.assertIn("dwda_checklist_results", ctx)
+        self.assertTrue(ctx["dwda_checklist_results"])
+        self.assertIn("D", {a.label for a in appendices})
+
 
 if __name__ == "__main__":
     unittest.main()

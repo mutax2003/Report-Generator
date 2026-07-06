@@ -64,6 +64,28 @@ class ProjectFolderTests(unittest.TestCase):
         self.assertTrue(any(p.name == "preflight_report.md" for p in paths))
         self.assertTrue((resolved.ai_drafts_dir / "inventory.md").is_file())
 
+    def test_preflight_merges_ecoventure_workbook(self) -> None:
+        import shutil
+
+        from project_folder import resolve_project_folder, run_preflight_for_folder
+
+        eco = ROOT / "samples" / "ecoventure_dwda" / "minimal_calc_workbook.xlsx"
+        if not eco.is_file():
+            import subprocess
+            import sys
+
+            subprocess.check_call(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "create_ecoventure_dwda_fixture.py"),
+                ]
+            )
+        folder = self._make_folder()
+        shutil.copy(eco, folder / "ecoventure_workbook.xlsx")
+        resolved = resolve_project_folder(folder, create_subdirs=True)
+        pre = run_preflight_for_folder(resolved)
+        self.assertIsNotNone(getattr(pre, "dwda_calc", None))
+
     def test_narratives_offline(self) -> None:
         from project_folder import draft_narratives_for_folder, resolve_project_folder
 

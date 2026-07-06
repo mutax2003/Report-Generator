@@ -17,27 +17,30 @@ python scripts\render_cli.py
 python scripts\phase1_package_smoke.py
 python scripts\production_e2e.py
 python scripts\phase1_alberta_e2e.py
-python scripts\test_with_your_documents.py
-python scripts\health_check.py
-```
-
-## Local-only E2E (pre-release; not in CI)
-
-Run before major releases or after profile/folder changes:
-
-```powershell
 python scripts\phase2_alberta_e2e.py
 python scripts\groundwater_e2e.py
-python scripts\phase3_remediation_e2e.py
-python scripts\reclamation_e2e.py
 python scripts\create_phase2_project_folder.py
 python scripts\ingest_project_folder.py --folder user_test\phase2_alberta --render --no-llm
+python scripts\test_with_your_documents.py
+python scripts\create_ecoventure_dwda_fixture.py
+python scripts\dwda_workflow_e2e.py
+python scripts\health_check.py
+python scripts\streamlit_smoke.py
+```
+
+## Local-only E2E (pre-release)
+
+```powershell
+python scripts\phase3_remediation_e2e.py
+python scripts\reclamation_e2e.py
+python scripts\create_ecoventure_dwda_fixture.py
 $env:ESA_ALLOW_LARGE_TEMPLATE="1"; python scripts\phase1_site_e2e.py
+python scripts\playwright_smoke.py
 ```
 
 ## Conventions
 
-- Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates. Current count: **179 tests** (`test_streamlit_smoke`, `test_folder_picker`, `test_source_ingest`, `test_project_folder`, etc.).
+- Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates. Current count: **284 tests** (3 may skip; incl. `test_compliance_helpers`, `test_phase2_triggers`, `test_reclamation_compliance`, `test_render_path_parity`, `test_dwda_*`, `test_ecoventure_workbook`, `test_upload_helpers`, `test_streamlit_smoke`, `test_folder_picker`, etc.). Verify with `python scripts\count_tests.py`.
 - Prefer **real fixtures** in `samples/` over huge inline ZIP bytes; use `unittest.SkipTest` when optional large files are absent.
 - **`ESA_VALIDATION_BYPASS=1`**: tests only — never document for production.
 - **`ESA_RUN_HEALTH_CHECK=1`**: enables the slow `test_smoke_integration` health path; CI runs `health_check.py` separately.

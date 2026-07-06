@@ -5,19 +5,21 @@ from typing import Any
 
 import streamlit as st
 
-from appendix_generator import attach_appendices_to_record
+from compliance_helpers import normalize_appendix_labels
 from deliverable_pack import build_batch_deliverable_packages_zip, build_batch_reports_zip
 from engine import suggested_download_name
+from provenance import GenerationRecord, sha256_hex
+from render_service import RenderRequest, render_batch_reports, render_report
 from security import (
     MAX_EXCEL_BYTES,
     _template_size_limit,
     user_safe_error,
 )
-from provenance import sha256_hex
 from ui.ai_panel import render_ai_panel, render_ai_settings_sidebar
-from ui.appendix_panel import render_appendix_uploader, render_deliverable_downloads
+from ui.appendix_panel import render_appendix_step, render_deliverable_downloads
 from ui.helpers import (
     cached_upload_bytes,
+    effective_excel_bytes,
     get_cached_report_engine,
     render_template_analysis,
 )
@@ -36,11 +38,13 @@ from ui.workflow_mode import (
     render_workflow_picker,
 )
 from ui.layout import (
+    compute_workflow_step,
     render_generate_cta,
     render_outputs_section_header,
     render_phrase_expander,
     render_upload_step,
     render_section_header,
+    render_workflow_stepper,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,6 +73,33 @@ def _init_state() -> None:
 
 def _file_ext_ok(name: str, ext: str) -> bool:
     return name.lower().endswith(ext)
+
+
+def _has_generated_output() -> bool:
+    return bool(
+        st.session_state.get("generated_docx")
+        or st.session_state.get("generated_batch")
+    )
+
+
+def _project_row_info(
+    preflight: Any,
+    excel_bytes: bytes | None,
+    template_bytes: bytes | None,
+    meta_render: dict[str, str],
+) -> tuple[int, list[str]]:
+    if preflight and preflight.project_row_count > 0:
+        return preflight.project_row_count, list(preflight.project_row_labels)
+    if excel_bytes and template_bytes:
+        try:
+            engine = get_cached_report_engine(excel_bytes, template_bytes)
+            return (
+                engine.project_row_count(meta_render),
+                engine.project_row_labels(meta_render),
+            )
+        except Exception:
+            pass
+    return 1, []
 
 
 def main() -> None:
@@ -118,8 +149,28 @@ def main() -> None:
     excel_bytes = folder_excel_bytes or (
         cached_upload_bytes(excel_file, slot="excel") if excel_file else None
     )
+    excel_bytes = effective_excel_bytes(excel_bytes)
     template_bytes = folder_template_bytes or (
         prepared_tpl.docx_bytes if prepared_tpl else None
+    )
+
+    has_excel = bool(excel_bytes)
+    has_template = bool(template_bytes)
+
+    meta_render = dict(meta)
+    if prepared_tpl:
+        meta_render["template_source_format"] = prepared_tpl.source_format
+    phrase_meta = render_phrase_expander(render_phrase_panel)
+    meta_render.update(phrase_meta)
+
+    preflight = run_preflight_check(excel_bytes, template_bytes, meta_render)
+    render_workflow_stepper(
+        compute_workflow_step(
+            has_excel=has_excel,
+            has_template=has_template,
+            preflight_ok=None if preflight is None else preflight.can_generate,
+            has_output=_has_generated_output(),
+        )
     )
 
     tab_labels = (
@@ -129,16 +180,7 @@ def main() -> None:
     )
     tab_report, tab_ai = st.tabs(tab_labels)
 
-    meta_render = dict(meta)
-    preflight = None
-
     with tab_report:
-        phrase_meta = render_phrase_expander(render_phrase_panel)
-        meta_render = {**meta, **phrase_meta}
-        if prepared_tpl:
-            meta_render["template_source_format"] = prepared_tpl.source_format
-        preflight = run_preflight_check(excel_bytes, template_bytes, meta_render)
-
         _render_report_tab(
             meta,
             meta_render=meta_render,
@@ -186,7 +228,10 @@ def _render_report_tab(
     render_section_header(
         2,
         "Review pre-flight",
-        caption="Blocking errors must be fixed before generate is enabled.",
+        caption=(
+            "**Errors** block Generate. **Warnings** (missing tags, SED gaps) "
+            "allow Generate - review recommended."
+        ),
     )
     can_generate = render_preflight_panel(
         preflight,
@@ -194,27 +239,21 @@ def _render_report_tab(
         report_type=meta.get("report_type", ""),
     )
 
-    project_row_count = 1
-    project_row_labels: list[str] = []
-    if preflight and preflight.project_row_count > 0:
-        project_row_count = preflight.project_row_count
-        project_row_labels = list(preflight.project_row_labels)
-    elif excel_bytes and template_bytes and preflight is None:
-        try:
-            _row_engine = get_cached_report_engine(excel_bytes, template_bytes)
-            project_row_count = _row_engine.project_row_count(meta_render)
-            project_row_labels = _row_engine.project_row_labels(meta_render)
-        except Exception:
-            project_row_count = 1
-            project_row_labels = []
+    st.subheader("Appendices")
+    render_appendix_step(report_type=meta.get("report_type", ""), show_header=True)
+
+    project_row_count, project_row_labels = _project_row_info(
+        preflight, excel_bytes, template_bytes, meta_render
+    )
 
     generate_clicked, batch_mode, project_row_index = render_generate_cta(
         can_generate=can_generate,
         rendering=st.session_state.rendering,
-        has_excel=excel_file is not None,
-        has_template=template_file is not None,
+        has_excel=bool(excel_bytes),
+        has_template=bool(template_bytes),
         project_row_count=project_row_count,
         project_row_labels=project_row_labels,
+        template_bytes=template_bytes,
     )
 
     if generate_clicked:
@@ -261,8 +300,6 @@ def _render_report_tab(
             template_name=template_file.name if template_file else "",
         )
         st.divider()
-        render_appendix_uploader()
-        st.divider()
         render_template_analysis(template_bytes)
 
     with st.expander("Help & documentation", expanded=False):
@@ -281,6 +318,47 @@ def _render_report_tab(
 | Phase I Alberta | [docs/11-alberta-phase1-esa.md](docs/11-alberta-phase1-esa.md) |
 """
         )
+
+
+def _streamlit_render_request(
+    *,
+    excel_bytes: bytes | None,
+    template_bytes: bytes | None,
+    meta_render: dict[str, str],
+    excel_filename: str,
+    template_filename: str,
+    uploaded_appendices: list[Any],
+    uploaded_labels: frozenset[str],
+    project_row_index: int = 0,
+) -> RenderRequest:
+    return RenderRequest(
+        excel_bytes=excel_bytes or b"",
+        template_bytes=template_bytes or b"",
+        meta=meta_render,
+        excel_filename=excel_filename,
+        template_filename=template_filename,
+        project_row_index=project_row_index,
+        uploaded_appendices=uploaded_appendices,
+        appendix_labels_present=uploaded_labels,
+    )
+
+
+def _stamp_generation_record(
+    record: GenerationRecord,
+    docx_bytes: bytes,
+    *,
+    prepared_tpl: Any,
+    folder_path: str,
+    ai_audit: list[Any],
+    output_filename: str | None = None,
+) -> None:
+    if output_filename:
+        record.output_filename = output_filename
+    record.output_sha256 = sha256_hex(docx_bytes)
+    record.template_source_format = prepared_tpl.source_format if prepared_tpl else ""
+    if folder_path:
+        record.project_folder = folder_path
+    record.ai_audit = ai_audit
 
 
 def _run_generation(
@@ -335,34 +413,32 @@ def _run_generation(
 
     st.session_state.rendering = True
     try:
-        engine = get_cached_report_engine(
-            excel_bytes or b"",
-            template_bytes or b"",
-        )
         uploaded_appendices = list(st.session_state.get("appendix_files", {}).values())
         ai_audit = list(st.session_state.get("ai_audit_log") or [])
+        uploaded_labels = normalize_appendix_labels(ap.label for ap in uploaded_appendices)
+        folder_path = st.session_state.get("project_folder_resolved") or ""
 
         if batch_mode and project_row_count > 1:
             with st.spinner(f"Rendering {project_row_count} reports..."):
-                batch = engine.render_batch(
-                    meta=meta_render,
-                    excel_filename=excel_file.name,
-                    template_filename=template_file.name,
+                batch = render_batch_reports(
+                    _streamlit_render_request(
+                        excel_bytes=excel_bytes,
+                        template_bytes=template_bytes,
+                        meta_render=meta_render,
+                        excel_filename=excel_file.name,
+                        template_filename=template_file.name,
+                        uploaded_appendices=uploaded_appendices,
+                        uploaded_labels=uploaded_labels,
+                    )
                 )
-            folder_path = st.session_state.get("project_folder_resolved") or ""
             for item in batch:
-                item.record.output_sha256 = sha256_hex(item.docx_bytes)
-                item.record.template_source_format = (
-                    prepared_tpl.source_format if prepared_tpl else ""
+                _stamp_generation_record(
+                    item.record,
+                    item.docx_bytes,
+                    prepared_tpl=prepared_tpl,
+                    folder_path=folder_path,
+                    ai_audit=ai_audit,
                 )
-                if folder_path:
-                    item.record.project_folder = folder_path
-                generated, merged, ap_warnings = attach_appendices_to_record(
-                    item.record, item.context, meta_render, uploaded_appendices
-                )
-                item.appendices = merged
-                item.warnings.extend(ap_warnings)
-                item.record.ai_audit = ai_audit
             st.session_state.generated_batch = batch
             st.session_state.generated_appendices = []
             st.session_state.generated_docx = None
@@ -390,40 +466,44 @@ def _run_generation(
             logger.info("Batch rendered %d reports", len(batch))
         else:
             with st.spinner("Rendering report..."):
-                docx_bytes, warnings, context, record = engine.render(
-                    meta=meta_render,
-                    excel_filename=excel_file.name,
-                    template_filename=template_file.name,
-                    project_row_index=project_row_index,
+                result = render_report(
+                    _streamlit_render_request(
+                        excel_bytes=excel_bytes,
+                        template_bytes=template_bytes,
+                        meta_render=meta_render,
+                        excel_filename=excel_file.name,
+                        template_filename=template_file.name,
+                        uploaded_appendices=uploaded_appendices,
+                        uploaded_labels=uploaded_labels,
+                        project_row_index=project_row_index,
+                    )
                 )
-            out_name = suggested_download_name(context, meta_render)
-            record.output_filename = out_name
-            record.output_sha256 = sha256_hex(docx_bytes)
-            record.template_source_format = (
-                prepared_tpl.source_format if prepared_tpl else ""
+            out_name = suggested_download_name(result.context, meta_render)
+            _stamp_generation_record(
+                result.record,
+                result.docx_bytes,
+                prepared_tpl=prepared_tpl,
+                folder_path=folder_path,
+                ai_audit=ai_audit,
+                output_filename=out_name,
             )
-            if st.session_state.get("project_folder_resolved"):
-                record.project_folder = st.session_state.project_folder_resolved
-            generated, merged, ap_warnings = attach_appendices_to_record(
-                record, context, meta_render, uploaded_appendices
-            )
-            st.session_state.generated_appendices = generated
+            st.session_state.generated_appendices = [
+                ap for ap in result.appendices if ap.source == "generated"
+            ]
             st.session_state.generated_batch = None
             st.session_state.batch_reports_zip = None
             st.session_state.batch_deliverable_zip = None
-            warnings = list(warnings) + ap_warnings
-            record.ai_audit = ai_audit
-            st.session_state.generated_docx = docx_bytes
-            st.session_state.warnings = warnings
-            st.session_state.last_context = context
-            st.session_state.generation_record = record
+            st.session_state.generated_docx = result.docx_bytes
+            st.session_state.warnings = list(result.warnings)
+            st.session_state.last_context = result.context
+            st.session_state.generation_record = result.record
             st.session_state.generated_filename = out_name
-            n_warn = len(template_prep_warnings) + len(warnings)
+            n_warn = len(template_prep_warnings) + len(result.warnings)
             st.success(
                 f"**{out_name}** is ready — download in step 4 below "
                 f"({n_warn} warning(s))."
             )
-            logger.info("Rendered %s with %d warnings", out_name, len(warnings))
+            logger.info("Rendered %s with %d warnings", out_name, len(result.warnings))
     except Exception as e:
         logger.exception("Report generation failed")
         st.error(user_safe_error(e))
