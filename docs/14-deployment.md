@@ -183,7 +183,7 @@ GEMINI_API_KEY = "..."
 5. Deploy. Share the `*.streamlit.app` URL with testers.
 6. Tester path: **Excel + Word template** workflow → Load Alberta Phase I sample → Generate → download zip.
 
-**Notes:** Project-folder workflow is hidden when `ESA_HOSTED_MODE=1`. Do not commit real API keys. Community Cloud is fine for pilots; do not put client confidential site data on a public app without IT approval.
+**Notes:** Project-folder workflow is hidden when `ESA_HOSTED_MODE=1`. Do not commit real API keys. Community Cloud is fine for pilots; do not put client confidential site data on a public app without IT approval. `packages.txt` must list **apt package names only** (no `#` comments — Cloud passes every token to `apt-get`).
 
 ## HTTP render API (optional, same host)
 
