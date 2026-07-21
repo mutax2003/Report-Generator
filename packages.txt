@@ -1,5 +1,3 @@
-# System packages for Streamlit Community Cloud (Debian apt).
-# Required by opencv-python-headless (pulled in by pdf2docx).
 libgl1
 libglib2.0-0
 libsm6
