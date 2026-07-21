@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 # --- Size limits (tune for your largest legitimate reports) ---
 MAX_EXCEL_BYTES = 15 * 1024 * 1024
 MAX_TEMPLATE_BYTES = 30 * 1024 * 1024
+MAX_APPENDIX_PDF_BYTES = 25 * 1024 * 1024
 MAX_RENDERED_DOCX_BYTES = 50 * 1024 * 1024
+MAX_HTTP_POST_BYTES = MAX_EXCEL_BYTES + MAX_TEMPLATE_BYTES + 512 * 1024
 
 MAX_ZIP_MEMBERS = 5_000
 MAX_ZIP_UNCOMPRESSED_BYTES = 120 * 1024 * 1024
@@ -72,9 +74,7 @@ class ZipReadBudget:
     def add(self, n: int) -> None:
         self.total += n
         if self.total > self.limit:
-            raise SecurityError(
-                "Archive decompressed size exceeds limit (possible zip bomb)."
-            )
+            raise SecurityError("Archive decompressed size exceeds limit (possible zip bomb).")
 
 
 def _is_safe_zip_member(name: str) -> bool:
@@ -92,9 +92,7 @@ def _check_zip_member_metadata(info: zipfile.ZipInfo) -> None:
     if not _is_safe_zip_member(info.filename):
         raise SecurityError("Archive contains an unsafe path.")
     if _is_encrypted(info):
-        raise SecurityError(
-            f"Encrypted archive entries are not supported ({info.filename})."
-        )
+        raise SecurityError(f"Encrypted archive entries are not supported ({info.filename}).")
     member_cap = _zip_single_member_limit()
     if info.file_size > member_cap:
         raise SecurityError(
@@ -104,9 +102,7 @@ def _check_zip_member_metadata(info: zipfile.ZipInfo) -> None:
     if info.compress_size > 0:
         ratio = info.file_size / max(info.compress_size, 1)
         if ratio > MAX_ZIP_COMPRESSION_RATIO:
-            raise SecurityError(
-                "Archive looks like a zip bomb (compression ratio too high)."
-            )
+            raise SecurityError("Archive looks like a zip bomb (compression ratio too high).")
 
 
 def read_zip_member(
@@ -135,9 +131,7 @@ def read_zip_member(
             member_read += len(chunk)
             budget.add(len(chunk))
             if member_read > cap:
-                raise SecurityError(
-                    f"Archive entry '{name}' exceeds size limit while reading."
-                )
+                raise SecurityError(f"Archive entry '{name}' exceeds size limit while reading.")
             chunks.append(chunk)
     finally:
         reader.close()
@@ -176,19 +170,24 @@ def inspect_zip_archive(data: bytes, *, purpose: str) -> list[str]:
                 )
         elif purpose == "xlsx":
             if not any(n.endswith("[Content_Types].xml") for n in names):
-                raise SecurityError(
-                    "File is not an Excel workbook (.xlsx): invalid package."
-                )
+                raise SecurityError("File is not an Excel workbook (.xlsx): invalid package.")
+            # Prefer Content_Types + workbook.xml — avoid reading every xl/* part.
+            probe_names = [
+                n
+                for n in names
+                if n.endswith("[Content_Types].xml") or n.lower().endswith("xl/workbook.xml")
+            ]
+            if not probe_names:
+                probe_names = [n for n in names if n.startswith("xl/")][:3]
             blob = b""
-            for n in names:
-                if n.endswith("[Content_Types].xml") or n.startswith("xl/"):
-                    try:
-                        part = read_zip_member(
-                            zf, n, budget, max_member_bytes=65536
-                        )
-                        blob += part[:65536]
-                    except KeyError:
-                        continue
+            for n in probe_names:
+                try:
+                    part = read_zip_member(zf, n, budget, max_member_bytes=65536)
+                    blob += part[:65536]
+                    if any(m.encode() in blob for m in _XLSX_SPREADSHEET_MARKERS):
+                        break
+                except KeyError:
+                    continue
             if not any(m.encode() in blob for m in _XLSX_SPREADSHEET_MARKERS):
                 raise SecurityError(
                     "File is not an Excel workbook (.xlsx): unexpected content type."
@@ -210,6 +209,40 @@ def validate_excel_upload(data: bytes, filename: str = "") -> None:
 
 
 MAX_PDF_TEMPLATE_PAGES = 500
+MAX_APPENDIX_PDF_PAGES = 200
+
+
+def validate_appendix_pdf_upload(data: bytes, filename: str = "") -> None:
+    """Validate appendix PDF before zip merge (size + basic PDF structure)."""
+    del filename
+    if not data:
+        raise SecurityError("Appendix PDF is empty.")
+    if len(data) > MAX_APPENDIX_PDF_BYTES:
+        mb = MAX_APPENDIX_PDF_BYTES // (1024 * 1024)
+        raise SecurityError(f"Appendix PDF too large (max {mb} MB).")
+    if not data.startswith(b"%PDF"):
+        raise SecurityError("Not a valid PDF file (missing %PDF header).")
+    try:
+        from pypdf import PdfReader
+    except ImportError as e:
+        raise SecurityError("PDF support requires pypdf.") from e
+    try:
+        reader = PdfReader(io.BytesIO(data))
+    except Exception as e:
+        raise SecurityError("Could not read appendix PDF.") from e
+    if getattr(reader, "is_encrypted", False):
+        try:
+            if reader.is_encrypted:
+                raise SecurityError("Encrypted appendix PDFs are not supported.")
+        except Exception:
+            raise SecurityError("Encrypted appendix PDFs are not supported.") from e
+    pages = len(reader.pages)
+    if pages == 0:
+        raise SecurityError("Appendix PDF has no pages.")
+    if pages > MAX_APPENDIX_PDF_PAGES:
+        raise SecurityError(
+            f"Appendix PDF has too many pages ({pages}; max {MAX_APPENDIX_PDF_PAGES})."
+        )
 
 
 def validate_pdf_template_upload(data: bytes, filename: str = "") -> None:
@@ -308,8 +341,19 @@ def read_docx_xml_member(zf: zipfile.ZipFile, name: str, budget: ZipReadBudget) 
 
 
 def validation_bypass_enabled() -> bool:
-    """Only for local tests: set ESA_SKIP_VALIDATION=1."""
-    return os.environ.get("ESA_SKIP_VALIDATION", "").strip() in ("1", "true", "yes")
+    """Only for local tests: set ESA_SKIP_VALIDATION=1 or ESA_VALIDATION_BYPASS=1.
+
+    Ignored when hosted mode or ESA_API_KEY is configured (production/shared hosts).
+    """
+    if os.environ.get("ESA_API_KEY", "").strip():
+        return False
+    for hosted in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW"):
+        if os.environ.get(hosted, "").strip().lower() in ("1", "true", "yes"):
+            return False
+    for name in ("ESA_SKIP_VALIDATION", "ESA_VALIDATION_BYPASS"):
+        if os.environ.get(name, "").strip().lower() in ("1", "true", "yes"):
+            return True
+    return False
 
 
 def sanitize_meta(meta: dict[str, Any] | None) -> dict[str, str]:
@@ -351,16 +395,12 @@ def clamp_context(context: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """
     warnings: list[str] = []
     if len(context) > MAX_PROJECT_COLUMNS + 50:
-        warnings.append(
-            f"Very large context ({len(context)} keys); some keys may be ignored."
-        )
+        warnings.append(f"Very large context ({len(context)} keys); some keys may be ignored.")
 
     for key, val in list(context.items()):
         if isinstance(val, list) and not key.startswith("_"):
             if len(val) > MAX_LAB_ROWS:
-                warnings.append(
-                    f"{key} truncated from {len(val)} to {MAX_LAB_ROWS} rows."
-                )
+                warnings.append(f"{key} truncated from {len(val)} to {MAX_LAB_ROWS} rows.")
                 context[key] = val[:MAX_LAB_ROWS]
             for row in val:
                 if not isinstance(row, dict):
@@ -399,6 +439,20 @@ def user_safe_error(exc: BaseException) -> str:
     """Map exceptions to messages safe to show in the UI."""
     if isinstance(exc, SecurityError):
         return str(exc)
+    name = type(exc).__name__
+    if name == "AuthError":
+        msg = str(exc).strip()
+        return msg or "Authentication failed."
+    if name == "MultipartParseError":
+        msg = str(exc).strip()
+        return msg or "Invalid multipart request."
+    if name == "TenantError":
+        msg = str(exc).strip()
+        return msg or "Tenant path validation failed."
+    if isinstance(exc, PermissionError) and not isinstance(exc, SecurityError):
+        # Avoid leaking OS paths from generic PermissionError; AuthError handled above.
+        logger.warning("Permission error: %s", exc)
+        return "Permission denied."
     if isinstance(exc, ValueError):
         msg = str(exc)
         if _is_safe_value_error_message(msg):

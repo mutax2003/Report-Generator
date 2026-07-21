@@ -1,0 +1,41 @@
+[project]
+name = "esa-report-generator"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["dist", ".venv", "user_test"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "UP042"]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+  "tests/*",
+  "scripts/*",
+  ".venv/*",
+  "dist/*",
+]
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = true
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+files = [
+  "esa_logging.py",
+  "esa_auth.py",
+  "esa_tenant.py",
+  "esa_rate_limit.py",
+  "esa_observability.py",
+  "audit_trail.py",
+  "qp_signature.py",
+  "records_retention.py",
+  "job_queue.py",
+  "automate/multipart.py",
+]

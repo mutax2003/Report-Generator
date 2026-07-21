@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: esa-verify-tier-ux
+        name: ESA UX verification tier (Streamlit/UI staged files)
+        entry: python scripts/pre_commit_check.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

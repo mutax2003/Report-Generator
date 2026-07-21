@@ -9,10 +9,13 @@ alwaysApply: false
 ## Commands (match CI and [docs/08-testing.md](docs/08-testing.md))
 
 ```powershell
+python scripts\count_tests.py
+python scripts\build_help.py
 python scripts\create_samples.py
 python scripts\create_appendix_templates.py
 python scripts\tag_production_template.py
 python -m unittest discover -s tests -v
+python scripts\streamlit_smoke.py
 python scripts\render_cli.py
 python scripts\phase1_package_smoke.py
 python scripts\production_e2e.py
@@ -24,27 +27,55 @@ python scripts\ingest_project_folder.py --folder user_test\phase2_alberta --rend
 python scripts\test_with_your_documents.py
 python scripts\create_ecoventure_dwda_fixture.py
 python scripts\dwda_workflow_e2e.py
-python scripts\health_check.py
-python scripts\streamlit_smoke.py
-```
-
-## Local-only E2E (pre-release)
-
-```powershell
 python scripts\phase3_remediation_e2e.py
 python scripts\reclamation_e2e.py
-python scripts\create_ecoventure_dwda_fixture.py
+python scripts\health_check.py
+python scripts\verify_tier.py --tier release
+```
+
+## Verification tiers (`scripts/verify_tier.py`)
+
+Canonical local runner — prefer over hand-rolling the chain.
+
+| Tier | Steps |
+|------|-------|
+| **unit** | `count_tests.py` → `unittest discover` |
+| **ux** | `build_help.py` → **unit** → `streamlit_smoke.py` |
+| **profile** | **ux** → playbook E2E (+ `health_check` for b/c/d) |
+| **release** | Full `RELEASE_STEPS`: count_tests, build_help, ruff, mypy, validation_evidence, samples, unittest, streamlit_smoke, E2E chain, health_check |
+
+```powershell
+python scripts\verify_tier.py --tier unit
+python scripts\verify_tier.py --tier ux
+python scripts\verify_tier.py --tier profile --playbook b
+python scripts\verify_tier.py --tier release
+```
+
+**Release** ≈ CI **quality** gates minus coverage + ubuntu **test**/E2E. Does **not** run **windows-smoke**.
+
+## CI jobs ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
+
+| Job | Runs | What |
+|-----|------|------|
+| **quality** | ubuntu, Python 3.11 | ruff lint/format, mypy (production modules), **`build_help.py`**, coverage (`--fail-under=50`), `validation_evidence.py` |
+| **test** | matrix Python **3.11–3.13** | samples + **`build_help.py`** + unittest + streamlit_smoke; **full E2E chain on 3.11 only** |
+| **windows-smoke** | windows-latest (PRs / pushes) | `build_windows_deploy.ps1 -SkipExe` → asserts `help/index.html` in package → bundled-venv `health_check.py` + `streamlit_smoke.py` |
+
+## Local-only E2E (optional)
+
+```powershell
 $env:ESA_ALLOW_LARGE_TEMPLATE="1"; python scripts\phase1_site_e2e.py
 python scripts\playwright_smoke.py
 ```
 
 ## Conventions
 
-- Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates. Current count: **284 tests** (3 may skip; incl. `test_compliance_helpers`, `test_phase2_triggers`, `test_reclamation_compliance`, `test_render_path_parity`, `test_dwda_*`, `test_ecoventure_workbook`, `test_upload_helpers`, `test_streamlit_smoke`, `test_folder_picker`, etc.). Verify with `python scripts\count_tests.py`.
+- Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates. Current count: verify with `python scripts\count_tests.py` (includes `test_onboarding`, `test_appendix_helpers`, `test_streamlit_smoke`, `test_menubar` UX cases).
 - Prefer **real fixtures** in `samples/` over huge inline ZIP bytes; use `unittest.SkipTest` when optional large files are absent.
 - **`ESA_VALIDATION_BYPASS=1`**: tests only — never document for production.
 - **`ESA_RUN_HEALTH_CHECK=1`**: enables the slow `test_smoke_integration` health path; CI runs `health_check.py` separately.
+- Help pack: UX / help / menubar changes must keep `scripts/build_help.py` → `help/index.html` green (health_check + windows-smoke).
 
 ## Before merging template/engine changes
 
-Run `health_check.py` and full `unittest discover`. If you change `.github/workflows/ci.yml`, keep step order aligned with [docs/08-testing.md](docs/08-testing.md).
+Run `health_check.py`, `streamlit_smoke.py`, and full `unittest discover`. Prefer `python scripts\verify_tier.py --tier release` pre-merge. If you change `.github/workflows/ci.yml`, keep step order aligned with [docs/08-testing.md](docs/08-testing.md).

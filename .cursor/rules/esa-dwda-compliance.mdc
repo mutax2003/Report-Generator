@@ -1,6 +1,6 @@
 ---
 description: DWDA / Directive 050 compliance, Ecoventure calc ingest, appendix A/D/G
-globs: dwda_*.py,ecoventure_workbook.py,templates/ecoventure_dwda/**,schemas/dwda_*.json,schemas/ecoventure_dwda_cell_contract.json
+globs: dwda_*.py,ecoventure_workbook.py,appendix_generator.py,compliance_helpers.py,templates/ecoventure_dwda/**,schemas/dwda_*.json,schemas/ecoventure_dwda_cell_contract.json,tests/test_dwda_*.py
 alwaysApply: false
 ---
 
@@ -16,10 +16,10 @@ alwaysApply: false
 | Sheet | Context key | Module |
 |-------|-------------|--------|
 | `DwdaChecklist` | `dwda_checklist` | `dwda_compliance.py` |
-| `DwdaCalculations` | calc rows | `dwda_calculations.py` |
+| `DwdaCalculations` | `dwda_calc_sheet` (ingest only) | `dwda_calculations.py` / `_merge_dwda_calc_sheet` |
 | `DrillingWaste` | `drilling_waste` | `engine.py` + appendix D/G |
 
-Ecoventure hybrid workbook merge: `ecoventure_workbook.merge_into_engine_excel`.
+`dwda_calc_sheet` is **not** a Word table loop: the engine flattens the first row into scalar calc fields and pops the list from context. Ecoventure hybrid workbook merge: `ecoventure_workbook.merge_into_engine_excel`.
 
 ## Appendices
 
@@ -50,6 +50,10 @@ DWDA and SED enrichment must know which appendix labels are present **before** W
 - [`schemas/dwda_compliance_checklist.json`](schemas/dwda_compliance_checklist.json)
 - [`schemas/dwda_salt_additives.json`](schemas/dwda_salt_additives.json)
 - [`schemas/ecoventure_dwda_cell_contract.json`](schemas/ecoventure_dwda_cell_contract.json)
+
+## AI boundary
+
+AI drafts (including folder enrich / APEC extract) stay in `ai/*` and explicit UI apply paths — **do not** auto-inject LLM output into `ReportEngine` merge or DWDA calc fields.
 
 ## After changes
 

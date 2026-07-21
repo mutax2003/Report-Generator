@@ -111,6 +111,33 @@ class ProjectFolderTests(unittest.TestCase):
         self.assertTrue(any(n.startswith("appendices/D_") for n in names))
         self.assertTrue(any(n.startswith("appendices/G_") for n in names))
 
+    def test_phase2_manual_appendices_in_manifest(self) -> None:
+        import shutil
+        import tempfile
+
+        from project_folder import (
+            init_sample_project_folder,
+            render_project_folder,
+            resolve_project_folder,
+        )
+
+        tmp = Path(tempfile.mkdtemp(prefix="esa_p2_app_"))
+        try:
+            init_sample_project_folder(tmp, source_user_test=False, profile="phase2_esa")
+            app_dir = tmp / "appendices"
+            app_dir.mkdir(exist_ok=True)
+            (app_dir / "site_sketch.pdf").write_bytes(b"%PDF-1.4\nminimal appendix")
+            resolved = resolve_project_folder(tmp, create_subdirs=True)
+            outputs = render_project_folder(resolved, package=False)
+            manifest = json.loads(outputs["manifest"].read_text(encoding="utf-8"))
+            labels = {
+                entry.get("label")
+                for entry in (manifest.get("appendix_files") or [])
+            }
+            self.assertIn("H", labels)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_read_core_files_cached(self) -> None:
         from project_folder import (
             clear_project_folder_file_cache,

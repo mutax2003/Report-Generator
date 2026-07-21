@@ -1,0 +1,6 @@
+{
+  "deliverable_days": 2555,
+  "audit_log_days": 2555,
+  "temp_upload_days": 30,
+  "description": "Default Ecoventure retention (~7 years for deliverables and audit logs; 30 days for temp uploads)."
+}

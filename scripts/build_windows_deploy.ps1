@@ -74,6 +74,26 @@ foreach ($pat in $trimPatterns) {
 Write-Step "Fetch brand assets"
 & $DevVenvPython (Join-Path $Root "scripts\fetch_ecoventure_assets.py")
 
+Write-Step "Build HTML help pack (F1 / Help → Contents)"
+& $DevVenvPython (Join-Path $Root "scripts\build_help.py")
+if (Test-Path (Join-Path $Root "help")) {
+    Copy-Item -LiteralPath (Join-Path $Root "help") -Destination (Join-Path $Out "help") -Recurse -Force
+}
+
+# count_tests / health_check need these agent docs (`.cursor` is otherwise excluded)
+Write-Step "Copy count_tests doc sources for health_check"
+$cursorRules = Join-Path $Out ".cursor\rules"
+New-Item -ItemType Directory -Path $cursorRules -Force | Out-Null
+foreach ($rule in @(
+    "esa-report-generator-architecture.mdc",
+    "esa-testing-ci.mdc"
+)) {
+    $srcRule = Join-Path $Root ".cursor\rules\$rule"
+    if (Test-Path $srcRule) {
+        Copy-Item -LiteralPath $srcRule -Destination (Join-Path $cursorRules $rule) -Force
+    }
+}
+
 if (-not $SkipVenvInstall) {
     Write-Step "Create portable runtime venv (may take several minutes)"
     $sysPy = (Get-Command python -ErrorAction SilentlyContinue).Source

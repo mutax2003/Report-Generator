@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ESA Report Generator Help</title>
+  <style>
+:root { --slate:#2e3540; --magenta:#b24292; --bg:#f4f6f8; }
+body { font-family: Segoe UI, Tahoma, sans-serif; margin:0; color:#1a1a1a; background:#fff; }
+.layout { display:flex; min-height:100vh; }
+nav {
+  width:240px; background:var(--slate); color:#e8eaed; padding:1rem;
+  flex-shrink:0;
+}
+nav h1 { font-size:1.05rem; margin:0 0 0.75rem; color:#fff; }
+nav a { color:#e8b8d9; text-decoration:none; display:block; padding:0.35rem 0; }
+nav a:hover { color:#fff; }
+main { flex:1; padding:1.5rem 2rem; max-width:900px; background:var(--bg); }
+main section {
+  background:#fff; border:1px solid #dde1e6; border-radius:6px;
+  padding:1.25rem 1.5rem; margin-bottom:1.25rem;
+}
+h2 { color:var(--slate); border-bottom:3px solid var(--magenta); padding-bottom:0.35rem; }
+pre { background:#1e1e1e; color:#d4d4d4; padding:0.75rem; overflow:auto; border-radius:4px; }
+code { font-family: Consolas, monospace; font-size:0.9em; }
+table { border-collapse:collapse; width:100%; }
+td, th { border:1px solid #ccc; padding:0.4rem 0.6rem; text-align:left; }
+kbd {
+  font-family: Consolas, monospace; background:#eee; border:1px solid #bbb;
+  border-radius:3px; padding:0.1rem 0.35rem; font-size:0.85em;
+}
+.footer { color:#666; font-size:0.85rem; margin-top:2rem; }
+</style>
+</head>
+<body>
+  <div class="layout">
+    <nav>
+      <h1>ESA Report Generator</h1>
+      <p style="font-size:0.85rem;color:#9aa3ad;">Ecoventure Inc. Help</p>
+      <a href="#start">Start here</a><a href="#user-guide">User guide</a><a href="#excel">Excel data guide</a><a href="#templates">Template authoring</a><a href="#phase1">Alberta Phase I ESA</a><a href="#folder">Project folder workflow</a><a href="#ai">AI assistant</a><a href="#shortcuts">Keyboard shortcuts</a>
+    </nav>
+    <main>
+      <section id="start"><h2>Start here</h2>
+<h1>Start here — consultants</h1>
+<p>One-page path for **Ecoventure** staff generating Alberta Phase I or Phase II ESA reports. No Python knowledge required.</p>
+<h2>1. Open the app</h2>
+<pre><code>
+cd &quot;Report Generator&quot;
+
+.\run.ps1 streamlit
+
+</code></pre>
+<p>Or manually:</p>
+<pre><code>
+.\.venv\Scripts\Activate.ps1
+
+streamlit run app.py
+
+</code></pre>
+<p>Browser: http://localhost:8501</p>
+<h2>2. Choose your workflow</h2>
+<p>On first open, pick one path:</p>
+<p>Use **Change** in the blue banner to switch workflows later. A **Welcome** card appears on first use — click **Got it** when you are ready.</p>
+<p>**Menus:** Use the **File / Edit / View / Tools / Help** bar under the header. Press **F1** for HTML help.</p>
+<p>**First time?** In the sidebar, open **Sample templates** and click **Load Alberta Phase I sample into session**, then open the **Report** tab.</p>
+<h3>Excel + template path</h3>
+<h3>Project folder path</h3>
+<p>Enter the folder path (e.g. `C:\Projects\260109R`), click **Browse…** to pick a folder (loads immediately), or paste the path and click **Load folder**. Optional: **Analyze folder** for AI drafts. See <a href="22-project-folder-workflow.md">22-project-folder-workflow.md</a>.</p>
+<p>Optional (both paths): **Standard phrases** — preset paragraphs for tagged fields (see <a href="04-template-authoring.md">04-template-authoring.md</a>).</p>
+<h2>3. Sidebar settings</h2>
+<p>Optional (turn off Simple mode): **Override executive summary** — replaces Excel / auto-generated text.</p>
+<p>**Advanced — AI options** (sidebar): optional LLM for narratives, lab PDF parse, and folder analysis. Default is **offline** (no API key). For **free local** use, set `AI_PROVIDER=ollama` in `.streamlit/secrets.toml`; for **free cloud**, try `gemini` or `groq` — see <a href="09-ai-assistant.md">09-ai-assistant.md</a>. Keep cloud LLM off for strictly confidential site files.</p>
+<p>The sidebar **Getting started** checklist tracks your progress through load → pre-flight → generate → download.</p>
+<h2>4. Pre-flight</h2>
+<p>The **Report** tab shows **Your next steps** at the top — fix red items first. Expand **Regulatory checklist (SED 002)** or **Drilling waste compliance (DWDA)** for details.</p>
+<p>Fix any **red errors** before generating. Yellow warnings are OK for a draft.</p>
+<p>Use **Download missing-fields checklist** or **Download ReportConfig sheet** if you are building a new Excel file.</p>
+<p>See **Glossary** under pre-flight or **Advanced** for OneStop, SED 002, and DWDA definitions.</p>
+<h2>5. Generate and download</h2>
+<p>1. On the Report tab, **Generate report** sits above the **Appendices** expander. Optional: upload B/C/E/F/H PDFs there before you click Generate (or upload after and Generate again). 2. Choose **Single site** (pick a `ProjectData` row) or **All N sites (batch zip)** if Excel has multiple sites on `ProjectData` 3. **Generate report** 4. **Download deliverable package (.zip)** — **primary output** (report + manifest + appendices + OneStop export + QP checklists) 5. Follow the **Before OneStop upload** checklist on screen (review warnings, export generated D/G to PDF, confirm appendices) 6. **Advanced downloads** expander — individual `.docx`, manifest JSON, generated appendices</p>
+<p>For batch runs, use **Download all deliverable packages** as the primary button.</p>
+<p>Export to client PDF in Word if needed; the app does not merge appendices into one PDF automatically.</p>
+<h2>6. More help</h2>
+<p>**Developers / IT:** <a href="../README.md">README.md</a> · <a href="../AGENTS.md">AGENTS.md</a></p>
+</section><section id="user-guide"><h2>User guide</h2>
+<h1>02 — User guide (Streamlit application)</h1>
+<p>This guide walks report authors and QA staff through the web application from first launch to downloaded deliverable.</p>
+<h2>Prerequisites</h2>
+<ul>
+<li>Python 3.10+ with dependencies installed (<a href="../README.md#setup">README</a>).</li>
+<li>A prepared **Excel** workbook and **Word or PDF template** (or use sidebar sample downloads).</li>
+</ul>
+<h2>Launching the application</h2>
+<pre><code>
+streamlit run app.py
+
+</code></pre>
+<p>The app opens in your browser (default `http://localhost:8501`). Use **localhost** on office machines; do not expose the server broadly without IT approval (see <a href="07-security-and-deployment.md">07-security-and-deployment.md</a>).</p>
+<h2>Choose your workflow</h2>
+<p>On first launch, pick one path (see also <a href="00-start-here.md">00-start-here.md</a>):</p>
+<p>Use **Change** in the banner to switch workflows later. A dismissible **Welcome** card guides first-time users.</p>
+<h3>Project folder path</h3>
+<p>1. Enter path or click **Browse…** (local desktop only). 2. **Load folder** — reads Excel + template into the app. 3. Optional **Analyze folder** — writes inventory, preflight, narratives to `ai_drafts/` on disk. 4. Open **Report** tab → pre-flight → Generate.</p>
+<p>Full layout and CLI: <a href="22-project-folder-workflow.md">22-project-folder-workflow.md</a>.</p>
+<h2>Screen layout</h2>
+<h3>Menu bar and keyboard shortcuts</h3>
+<p>Under the Ecoventure header, a Windows-style menu bar provides **File**, **Edit**, **View**, **Tools**, and **Help**:</p>
+<p>Press **F1** to open the packaged HTML help (`help/index.html`) in your browser. Rebuild help with `python scripts/build_help.py`. Other actions are menu-driven — Streamlit runs in the browser and does not own a native OS accelerator bar (only **F1** is hooked globally).</p>
+<h3>Header and upload zones (Excel + template workflow)</h3>
+<p>When you chose **Excel + Word template**, two columns:</p>
+<p>After selection, a caption shows file name and size.</p>
+<p>**PDF templates:** The app converts PDF to Word internally for merging (cached per file so reruns are fast). You still need Jinja2 `{{ tags }}` in the document—add them in Word after conversion using **Download converted Word template (.docx)**, or upload a tagged `.docx` instead. Pre-flight will warn if no tags are detected.</p>
+<h3>Sidebar — Report type and meta-data</h3>
+<p>**Phase 1:** `LabResults` sheet is optional; lab table may be empty. Default profile: **Alberta Phase I ESA (Ecoventure)**.</p>
+<p>**Phase 2:** `LabResults` sheet is required; pre-flight errors if missing. Selecting **Phase 2** switches profile to **Phase II ESA**.</p>
+<p>See <a href="13-flexible-report-profiles.md">13-flexible-report-profiles.md</a> for custom templates and optional **`ReportConfig`** sheet in Excel.</p>
+<h3>Sidebar — Simple mode and samples</h3>
+<ul>
+<li>**Simple mode (recommended for new users)** — hides executive summary override; AI settings move to **Advanced — AI options**.</li>
+<li>**Getting started** checklist — tracks workflow → metadata → files → pre-flight → generate → download.</li>
+<li>**Load Alberta Phase I sample into session** — one-click demo pair under **Sample templates** (no manual upload required).</li>
+</ul>
+<p>Sidebar also provides **download buttons** for sample Excel and Word files when `samples/` exists (auto-created on first use if missing).</p>
+<h3>AI settings (sidebar, Advanced when Simple mode on)</h3>
+<ul>
+<li>Toggle **Use free/local LLM when available** — prefers Ollama (local) or Gemini/Groq free tier from `.streamlit/secrets.toml` (see <a href="09-ai-assistant.md">09-ai-assistant.md</a>).</li>
+<li>When off, AI tab uses offline rule-based fallbacks only.</li>
+</ul>
+<h3>Tabs</h3>
+<p>#### Report generation (primary workflow)</p>
+<p>Follow the **1–4 step indicator**: Inputs → Pre-flight → Generate → Download.</p>
+<p>1. **File status** — Excel / template loaded chips at top of Report tab. 2. **Your next steps** — plain-language action card (errors first, then warnings). 3. **Pre-flight checks** — summary line; technical details in expanders (**Regulatory checklist (SED 002)**, **Drilling waste compliance (DWDA)**, **Review recommended**). 4. **Generate report** — primary action; disabled until pre-flight has no **errors**. 5. **Appendices (optional PDF uploads)** — OneStop checklist row for **B, C, E, F, H**; expand per letter to upload PDFs (below Generate; re-generate to include new uploads in the zip). 6. **Download deliverables** — **Download deliverable package (.zip)** as primary button; **Before OneStop upload** checklist; **Advanced downloads** for `.docx`, manifest, generated appendices. 7. **Advanced** expander — dry-run preview, template tag analysis, glossary. 8. **Help &amp; documentation** expander — links to consultant docs (collapsed). 9. **Standard phrases (optional)** — expander above the Report / AI tabs.</p>
+<p>#### AI assistant</p>
+<p>Second tab: **AI drafts &amp; tools** (project folder workflow) or **AI tools** (Excel + template upload). Optional: template tagger, lab PDF → Excel, narrative drafts, pre-flight copilot, consistency checker, exceedance notes. See <a href="09-ai-assistant.md">09-ai-assistant.md</a>. **All AI output is draft** — review before client use.</p>
+<h2>Standard workflow (recommended)</h2>
+<pre><code>
+flowchart TD
+
+  A[Load sample or upload Excel + template] --&gt; B[Set sidebar meta-data]
+
+  B --&gt; C[Review Your next steps + pre-flight]
+
+  C --&gt; D{Errors?}
+
+  D --&gt;|Yes| E[Fix Excel sheets or template tags]
+
+  E --&gt; A
+
+  D --&gt;|No| G[Generate report]
+
+  G --&gt; F[Optional appendices below Generate]
+
+  F --&gt; H[Review warnings / re-generate if needed]
+
+  H --&gt; I[Download deliverable package zip]
+
+</code></pre>
+<h3>Step 1 — Upload files</h3>
+<ul>
+<li>Excel must contain sheet **`ProjectData`** (exact name).</li>
+<li>Phase 2 Excel must also contain **`LabResults`**.</li>
+<li>Template must be `.docx` or `.pdf` with valid Jinja2 tags in the merged Word document (see <a href="04-template-authoring.md">04-template-authoring.md</a>).</li>
+</ul>
+<h3>Step 2 — Pre-flight</h3>
+<p>Download **missing-fields checklist** (includes profile-recommended fields) or **ReportConfig sheet (Excel)** from pre-flight when offered — paste into Excel planning.</p>
+<h3>Step 3 — Dry-run preview (optional)</h3>
+<p>Expander **Preview data (dry run)**:</p>
+<ul>
+<li>Shows top scalar context keys and table row counts (`lab_results`, `drilling_waste`, `storage_tanks`).</li>
+<li>Download manifest JSON without producing Word.</li>
+<li>Use before a long render or when validating a new template.</li>
+</ul>
+<h3>Step 4 — Generate report</h3>
+<p>When Excel has more than one populated `ProjectData` row, choose **Generation mode**:</p>
+<ul>
+<li>Spinner shows while `ReportEngine` renders (or batch loop).</li>
+<li>Success message includes warning count and suggested filename (or batch count).</li>
+<li>Hard failures show a user-safe error and **Common fixes** expander.</li>
+</ul>
+<p>For batch runs, link shared table sheets with `site_name`, `project_number`, `uwi`, `well_name`, or `project_id` on `LabResults` / `DrillingWaste` rows. See <a href="03-excel-data-guide.md">03-excel-data-guide.md</a>.</p>
+<h3>Step 5 — Download and archive</h3>
+<p>Store manifest alongside issued reports for reproducibility (<a href="../BEST_PRACTICES.md">BEST_PRACTICES.md</a>). A single merged client PDF is not produced in-app—export Word to PDF separately if needed.</p>
+<h2>Session state behavior</h2>
+<p>The app remembers during your browser session:</p>
+<ul>
+<li>Last generated `.docx` (for download after navigation)</li>
+<li>Warnings and context preview</li>
+<li>Generation record for manifest export</li>
+<li>AI audit log (included in manifest after generate)</li>
+</ul>
+<p>Refreshing the browser clears session state unless Streamlit persistence is configured.</p>
+<h2>Filename convention</h2>
+<p>Download names are derived automatically:</p>
+<pre><code>
+{site_name}_{Phase_1|Phase_2}_{date}.docx
+
+</code></pre>
+<p>Special characters sanitized; falls back to `ESA` if site name empty.</p>
+<h2>Using sample files (first-time demo)</h2>
+<p>1. Sidebar → **Download sample Excel** and **Download sample Word template**. 2. Re-upload those files in the main uploaders (or use copies from `samples/` folder). 3. Generate — expect lab table with one exceedance row in red bold.</p>
+<p>Production-aligned samples: `production_data.xlsx`, `production_template.docx`.</p>
+<h2>When Generate is disabled</h2>
+<h2>Help &amp; documentation</h2>
+<p>Collapsed expander at the bottom of the Report tab links to consultant docs (start-here, user guide, Phase I, DWDA, Excel/Word authoring).</p>
+<p>Developer reference files (repo root / `docs/`): `PRODUCTION_TEMPLATE_GUIDE.txt`, `EXCEL_LAYOUT.txt`, `JINJA2_CHEATSHEET.txt`, `BEST_PRACTICES.md`.</p>
+<p>Full detail: <a href="03-excel-data-guide.md">03-excel-data-guide.md</a>, <a href="04-template-authoring.md">04-template-authoring.md</a>.</p>
+<h2>Troubleshooting (user-facing)</h2>
+<p>More: <a href="10-glossary-faq.md">10-glossary-faq.md</a>.</p>
+</section><section id="excel"><h2>Excel data guide</h2>
+<h1>03 — Excel data guide</h1>
+<p>The merge engine reads structured data from an Excel workbook (`.xlsx`). This document defines sheet names, column conventions, normalization rules, and the published field contract.</p>
+<h2>Workbook structure</h2>
+<h3>Required sheet names (exact)</h3>
+<p>Sheet names are **case-sensitive** and must match exactly (not “first sheet” or “Sheet1”).</p>
+<p>Alberta Phase I detail: <a href="11-alberta-phase1-esa.md">11-alberta-phase1-esa.md</a> · field list: <a href="../samples/phase1_alberta_inventory.md">../samples/phase1_alberta_inventory.md</a>.</p>
+<h3>ProjectData layout</h3>
+<pre><code>
+Row 1:  | site_name      | client_name    | project_number | ...
+
+Row 2:  | 123 Example Rd | Demo Client    | ESA-2026-001   | ...
+
+Row 3+: (ignored by engine)
+
+</code></pre>
+<ul>
+<li>**Row 1** — Column headers (become Jinja keys after normalization).</li>
+<li>**Row 2** — **Only row used** for the report (single-report mode).</li>
+<li>**Row 3+** — Additional sites. Use **batch generation** in the app (*All N sites (batch zip)*) or `scripts/render_cli.py --all-rows`. Blank rows are skipped (max 100 rows, 50 reports per batch).</li>
+<li>**Linking table sheets** — If `LabResults`, `DrillingWaste`, or `StorageTanks` include a `site_name`, `project_number`, `uwi`, `well_name`, or `project_id` column, only matching rows are merged for each report. Otherwise all table rows are shared across reports.</li>
+</ul>
+<p>Empty `ProjectData` (headers only) produces a pre-flight / render error.</p>
+<h3>LabResults layout</h3>
+<pre><code>
+Row 1:  | Analyte  | Result | Unit  | Criteria | Exceedance |
+
+Row 2:  | Benzene  | 0.8    | ug/L  | 5.0      | N          |
+
+Row 3:  | TCE      | 12.5   | ug/L  | 5.0      | Y          |
+
+</code></pre>
+<p>Each data row becomes one element in `lab_results` for Word table loops.</p>
+<h3>DrillingWaste layout (optional)</h3>
+<pre><code>
+Row 1:  | mud_type   | volume_m3 | disposal_method | location |
+
+Row 2+: | Surface    | 110       | LWD             | SW1/4... |
+
+</code></pre>
+<p>Each data row → `drilling_waste` list. Word loop: `{%tr for item in drilling_waste %}` … `{%tr endfor %}`.</p>
+<p>Typical columns: `mud_type`, `volume_m3`, `disposal_method`, `location`, `disposal_type`, `gps_coordinates`, `sump_depth_m`, `cover_depth_m`, `remote_cert_number`, `waste_manifest_refs`, `dwda_id`, `area_m2`, `salinity_exceedance`.</p>
+<h3>DwdaChecklist layout (optional — Directive 050 / ADWDA)</h3>
+<pre><code>
+Row 1:  | checklist_item_id   | response | notes |
+
+Row 2+: | d050.notification   | Yes      | ...   |
+
+</code></pre>
+<p>Each row → `dwda_checklist` list. Item IDs match <a href="../schemas/dwda_compliance_checklist.json">`schemas/dwda_compliance_checklist.json`</a>. See <a href="21-dwda-directive-050-compliance.md">21-dwda-directive-050-compliance.md</a>.</p>
+<h3>StorageTanks layout (optional)</h3>
+<pre><code>
+Row 1:  | tank_type | content      | location | capacity_m3 |
+
+Row 2+: | Production| Crude oil    | Berm     | 50          |
+
+</code></pre>
+<p>Each data row → `storage_tanks` list. Word loop: `{%tr for item in storage_tanks %}`.</p>
+<h2>Header normalization</h2>
+<p>Headers are converted to context keys:</p>
+<p>Rules:</p>
+<p>1. Trim whitespace. 2. Replace spaces with `_`. 3. Lowercase entire key.</p>
+<p>Extra columns are passed through (string values) and available as `{{ column_name }}` if referenced in the template.</p>
+<h2>Lab column aliases</h2>
+<p>The engine maps common header variants:</p>
+<p>Every original column is also copied into each row dict under its normalized header name.</p>
+<h2>Engine-computed lab fields</h2>
+<p>Each lab row dict always includes:</p>
+<h3>Exceedance logic</h3>
+<p>Exceedance is **true** when either:</p>
+<p>1. **Exceedance column** is truthy: `Y`, `Yes`, `TRUE`, `1`, `X`, `exceedance`, `exc` (case-insensitive), or 2. **Numeric compare** — both Result and Criteria parse as floats and `result &gt; criteria`.</p>
+<p>Use `{{ item.result_display }}` in Word tables for formatted exceedances; `{{ item.result_plain }}` for unformatted text.</p>
+<h2>Sidebar merge behavior</h2>
+<p>Sidebar fields from the app are merged into the same context dict:</p>
+<p>**Override rule:** If a sidebar key normalizes to the same name as an Excel column, **sidebar wins**.</p>
+<h3>ReportConfig sheet (optional)</h3>
+<p>Two columns: **key**, **value** (row 1 headers). Examples:</p>
+<p>Excel `ReportConfig` overrides sidebar profile when `report_type` is set. Download a starter sheet from pre-flight. See <a href="13-flexible-report-profiles.md">13-flexible-report-profiles.md</a>.</p>
+<h2>Field lists (profiles + legacy contract)</h2>
+<p>**Canonical recommended fields per report type:** <a href="../schemas/report_profiles.json">`schemas/report_profiles.json`</a> → `recommended_fields` on each profile. Pre-flight warnings and missing-field checklists use these lists.</p>
+<p>Legacy reference (AI tagger, older docs): <a href="../schemas/field_contract.json">`schemas/field_contract.json`</a>.</p>
+<h3>Recommended fields — all phases</h3>
+<h3>Additional recommended — Phase 2</h3>
+<p>Empty recommended fields produce **warnings** only (generation still allowed).</p>
+<h2>Sample workbooks</h2>
+<p>Regenerate:</p>
+<pre><code>
+python scripts\create_samples.py
+
+</code></pre>
+<h2>Formula injection mitigation</h2>
+<p>Cell values starting with `=`, `+`, `-`, `@`, or tab are prefixed with `&#x27;` when converted to strings (reduces formula injection if Word tables are re-opened in Excel).</p>
+<h2>Limits</h2>
+<p>See <a href="07-security-and-deployment.md">07-security-and-deployment.md</a>.</p>
+<h2>Checklist for new projects</h2>
+<p>1. Copy `samples/production_data.xlsx` or build from contract fields. 2. Run app pre-flight with your template — download missing-fields checklist. 3. Fill row 2 of `ProjectData`; add all `LabResults` rows. 4. Dry-run preview — confirm `lab_row_count` and keys. 5. Generate and spot-check exceedance formatting in Word.</p>
+<h2>Quick reference</h2>
+<p>See also <a href="../EXCEL_LAYOUT.txt">../EXCEL_LAYOUT.txt</a>.</p>
+</section><section id="templates"><h2>Template authoring</h2>
+<h1>04 — Word template authoring</h1>
+<p>Word templates are ordinary `.docx` files with **Jinja2** syntax interpreted by <a href="https://docxtpl.readthedocs.io/">docxtpl</a>. Authors maintain templates; the engine supplies data from Excel and the sidebar.</p>
+<h2>Supported template formats</h2>
+<p>PDF conversion preserves layout approximately; **Jinja2 tags are not created automatically**. Open the converted file in Word, add `{{ fields }}` and table loops, save as `.docx`, and re-upload—or tag before export to PDF.</p>
+<p>Maximum template size: 30 MB (see <a href="07-security-and-deployment.md">07-security-and-deployment.md</a>).</p>
+<h2>Principles</h2>
+<p>1. **One tag, one run** — Type each `{{ variable }}` without applying bold/italic/color in the middle of the tag. Split runs are the #1 render failure (pre-flight lints these). 2. **Static table headers** — Header row is normal Word text; only data rows use `{%tr %}` loops. 3. **Match Excel keys** — Root placeholders use snake_case matching normalized Excel headers. 4. **Version templates** — Record **Template version** in the app sidebar; store `.docx` templates in Git, not rendered client files.</p>
+<h2>Scalar placeholders</h2>
+<p>Replace static text with:</p>
+<pre><code>
+{{ site_name }}
+
+{{ client_name }}
+
+{{ prepared_by }}
+
+{{ date_of_issue }}
+
+</code></pre>
+<p>Production bracket placeholders (from full merge documents):</p>
+<p>Automated tagging when merge file exists:</p>
+<pre><code>
+python scripts\tag_production_template.py --source &quot;22xxxxR Phase 2 ESA Full_merge.docx&quot; --out samples\production_template.docx
+
+</code></pre>
+<p>Without the merge file, the script generates `samples/production_template.docx` from the field guide.</p>
+<h2>Laboratory results table (docxtpl)</h2>
+<p>Use a **4-row pattern** in one table:</p>
+<p>In Word: merge cells on row 2 and 4 across columns so loop tags sit in one cell.</p>
+<p>**Important:** Do not put column headers inside the loop row — they will repeat per analyte.</p>
+<h3>RichText exceedances</h3>
+<ul>
+<li>`{{ item.result_display }}` — Bold red when exceedance (engine sets RichText).</li>
+<li>`{{ item.result_plain }}` — Always plain text.</li>
+</ul>
+<h2>Conditionals and loops (non-table)</h2>
+<pre><code>
+{% if show_appendix %}
+
+Appendix content here.
+
+{% endif %}
+
+
+
+{% for note in notes %}
+
+{{ note }}
+
+{% endfor %}
+
+</code></pre>
+<p>Only use variables present in Excel, sidebar, or added by custom engine changes.</p>
+<h2>Multiple-choice phrases</h2>
+<p>Consultants can insert **one of several standard paragraphs** into a tagged slot. The engine resolves the chosen text into a single context key (e.g. `{{ drilling_waste_intro }}`). Three supported patterns:</p>
+<h3>Approach A — Excel column holds the final text (no extra code)</h3>
+<p>1. Tag the Word slot: `{{ drilling_waste_summary }}` or a dedicated key `{{ drilling_waste_intro }}`. 2. In `ProjectData` row 2, paste the **full paragraph** the QP selected. 3. Generate.</p>
+<p>Use when each project needs custom wording or phrases are maintained in a shared Excel cheat sheet.</p>
+<h3>Approach B — Excel `PhraseCatalog` sheet + selection column</h3>
+<p>**Sheet `PhraseCatalog`** (optional):</p>
+<p>**`ProjectData`** row 2 includes selection columns:</p>
+<p>The engine sets `{{ drilling_waste_intro }}` from the catalog. Sample workbook includes this sheet (run `python scripts\create_samples.py`).</p>
+<p>Definitions are also in <a href="../schemas/phrase_catalog.json">`schemas/phrase_catalog.json`</a>.</p>
+<h3>Approach C — Streamlit “Standard phrases” pickers</h3>
+<p>On the **Report generation** tab, use the **Standard phrases** selectboxes (from `phrase_catalog.json`). Choices override Excel for the same keys and are merged into the report like sidebar fields.</p>
+<p>Pre-flight may warn if a phrase `option_id` in Excel does not match the catalog.</p>
+<h3>Approach D — Fixed variants in Word (`{% if %}`)</h3>
+<p>Keep all variants in the template; Excel only stores a **flag** that must match the `{% if %}` test exactly:</p>
+<pre><code>
+{% if aer_waste_compliance_option == &quot;Option 1 (AER, 2014)&quot; %}
+
+Drilling waste was disposed of via LWD to the well centre...
+
+{% elif aer_waste_compliance_option == &quot;Option 2&quot; %}
+
+Alternative paragraph text.
+
+{% else %}
+
+Not applicable.
+
+{% endif %}
+
+</code></pre>
+<p>Alberta Phase I samples already use `aer_waste_compliance_option` this way. Prefer **one** `{{ paragraph_key }}` when you have long text; use `{% if %}` only for short branches.</p>
+<h3>Tips</h3>
+<ul>
+<li>Type each `{{ tag }}` and `{% if %}` in **one** Word formatting run.</li>
+<li>Sidebar **Override executive summary** is the same pattern for a single long field.</li>
+<li>See <a href="03-excel-data-guide.md">03-excel-data-guide.md</a> for sheet names.</li>
+</ul>
+<h2>Jinja filters (optional)</h2>
+<pre><code>
+{{ value | default(&quot;N/A&quot;) }}
+
+{{ text | upper }}
+
+</code></pre>
+<h2>Template inventory</h2>
+<p>List all tags in a document:</p>
+<pre><code>
+python scripts\inventory_template.py path\to\template.docx
+
+</code></pre>
+<p>Or use **Analyze uploaded Word template** in the Streamlit app.</p>
+<h2>Production template files</h2>
+<p>See <a href="../PRODUCTION_TEMPLATE_GUIDE.txt">../PRODUCTION_TEMPLATE_GUIDE.txt</a>.</p>
+<h2>Authoring workflow for full reports</h2>
+<p>1. Copy production merge `.docx` to a working copy. 2. Replace bracket placeholders and static labels with `{{ tags }}` per mapping table above. 3. Identify lab summary table → apply `{%tr for item in lab_results %}` pattern. 4. Run `inventory_template.py` — compare to `production_data.xlsx` columns. 5. Upload in app → pre-flight → dry run → generate test PDF from Word if required. 6. Bump template version in sidebar; archive manifest with deliverable.</p>
+<h2>Common failures</h2>
+<h2>docxtpl resources</h2>
+<ul>
+<li>Documentation: https://docxtpl.readthedocs.io/</li>
+<li>Table rows: search docs for `{%tr` tag</li>
+<li>Quick syntax: <a href="../JINJA2_CHEATSHEET.txt">../JINJA2_CHEATSHEET.txt</a></li>
+</ul>
+<h2>Trust model</h2>
+<p>Templates contain Jinja2 logic (loops, conditionals). Treat `.docx` templates as **trusted author code**. Only staff who may edit report layouts should hold template write access.</p>
+</section><section id="phase1"><h2>Alberta Phase I ESA</h2>
+<h1>11 — Alberta oil &amp; gas Phase I ESA (Ecoventure)</h1>
+<p>Primary use case for this tool: **Alberta upstream oil and gas Phase I Environmental Site Assessments**, prepared by **Ecoventure Inc.**, aligned with **AER SED 002 Section 10** and reclamation certificate Phase 1 ESA workflows. See <a href="20-aer-sed002-phase1-esa.md">20-aer-sed002-phase1-esa.md</a>.</p>
+<h2>Reference structure</h2>
+<p>See <a href="../samples/phase1_alberta_inventory.md">samples/phase1_alberta_inventory.md</a> (derived from a Devon 2017 Signum-style report; **committed samples use Ecoventure branding** and anonymized client names).</p>
+<h2>Consultant of record</h2>
+<p>Client name, UWI, and well identifiers come from project Excel data per engagement.</p>
+<h2>Excel workbook (Phase 1)</h2>
+<h3>Required</h3>
+<ul>
+<li>**`ProjectData`** — row 1 headers, row 2 values (see inventory for Alberta O&amp;G fields).</li>
+</ul>
+<h3>Optional (no lab sheet for Phase 1)</h3>
+<ul>
+<li>**`DrillingWaste`** — mud type, volume (m³), disposal method, location, disposal type, GPS, sump dimensions, manifests → `drilling_waste` loop in Word.</li>
+<li>**`Apecs`** (optional) — APEC inventory (`apec_id`, concern type, evidence, source document, Phase II flag) → `apecs` loop under §10.7. Populate manually or via **AI drafts &amp; tools** (folder) / **AI tools** (upload) → Historical docs → APECs.</li>
+<li>**`StorageTanks`** — tank type, content, location, capacity → `storage_tanks` loop.</li>
+<li>**`ReportConfig`** — key/value rows to override profile or sheet mappings (see <a href="13-flexible-report-profiles.md">13-flexible-report-profiles.md</a>).</li>
+</ul>
+<p>Do **not** require **`LabResults`** when sidebar **Report phase** is **Phase 1**. Sidebar **Profile** should be **Alberta Phase I ESA (Ecoventure)** (`phase1_alberta`).</p>
+<h2>Word template</h2>
+<p>`phase1_alberta_template.docx` (generated sample) includes:</p>
+<p>1. Cover — prepared for / **prepared by Ecoventure Inc.** / UWI / QP names / date 2. **Executive summary** — `{{ executive_summary }}` (Signum Consulting–style multi-paragraph structure; Ecoventure voice). If blank in Excel, the engine auto-generates from ProjectData fields. Override in sidebar **Override executive summary** before generate. 3. **SED 002 §10** sections (10.1–10.8) — asset, drilling, waste, production, site visit, records, interviews 4. Table loops for drilling waste and storage tanks 5. Appendices **A–H** — **D** and **G** auto-generated as `.docx` from DrillingWaste data; other appendices uploaded as PDFs in the app; **onestop/** summary JSON in deliverable zip</p>
+<h2>Workflow</h2>
+<p>1. Sidebar: **Phase 1**, profile **Alberta Phase I ESA**, **Prepared by**, date, template version. 2. Upload `phase1_alberta_data.xlsx` + `phase1_alberta_template.docx` (or `.pdf` layout reference—convert and tag in Word if needed). 3. Pre-flight → **Generate report** (primary CTA on the Report tab). 4. Upload B/C/E/F/H PDFs under **Appendices (optional PDF uploads)** below **Generate**; click **Generate** again to include new uploads in the zip. A/D/G auto-generate on Generate (review D checklist and G calc tables under Advanced downloads). 5. Review **SED 002 §10** completeness in pre-flight; download QP checklist if needed. 6. Download **deliverable package (.zip)** (primary) — includes report, manifest, generated appendices, and `onestop/` summary for OneStop.</p>
+<p>Export generated appendix `.docx` files to PDF in Word before OneStop submission. Combined **Final_Report.pdf** (Word + appendices in one file) is not merged in-app.</p>
+<h2>Commands</h2>
+<pre><code>
+python scripts\create_samples.py
+
+python scripts\render_cli.py --excel samples\phase1_alberta_data.xlsx --template samples\phase1_alberta_template.docx --phase &quot;Phase 1&quot; --out samples\phase1_alberta_rendered.docx
+
+</code></pre>
+<h2>Related</h2>
+<ul>
+<li><a href="00-start-here.md">00-start-here.md</a> — consultant quick path  </li>
+<li><a href="03-excel-data-guide.md">03-excel-data-guide.md</a>  </li>
+<li><a href="04-template-authoring.md">04-template-authoring.md</a>  </li>
+<li><a href="09-ai-assistant.md">09-ai-assistant.md</a> — Phase 1 narrative drafts (Alberta/AER tone when RAG loaded)  </li>
+<li><a href="13-flexible-report-profiles.md">13-flexible-report-profiles.md</a>  </li>
+<li><a href="20-aer-sed002-phase1-esa.md">20-aer-sed002-phase1-esa.md</a> — SED 002 checklist and OneStop export</li>
+<li><a href="21-dwda-directive-050-compliance.md">21-dwda-directive-050-compliance.md</a> — Directive 050 / DWDA checklists  </li>
+</ul>
+</section><section id="folder"><h2>Project folder workflow</h2>
+<h1>22 — Project folder workflow (local CLI + AI)</h1>
+<p>Consultants can organize one site per **project folder** on disk, run AI enrichment into `ai_drafts/`, then render to `delivered/` using the same deterministic engine as Streamlit.</p>
+<h2>Folder layout</h2>
+<pre><code>
+C:\Projects\260109R\
+
+  project_data.xlsx           # Required — ProjectData + optional sheets
+
+  template.docx               # Required — Jinja Word template (or template.pdf)
+
+  ecoventure_workbook.xlsx    # Optional — Ecoventure Phase I + DWDA calcs (Save As from xltm)
+
+  project.json                # Optional — profile + sidebar meta (see schemas/project_folder.json)
+
+  source\                # Raw PDFs (lab COA, ABADATA, legacy report)
+
+  figures\               # PNG/JPG for manual Word paste or path columns
+
+  appendices\            # Manual PDFs B/C/E/F/H (A/D/G auto-generated at render)
+
+  rag\                   # Optional project-local RAG snippets (*.txt)
+
+  ai_drafts\             # AI outputs — review before editing Excel
+
+  delivered\             # Render output (.docx, manifest, package zip)
+
+</code></pre>
+<p>Run `python scripts\prepare_user_test_pack.py` then copy `user_test\` to a project folder, or:</p>
+<pre><code>
+python scripts\ingest_project_folder.py --init-sample --folder C:\Projects\demo_site
+
+</code></pre>
+<h2>project.json (optional)</h2>
+<p>Schema: <a href="../schemas/project_folder.json">`schemas/project_folder.json`</a></p>
+<p>**AI drafts:** `--ai enrich` writes advisory text to `ai_drafts/` only. Render uses `project_data.xlsx` + sidebar meta. In Streamlit, open the **AI drafts &amp; tools** tab → **Folder AI drafts** and use **Apply to Excel** (or executive summary override) after review — nothing is auto-merged into `ReportEngine`.</p>
+<h2>CLI commands</h2>
+<pre><code>
+.\.venv\Scripts\Activate.ps1
+
+
+
+# Scan + preflight + copilot advice (no LLM required)
+
+python scripts\ingest_project_folder.py --folder C:\Projects\260109R --ai inventory
+
+
+
+# Source PDF text + summaries (no LLM required for extract-only)
+
+python scripts\ingest_project_folder.py --folder C:\Projects\260109R --ai source-ingest --no-llm
+
+
+
+# Full AI enrich: inventory + source PDF ingest + narratives + appendix classification
+
+python scripts\ingest_project_folder.py --folder C:\Projects\260109R --ai enrich
+
+
+
+# Narrative drafts only (uses rag/ if present)
+
+python scripts\ingest_project_folder.py --folder C:\Projects\260109R --ai narratives
+
+
+
+# Lab COA PDF → ai_drafts/lab_extract_*.json (optional Excel backup in ai_drafts/)
+
+python scripts\ingest_project_folder.py --folder C:\Projects\260109R --ai lab-pdf --lab-pdf source\lab_coa.pdf
+
+
+
+# Render + deliverable package
+
+python scripts\ingest_project_folder.py --folder C:\Projects\260109R --render --package
+
+</code></pre>
+<p>Review files under `ai_drafts\` before changing `project_data.xlsx`. AI does **not** write Excel automatically unless you use `--write-lab-excel` with `--ai lab-pdf`, or click **Apply** / **Merge into current workbook** in the Streamlit **AI drafts &amp; tools** tab (folder workflow; upload workflow uses **AI tools**).</p>
+<h2>Streamlit (local desktop)</h2>
+<p>Choose **Project folder + AI** at startup, click **Browse…** to pick a folder (or paste a path), then **Load folder**. Use **Analyze folder** to run source PDF ingest + AI drafts into `ai_drafts/` — the app loads the folder into the Report tab automatically after analyze.</p>
+<p>**Browse…** requires a local Windows desktop with a display. On Docker/Linux servers or headless hosts, paste the full folder path instead — the picker is unavailable there.</p>
+<p>Requires local/desktop Streamlit (not multi-tenant hosted).</p>
+<h2>AI outputs in ai_drafts/</h2>
+<h2>Safety</h2>
+<ul>
+<li>Deterministic merge unchanged — AI populates drafts only.</li>
+<li>Manifest records optional `project_folder` path for audit.</li>
+<li>Offline mode works without `OPENAI_API_KEY` (heuristics + rule narratives).</li>
+</ul>
+<h2>Related docs</h2>
+<ul>
+<li><a href="23-excel-calculation-workbook-integration.md">23-excel-calculation-workbook-integration.md</a> — optional `ecoventure_workbook.xlsx` hybrid ingest</li>
+<li><a href="00-start-here.md">00-start-here.md</a> — consultant Streamlit path</li>
+<li><a href="09-ai-assistant.md">09-ai-assistant.md</a> — AI tab features</li>
+<li><a href="15-power-automate-guide.md">15-power-automate-guide.md</a> — SharePoint (future same layout)</li>
+</ul>
+</section><section id="ai"><h2>AI assistant</h2>
+<h1>09 — AI assistant</h1>
+<p>The **AI assistant** tab provides optional drafting and QA tools. The deterministic merge in `ReportEngine` is unchanged — AI output is **advisory** and must be reviewed before client delivery.</p>
+<h2>Configuration</h2>
+<h3>Offline mode (default)</h3>
+<p>No API key required. Rule-based fallbacks power all features.</p>
+<h3>Cloud / free LLM mode</h3>
+<p>1. Copy <a href="../.streamlit/secrets.toml.example">`.streamlit/secrets.toml.example`</a> → `.streamlit/secrets.toml`, or set environment variables. 2. **Free default:** if <a href="https://ollama.com">Ollama</a> is running locally (`ollama pull qwen2.5:7b`), the app auto-selects it. Otherwise set `GEMINI_API_KEY` or `GROQ_API_KEY`, or set `AI_PROVIDER` explicitly. 3. Enable **Use free/local LLM when available** in the sidebar (**AI options** expander).</p>
+<p>Provider resolution is in <a href="../ai/config.py">`ai/config.py`</a> (`resolve_llm_settings()`). Preference when `AI_PROVIDER` is unset: **Ollama (reachable) → Gemini → Groq → Together → OpenAI**. Explicit `OPENAI_BASE_URL` / `OPENAI_MODEL` override preset defaults. LLM output is advisory until you **Apply** / **Merge** — it is never injected into `ReportEngine` merge automatically.</p>
+<p>**Default paid model:** `gpt-4o-mini` when `AI_PROVIDER=openai` (~$0.01–0.05 per site for narrative drafts).</p>
+<h3>Free or cheap alternatives (OpenAI-compatible)</h3>
+<p>All use the same <a href="../ai/client.py">`ai/client.py`</a> via the OpenAI Python SDK:</p>
+<p>**Ecoventure recommendation:** **Ollama** on desktop for confidential site folders (auto-detected when running); **Gemini** or **Groq** for free cloud trials; **gpt-4o-mini** when paid quality matters most.</p>
+<p>**JSON-mode note:** Lab PDF and template tagger use structured JSON when supported. Gemini, Together, and Ollama may fall back to text + heuristic JSON parse — quality varies; offline heuristics still run when LLM output is unusable.</p>
+<h3>Setup: Google Gemini (free tier)</h3>
+<p>1. Create an API key at <a href="https://aistudio.google.com/apikey">Google AI Studio</a>. 2. Add to `.streamlit/secrets.toml`:</p>
+<pre><code>
+AI_PROVIDER = &quot;gemini&quot;
+
+GEMINI_API_KEY = &quot;your-key&quot;
+
+</code></pre>
+<p>3. Restart Streamlit; sidebar should show **Google Gemini — gemini-2.0-flash**. 4. Respect <a href="https://ai.google.dev/gemini-api/docs/rate-limits">Gemini API rate limits</a> on the free tier.</p>
+<h3>Setup: Together AI</h3>
+<p>1. Sign up at <a href="https://www.together.ai/">Together AI</a> and create an API key. 2. Add to secrets:</p>
+<pre><code>
+AI_PROVIDER = &quot;together&quot;
+
+TOGETHER_API_KEY = &quot;your-key&quot;
+
+</code></pre>
+<p>3. Optional: override model with `OPENAI_MODEL = &quot;meta-llama/Llama-3.3-70B-Instruct-Turbo&quot;`.</p>
+<h3>CLI without LLM</h3>
+<p>For headless folder ingest with no external calls:</p>
+<pre><code>
+python scripts\ingest_project_folder.py --folder C:\Projects\260109R --ai source-ingest --no-llm
+
+</code></pre>
+<p>Dependencies: `openai`, `pypdf` in `requirements.txt`.</p>
+<h2>Architecture</h2>
+<pre><code>
+ui/ai_panel.py
+
+    ├── ai/template_tagger.py   → bracket → Jinja suggestions
+
+    ├── ai/lab_extract.py       → PDF COA → LabResults / GroundwaterLab rows
+
+    ├── ai/well_log_extract.py  → PDF → MonitoringWells rows
+
+    ├── ai/gw_trends.py         → trend notes from GW context
+
+    ├── ai/narrative.py         → section drafts + RAG
+
+    ├── ai/copilot.py           → pre-flight explanations
+
+    ├── ai/consistency.py       → data QA rules
+
+    ├── ai/exceedance_notes.py  → plain-language lab notes
+
+    └── ai/appendix_classifier.py → PDF → appendix label A–H (project folder)
+
+    └── ai/source_ingest.py     → source/ PDF text + summaries → ai_drafts/
+
+         └── ai/client.py       → OpenAI-compatible API (OpenAI, Ollama, Groq, Gemini, Together, Azure)
+
+</code></pre>
+<p>`ai/config.py` — `AI_PROVIDER` presets, `resolve_llm_settings()`. `ai/models.py` — `AiAudit` entries for session log.</p>
+<p>Project folder: <a href="../project_folder.py">`project_folder.py`</a> + <a href="../scripts/ingest_project_folder.py">`scripts/ingest_project_folder.py`</a> — AI drafts in `ai_drafts/`, render to `delivered/` (<a href="22-project-folder-workflow.md">22-project-folder-workflow.md</a>).</p>
+<h2>Tier 1 features</h2>
+<h3>Template tagger</h3>
+<ul>
+<li>Input: uploaded Word template bytes</li>
+<li>Finds `[Bracket]` placeholders and known phrases</li>
+<li>Suggests `{{ jinja }}` names from the selected profile’s `recommended_fields` in `schemas/report_profiles.json`</li>
+<li>Download markdown tagging guide</li>
+</ul>
+<p>**Use when:** Converting an untagged merge document to Jinja2.</p>
+<h3>Lab PDF → Excel</h3>
+<ul>
+<li>Input: Certificate of Analysis PDF (max 10 MB)</li>
+<li>Output: Excel with `LabResults` or **`GroundwaterLab`** rows (select target sheet in UI)</li>
+<li>Heuristic parsing offline; LLM improves extraction when enabled</li>
+</ul>
+<p>**Use when:** Rapidly building lab sheet from lab PDF.</p>
+<h3>Well log PDF → MonitoringWells</h3>
+<ul>
+<li>Input: Borehole / well construction PDF</li>
+<li>Output: Excel with `MonitoringWells` rows (well ID, optional screen interval heuristics)</li>
+</ul>
+<p>**Use when:** Bootstrapping the well network table from contractor logs.</p>
+<h3>Historical docs → APECs</h3>
+<ul>
+<li>Input: text-extractable **PDF** or **Word (.docx)** (historical ESA, ABADATA/spill search, air-photo notes)</li>
+<li>Output: candidate rows for the **`Apecs`** sheet (`apec_id`, concern type, evidence, source document, Phase II Y/N)</li>
+<li>Offline heuristics + optional LLM; **Apply / Merge** into session Excel (append or replace)</li>
+<li>Folder Analyze / `--ai apec-extract` / source-ingest writes `ai_drafts/apec_extract_*.json` and `apecs_candidates.json`</li>
+<li>**Not in V1:** scanned image PDFs and JPG (see Phase 2 OCR in `ai/ocr.py`)</li>
+</ul>
+<p>**Use when:** Building the Phase I APEC inventory table from historical records — always QP-review before delivery.</p>
+<h3>Groundwater trend notes</h3>
+<ul>
+<li>Input: merge context with `monitoring_wells`, `groundwater_results`, `water_levels`</li>
+<li>Output: rule-based trend messages and well ID cross-checks</li>
+</ul>
+<p>**Use when:** QA before issuing a groundwater monitoring report.</p>
+<h3>Narrative drafts</h3>
+<ul>
+<li>Input: Excel context + optional `rag_corpus/*.txt` + **project folder** `source/` PDF summaries (when ingested)</li>
+<li>Output: Draft paragraphs (executive summary, site description, conclusions)</li>
+<li>Citations reference corpus filenames and source PDF names (not full text dump)</li>
+</ul>
+<p>**Use when:** First draft of narrative sections — always edit in Word after merge.</p>
+<h3>Source PDF ingest (project folder)</h3>
+<ul>
+<li>Input: PDFs in project folder `source/`</li>
+<li>Output: `ai_drafts/source_index.json`, `source_extracts/*.txt`, `source_summaries.json`, optional `excel_field_suggestions.json`, optional `rag/ingested/*.txt`</li>
+<li>Lab COA filenames routed to `lab_extract_*.json`; Phase I ESA PDFs parsed for cover metadata</li>
+</ul>
+<p>**Use when:** Bootstrapping narratives from legacy reports and site PDFs — review before copying into Excel.</p>
+<h3>RAG corpus</h3>
+<p>Add approved text files under <a href="../rag_corpus/">`rag_corpus/`</a>. Separate sections with `---` on its own line. Example files: `phase2_intro.txt`, `exceedance_language.txt`.</p>
+<h2>Tier 2 features</h2>
+<h3>Pre-flight copilot</h3>
+<ul>
+<li>Input: current `PreflightResult`, sidebar meta</li>
+<li>Explains errors/warnings in plain language</li>
+<li>Suggests Excel columns to add</li>
+</ul>
+<h3>Consistency checker</h3>
+<p>Rule-based checks including:</p>
+<ul>
+<li>Site name vs address mismatch hints</li>
+<li>Duplicate analyte rows</li>
+<li>Exceedance flag inconsistent with numeric result vs criteria</li>
+</ul>
+<h3>Exceedance notes</h3>
+<p>One-line plain-language note per lab row for report narrative cross-reference.</p>
+<h2>Audit trail</h2>
+<ul>
+<li>**AI audit log** visible in AI tab during session</li>
+<li>On **Generate report**, `generation_record.ai_audit` includes session AI actions in manifest JSON</li>
+</ul>
+<h2>Security and privacy</h2>
+<p>For strict confidentiality, use **Ollama** (local) or keep **Use free/local LLM** off (offline heuristics only).</p>
+<h2>Limitations</h2>
+<ul>
+<li>AI does not modify Word templates on disk automatically (tagger is suggest-only)</li>
+<li>PDF parsing quality varies by lab format; **scanned/image PDFs and JPG need Phase 2 OCR** (`ai/ocr.py` stub)</li>
+<li>Narratives and APEC rows may hallucinate — verify against site files</li>
+<li>Not a substitute for professional sign-off</li>
+<li>**Apply** buttons write into session Excel / sidebar only after explicit confirmation; empty cells are filled by default, filled cells require **Overwrite filled**</li>
+</ul>
+<h2>Apply into the report workflow</h2>
+<p>Tab names: folder workflow = **AI drafts &amp; tools**; Excel + template upload = **AI tools**.</p>
+<h2>Related</h2>
+<ul>
+<li><a href="04-template-authoring.md">04-template-authoring.md</a> — Manual tagging</li>
+<li><a href="22-project-folder-workflow.md">22-project-folder-workflow.md</a> — Folder enrich + Apply</li>
+<li><a href="../AI_FEATURES.md">../AI_FEATURES.md</a> — Short summary</li>
+</ul>
+</section><section id="shortcuts">
+<h2 id="shortcuts">Keyboard shortcuts</h2>
+<p>The ESA Report Generator shows a Windows-style menu bar (File, Edit, View, Tools, Help).
+Press <strong>F1</strong> anytime to open this help file.</p>
+<table>
+<tr><th>Action</th><th>How</th></tr>
+<tr><td>Help contents</td><td><kbd>F1</kbd> (global) or Help → Contents</td></tr>
+<tr><td>Open / focus project folder</td><td>File menu</td></tr>
+<tr><td>Load Alberta Phase I sample</td><td>File menu</td></tr>
+<tr><td>Clear generated outputs</td><td>File menu</td></tr>
+<tr><td>Toggle Simple mode</td><td>Edit menu</td></tr>
+<tr><td>Glossary</td><td>View menu</td></tr>
+</table>
+<p>Only <strong>F1</strong> is hooked globally in the browser. Use the menus for other actions.</p>
+</section>
+      <p class="footer">Created by Andrew Liu, Ecoventure Inc., Copyright 2026 · F1 opens this help from the app.</p>
+    </main>
+  </div>
+</body>
+</html>

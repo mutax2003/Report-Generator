@@ -22,12 +22,19 @@ alwaysApply: false
 | `ecoventure_dwda_cell_contract.json` | Ecoventure xltm cell ingest (`contract_version`) |
 | `dwda_salt_additives.json` | Salt additive factors for calc engine |
 | `project_folder.json` | `project.json` layout (`ecoventure_workbook_filename`) |
+| `phrase_catalog.json` | Standard phrase options (UI + Excel `PhraseCatalog`) |
+| `records_retention_policy.json` | Retention classes / purge policy for audit and deliverable artifacts — keep in sync with `records_retention.py` |
 | `phase2_esa_checklist.json`, `groundwater_checklist.json`, `reclamation_checklist.json` | Vertical profile preflight |
+
+## Phrase vs derived fields
+
+- **`confirmatory_summary`** — phrase/profile field (PhraseCatalog / recommended_fields for phase3).
+- **`confirmatory_status`** — derived at render time from confirmatory sampling rows (`remediation_narrative.py`); do not treat as a phrase key.
 
 ## Excel layout
 
 - **`ProjectData`**: row 1 = headers (→ snake_case keys), **row 2+ = one site per row** (batch: all rows or pick one in UI).
-- **DWDA sheets:** `DwdaChecklist`, `DwdaCalculations` (see [docs/21-dwda-directive-050-compliance.md](docs/21-dwda-directive-050-compliance.md)).
+- **DWDA sheets:** `DwdaChecklist` → `dwda_checklist` (loop); `DwdaCalculations` → `dwda_calc_sheet` (ingest-only; flattened/popped — not a Word loop). See [docs/21-dwda-directive-050-compliance.md](docs/21-dwda-directive-050-compliance.md).
 - **Groundwater:** `MonitoringWells`, `WaterLevels`, `GroundwaterLab`, `FieldNotes`.
 - Sheet names are **case-sensitive** — see [EXCEL_LAYOUT.txt](EXCEL_LAYOUT.txt) and the always-on architecture rule.
 

@@ -147,10 +147,12 @@ def _folder_core_sig(resolved: Any) -> tuple[str, int, int]:
     return (str(resolved.root), ep.stat().st_mtime_ns, tp.stat().st_mtime_ns)
 
 
-def _folder_appendix_sig(resolved: Any) -> tuple[str, tuple[tuple[str, int], ...]]:
+def _folder_appendix_sig(resolved: Any) -> tuple[str, tuple[tuple[str, int], ...], int]:
     root = str(resolved.root)
     pdfs = getattr(resolved.inventory, "appendix_pdfs", None) or []
-    return (root, tuple((str(p), p.stat().st_mtime_ns) for p in pdfs))
+    manifest = Path(resolved.root) / "ai_drafts" / "appendix_manifest.json"
+    manifest_mtime = manifest.stat().st_mtime_ns if manifest.is_file() else 0
+    return (root, tuple((str(p), p.stat().st_mtime_ns) for p in pdfs), manifest_mtime)
 
 
 def _reuse_folder_load_if_current(sig: tuple[str, int, int]) -> FolderLoadBundle | None:
@@ -173,6 +175,9 @@ def _render_folder_controls() -> FolderLoadResult | None:
     default_path = st.session_state.get("project_folder_path", "")
     if default_path and "project_folder_path_input" not in st.session_state:
         st.session_state.project_folder_path_input = default_path
+
+    if st.session_state.pop("menu_highlight_folder_path", False):
+        st.info("Enter or browse to your project folder path below, then **Load folder**.")
 
     path_col, browse_col = st.columns([5, 1])
     with path_col:
@@ -409,7 +414,7 @@ def _load_folder_from_resolved(
 
 
 def _apply_folder_appendices(resolved: Any) -> None:
-    from project_folder import load_manual_appendices
+    from project_folder import appendix_label_conflicts, load_manual_appendices
 
     ap_sig = _folder_appendix_sig(resolved)
     if st.session_state.get("folder_appendix_sig") == ap_sig:
@@ -426,6 +431,7 @@ def _apply_folder_appendices(resolved: Any) -> None:
         labels.append(ap.label)
     st.session_state.folder_appendix_labels = labels
     st.session_state.folder_appendix_sig = ap_sig
+    st.session_state.folder_appendix_conflicts = appendix_label_conflicts(resolved)
 
 
 def _show_folder_inventory(snapshot: dict[str, Any] | None) -> None:
@@ -433,6 +439,8 @@ def _show_folder_inventory(snapshot: dict[str, Any] | None) -> None:
         return
     for w in snapshot.get("warnings") or []:
         st.warning(w)
+    for note in st.session_state.get("folder_appendix_conflicts") or []:
+        st.warning(note)
     lines: list[str] = []
     if snapshot.get("excel_name"):
         lines.append(f"Excel: `{snapshot['excel_name']}`")
@@ -490,12 +498,18 @@ def _run_folder_analyze(folder_str: str) -> None:
     for p in paths:
         st.caption(f"• {p.name}")
     if sugg_path.is_file():
-        st.caption("• Review `excel_field_suggestions.json` for optional ProjectData fields")
+        st.caption("• Review `excel_field_suggestions.json` — apply from the **AI tools** tab")
     _sync_folder_after_analyze(folder_str, resolved=resolved)
+    from ai.models import AiAudit
+
+    existing: list = st.session_state.get("ai_audit_log") or []
+    existing.append(
+        AiAudit(features=["folder_analyze"], used_llm=_use_llm()).to_dict()
+    )
+    st.session_state["ai_audit_log"] = existing[-20:]
     st.info(
-        "Review drafts in `ai_drafts/` on disk (including `source_summaries.json` if "
-        "source PDFs were ingested) before copying text into Excel. "
-        "Then load the folder and generate on the **Report** tab."
+        "Review drafts in `ai_drafts/` (AI tools tab) or apply narratives/field suggestions "
+        "into Excel with **Apply** buttons. Then generate on the **Report** tab."
     )
 
 

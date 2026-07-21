@@ -1,5 +1,5 @@
 """
-Thin wrapper around ReportEngine for non-Streamlit callers.
+Thin wrapper around render_service for non-Streamlit callers.
 
 Use from Power Automate (Run script), Azure Functions, or cron jobs.
 """
@@ -75,6 +75,34 @@ def render_deliverable_zip_from_bytes(
     )
     assert result.package_bytes is not None
     return result.package_bytes, result.warnings, result.record
+
+
+def render_batch_from_bytes(
+    excel_bytes: bytes,
+    template_bytes: bytes,
+    *,
+    meta: dict[str, str] | None = None,
+    excel_filename: str = "data.xlsx",
+    template_filename: str = "template.docx",
+    include_appendices: bool = True,
+    uploaded_appendices: list[AppendixFile] | None = None,
+    appendix_labels_present: set[str] | None = None,
+) -> list[Any]:
+    """Render one report per ProjectData row via render_service (appendix-aware batch)."""
+    from render_service import RenderRequest, render_batch_reports
+
+    return render_batch_reports(
+        RenderRequest(
+            excel_bytes=excel_bytes,
+            template_bytes=template_bytes,
+            meta=meta,
+            excel_filename=excel_filename,
+            template_filename=template_filename,
+            include_appendices=include_appendices,
+            uploaded_appendices=list(uploaded_appendices or []),
+            appendix_labels_present=appendix_labels_present,
+        )
+    )
 
 
 def render_report_from_paths(

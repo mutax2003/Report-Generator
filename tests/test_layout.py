@@ -37,14 +37,31 @@ class TestLayout(unittest.TestCase):
 
     @patch("ui.layout.st")
     def test_workflow_stepper_renders_four_steps(self, mock_st: MagicMock) -> None:
-        mock_st.columns.return_value = [MagicMock(), MagicMock(), MagicMock(), MagicMock()]
         render_workflow_stepper(2)
-        self.assertEqual(mock_st.columns.call_count, 1)
-        self.assertEqual(mock_st.columns.call_args[0][0], 4)
-        markdown_calls = [str(c) for c in mock_st.markdown.call_args_list]
-        joined = " ".join(markdown_calls)
-        self.assertIn("Pre-flight", joined)
-        self.assertIn("→ 2.", joined)
+        mock_st.markdown.assert_called()
+        html = str(mock_st.markdown.call_args[0][0])
+        self.assertIn("ev-stepper", html)
+        self.assertIn("Pre-flight", html)
+        self.assertIn("ev-step-current", html)
+        self.assertIn("ev-step-done", html)
+        self.assertIn("1. Inputs", html)
+
+    @patch("ui.layout.st")
+    def test_workflow_context_strip_renders(self, mock_st: MagicMock) -> None:
+        from ui.layout import render_workflow_context_strip
+
+        render_workflow_context_strip(
+            mode_label="Excel + Word template",
+            profile_label="phase1 alberta",
+            excel_name="data.xlsx",
+            template_name="tpl.docx",
+            site_label="Wellsite A",
+        )
+        html = str(mock_st.markdown.call_args[0][0])
+        self.assertIn("ev-context", html)
+        self.assertIn("Excel + Word template", html)
+        self.assertIn("data.xlsx", html)
+        self.assertIn("Wellsite A", html)
 
     def test_generate_blockers_lists_missing_inputs(self) -> None:
         blockers = generate_blockers(

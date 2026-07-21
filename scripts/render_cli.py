@@ -94,24 +94,28 @@ def main() -> int:
 
     if args.all_rows:
         from deliverable_pack import build_batch_reports_zip
-        from engine import ReportEngine
-        from template_attachments import prepare_template_upload
+        from render_service import RenderRequest, render_batch_reports
 
-        prepared = prepare_template_upload(template_bytes, args.template.name)
-        if prepared.warnings:
-            for w in prepared.warnings:
-                print(f"Note: {w}")
-        engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=prepared.docx_bytes)
-        batch = engine.render_batch(
-            meta=meta,
-            excel_filename=args.excel.name,
-            template_filename=args.template.name,
+        batch = render_batch_reports(
+            RenderRequest(
+                excel_bytes=excel_bytes,
+                template_bytes=template_bytes,
+                meta=meta,
+                excel_filename=args.excel.name,
+                template_filename=args.template.name,
+                include_appendices=include_appendices,
+            )
         )
         zip_path = args.out if args.out.suffix.lower() == ".zip" else args.out.with_suffix(".zip")
         zip_path.write_bytes(
             build_batch_reports_zip(
                 [
-                    (item.filename, item.docx_bytes, item.record.to_json_bytes())
+                    (
+                        item.filename,
+                        item.docx_bytes,
+                        item.record.to_json_bytes(),
+                        item.appendices,
+                    )
                     for item in batch
                 ]
             )

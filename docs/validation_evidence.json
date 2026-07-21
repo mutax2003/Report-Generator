@@ -1,0 +1,140 @@
+{
+  "generated_at": "2026-07-11T19:37:04+00:00",
+  "requirements_total": 8,
+  "requirements_covered": 8,
+  "coverage_pct": 100.0,
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "title": "Excel + Word render produces valid DOCX",
+      "sources": [
+        "docs/00-start-here.md",
+        "engine.py"
+      ],
+      "tests": [
+        "tests.test_render_e2e",
+        "tests.test_render_path_parity"
+      ],
+      "tests_found": [
+        "tests.test_render_e2e",
+        "tests.test_render_path_parity"
+      ],
+      "covered": true
+    },
+    {
+      "id": "REQ-002",
+      "title": "Upload validation and safe errors",
+      "sources": [
+        "security.py",
+        "docs/07-security-and-deployment.md"
+      ],
+      "tests": [
+        "tests.test_security",
+        "tests.test_upload_helpers"
+      ],
+      "tests_found": [
+        "tests.test_security",
+        "tests.test_upload_helpers"
+      ],
+      "covered": true
+    },
+    {
+      "id": "REQ-003",
+      "title": "DWDA / SED compliance appendices",
+      "sources": [
+        "docs/21-dwda-directive-050-compliance.md",
+        "appendix_generator.py"
+      ],
+      "tests": [
+        "tests.test_dwda_compliance",
+        "tests.test_sed002_compliance",
+        "tests.test_appendix_generator"
+      ],
+      "tests_found": [
+        "tests.test_dwda_compliance",
+        "tests.test_sed002_compliance",
+        "tests.test_appendix_generator"
+      ],
+      "covered": true
+    },
+    {
+      "id": "REQ-004",
+      "title": "Deliverable package manifest and provenance",
+      "sources": [
+        "deliverable_pack.py",
+        "provenance.py"
+      ],
+      "tests": [
+        "tests.test_deliverable_pack",
+        "tests.test_provenance"
+      ],
+      "tests_found": [
+        "tests.test_deliverable_pack",
+        "tests.test_provenance"
+      ],
+      "covered": true
+    },
+    {
+      "id": "REQ-005",
+      "title": "Streamlit UX smoke and generate flow",
+      "sources": [
+        "app.py",
+        "ui/results.py"
+      ],
+      "tests": [
+        "tests.test_streamlit_smoke",
+        "tests.test_layout"
+      ],
+      "tests_found": [
+        "tests.test_streamlit_smoke",
+        "tests.test_layout"
+      ],
+      "covered": true
+    },
+    {
+      "id": "REQ-006",
+      "title": "HTTP headless render service",
+      "sources": [
+        "automate/http_server.py",
+        "automate/render.py"
+      ],
+      "tests": [
+        "tests.test_http_server",
+        "tests.test_automate_render"
+      ],
+      "tests_found": [
+        "tests.test_http_server",
+        "tests.test_automate_render"
+      ],
+      "covered": true
+    },
+    {
+      "id": "REQ-007",
+      "title": "Audit trail integrity",
+      "sources": [
+        "audit_trail.py"
+      ],
+      "tests": [
+        "tests.test_audit_trail"
+      ],
+      "tests_found": [
+        "tests.test_audit_trail"
+      ],
+      "covered": true
+    },
+    {
+      "id": "REQ-008",
+      "title": "QP e-signature verification",
+      "sources": [
+        "qp_signature.py"
+      ],
+      "tests": [
+        "tests.test_qp_signature"
+      ],
+      "tests_found": [
+        "tests.test_qp_signature"
+      ],
+      "covered": true
+    }
+  ]
+}

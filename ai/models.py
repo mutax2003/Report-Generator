@@ -80,6 +80,44 @@ class NarrativeDraft:
 
 
 @dataclass
+class ApecExtractRow:
+    apec_id: str
+    apec_name: str
+    location_description: str = ""
+    concern_type: str = "other"
+    source_of_concern: str = "historical_report"
+    evidence_summary: str = ""
+    source_document: str = ""
+    phase2_recommended: str = "N"
+    notes: str = ""
+    confidence: float = 0.6
+
+    def to_excel_dict(self) -> dict[str, str]:
+        return {
+            "apec_id": self.apec_id,
+            "apec_name": self.apec_name,
+            "location_description": self.location_description,
+            "concern_type": self.concern_type,
+            "source_of_concern": self.source_of_concern,
+            "evidence_summary": self.evidence_summary,
+            "source_document": self.source_document,
+            "phase2_recommended": self.phase2_recommended,
+            "notes": self.notes,
+        }
+
+
+@dataclass
+class ApecExtractResult:
+    rows: list[ApecExtractRow] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    source: str = "heuristic"
+    raw_text_preview: str = ""
+    disclaimer: str = (
+        "AI-suggested APECs — QP review required before client delivery."
+    )
+
+
+@dataclass
 class AiAudit:
     features: list[str] = field(default_factory=list)
     model: str = ""

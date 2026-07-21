@@ -19,8 +19,10 @@ from security import (  # noqa: E402
     sanitize_download_filename,
     user_safe_error,
     validate_excel_upload,
+    validate_appendix_pdf_upload,
     validate_rendered_output,
     validate_template_upload,
+    validation_bypass_enabled,
 )
 from engine import ReportEngine  # noqa: E402
 
@@ -63,9 +65,7 @@ class TestSecurity(unittest.TestCase):
             sanitize_download_filename("../../etc/passwd.docx"),
             "etc_passwd.docx",
         )
-        self.assertTrue(
-            sanitize_download_filename("site/name.docx").endswith(".docx")
-        )
+        self.assertTrue(sanitize_download_filename("site/name.docx").endswith(".docx"))
 
     def test_sample_render(self) -> None:
         xlsx = ROOT / "samples" / "sample_data.xlsx"
@@ -95,6 +95,80 @@ class TestSecurity(unittest.TestCase):
     def test_user_safe_error_allows_missing_sheet(self) -> None:
         msg = user_safe_error(ValueError("Missing sheet 'ProjectData'. Found: ['Sheet1']"))
         self.assertIn("Missing sheet", msg)
+
+    def test_user_safe_error_auth_error_message(self) -> None:
+        from esa_auth import AuthError
+
+        msg = user_safe_error(AuthError("Invalid API key"))
+        self.assertEqual(msg, "Invalid API key")
+        self.assertNotIn("Permission denied", msg)
+
+    def test_user_safe_error_multipart_parse(self) -> None:
+        from automate.multipart import MultipartParseError
+
+        msg = user_safe_error(MultipartParseError("Missing multipart boundary"))
+        self.assertEqual(msg, "Missing multipart boundary")
+        self.assertNotIn("Report generation failed", msg)
+
+    def test_user_safe_error_tenant_error(self) -> None:
+        from esa_tenant import TenantError
+
+        msg = user_safe_error(TenantError("Path escapes tenant root."))
+        self.assertEqual(msg, "Path escapes tenant root.")
+        self.assertNotIn("C:\\", msg)
+
+    def test_validation_bypass_accepts_legacy_env_name(self) -> None:
+        import os
+
+        prev = {
+            k: os.environ.get(k)
+            for k in (
+                "ESA_VALIDATION_BYPASS",
+                "ESA_API_KEY",
+                "ESA_HOSTED_MODE",
+                "ESA_DISABLE_FOLDER_WORKFLOW",
+            )
+        }
+        os.environ.pop("ESA_API_KEY", None)
+        os.environ.pop("ESA_HOSTED_MODE", None)
+        os.environ.pop("ESA_DISABLE_FOLDER_WORKFLOW", None)
+        os.environ["ESA_VALIDATION_BYPASS"] = "1"
+        try:
+            self.assertTrue(validation_bypass_enabled())
+        finally:
+            for key, val in prev.items():
+                if val is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = val
+
+    def test_validation_bypass_refused_when_hosted(self) -> None:
+        import os
+
+        prev = {
+            k: os.environ.get(k)
+            for k in ("ESA_VALIDATION_BYPASS", "ESA_HOSTED_MODE", "ESA_API_KEY")
+        }
+        os.environ.pop("ESA_API_KEY", None)
+        os.environ["ESA_VALIDATION_BYPASS"] = "1"
+        os.environ["ESA_HOSTED_MODE"] = "1"
+        try:
+            self.assertFalse(validation_bypass_enabled())
+        finally:
+            for key, val in prev.items():
+                if val is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = val
+
+    def test_user_safe_error_hides_permission_paths(self) -> None:
+        msg = user_safe_error(PermissionError("Access denied: C:\\secret\\path"))
+        self.assertEqual(msg, "Permission denied.")
+        self.assertNotIn("secret", msg)
+
+    def test_reject_invalid_appendix_pdf(self) -> None:
+        with self.assertRaises(SecurityError):
+            validate_appendix_pdf_upload(b"not a pdf file")
 
 
 class TestZipBomb(unittest.TestCase):

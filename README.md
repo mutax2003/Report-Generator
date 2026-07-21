@@ -64,7 +64,7 @@ On first open, choose **Project folder + AI** or **Excel + Word template**.
 1. Upload **Excel** (`.xlsx`) and **report template** (`.docx` or `.pdf`; PDF is converted to Word for merge).
 2. Review **Pre-flight checks**.
 3. Fill **sidebar** fields; download samples from the sidebar if needed.
-4. Click **Generate Report**, then **Download Report** (optional: appendix PDFs A–H, **Download deliverable package (.zip)**).
+4. Click **Generate report**, then **Download deliverable package (.zip)** (Word report and manifest are under **Advanced downloads**).
 
 **Project folder + AI** (local desktop)
 
@@ -116,11 +116,11 @@ See [docs/12-testing-with-your-documents.md](docs/12-testing-with-your-documents
 | `python scripts\dwda_workflow_e2e.py` | DWDA preflight + appendix H + D/G + OneStop zip |
 | `python scripts\ingest_ecoventure_workbook.py` | Merge Ecoventure calc workbook into engine Excel |
 | `python scripts\create_phase2_project_folder.py` | Phase II test folder under `user_test/phase2_alberta` |
-| `python scripts\health_check.py` | 17-step regression (imports, render, folder ingest, Ecoventure DWDA, test count) |
+| `python scripts\health_check.py` | 18-step regression (imports, render, folder ingest, Ecoventure DWDA, test count) |
 | `.\scripts\build_windows_deploy.ps1 -BuildExe` | Windows portable folder + `ESA-Report-Generator.exe` |
 | `.\run.ps1 scripts\test_with_your_documents.py` | Same, via venv Python (Windows) |
 | `.\scripts\package_team_sharepoint.ps1` | Build `dist\team-sharepoint\` for SharePoint upload |
-| `python -m unittest discover -s tests -v` | Full test suite (**284 tests**, 3 may skip) |
+| `python -m unittest discover -s tests -v` | Full test suite (**389 tests**, 4 may skip) |
 | `python scripts\streamlit_smoke.py` | Streamlit AppTest smoke (workflow + folder load) |
 
 ## Automation
@@ -161,7 +161,7 @@ schemas/                report_profiles.json, field_contract.json, DWDA checklis
 samples/                Demo and production fixtures
 templates/ecoventure_dwda/  QP xltm/dotm templates (shipped in deliverable zip)
 docs/                   Full documentation
-tests/                  Unit and integration tests (284 tests)
+tests/                  Unit and integration tests (389 tests)
 Dockerfile              Container image for Streamlit
 ```
 

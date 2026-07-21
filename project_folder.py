@@ -141,15 +141,26 @@ def _read_project_json(folder: Path) -> dict[str, str]:
 
 
 def _find_file(folder: Path, names: tuple[str, ...], override: str = "") -> Path | None:
+    root = folder.resolve()
+
+    def _contained(candidate: Path) -> Path | None:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            return None
+        if not resolved.is_relative_to(root):
+            raise FileNotFoundError(f"Path escapes project folder: {candidate}")
+        return resolved if resolved.is_file() else None
+
     if override:
-        p = folder / override
-        if p.is_file():
-            return p
-        raise FileNotFoundError(f"Configured file not found: {p}")
+        found = _contained(folder / override)
+        if found is not None:
+            return found
+        raise FileNotFoundError(f"Configured file not found: {folder / override}")
     for name in names:
-        p = folder / name
-        if p.is_file():
-            return p
+        found = _contained(folder / name)
+        if found is not None:
+            return found
     return None
 
 
@@ -570,6 +581,67 @@ def classify_appendices_for_folder(
     return out_path
 
 
+def apec_extract_for_folder(
+    resolved: ResolvedProjectFolder,
+    *,
+    use_llm: bool = True,
+) -> list[Path]:
+    """Run APEC extract on source/ PDFs → ai_drafts/apec_extract_*.json + candidates."""
+    from ai.apec_extract import extract_apecs_from_bytes, merge_apec_results
+    from ai.models import ApecExtractResult
+
+    pdfs = list(resolved.inventory.source_pdfs)
+    if not pdfs:
+        return []
+    resolved.ai_drafts_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    results: list[ApecExtractResult] = []
+    for pdf in pdfs:
+        try:
+            data = _read_pdf_bytes(pdf)
+            result, _audit = extract_apecs_from_bytes(
+                data, pdf.name, use_llm=use_llm
+            )
+        except Exception:
+            continue
+        if not result.rows:
+            continue
+        results.append(result)
+        out = resolved.ai_drafts_dir / f"apec_extract_{pdf.stem}.json"
+        out.write_text(
+            json.dumps(
+                {
+                    "disclaimer": result.disclaimer,
+                    "source_pdf": pdf.name,
+                    "row_count": len(result.rows),
+                    "source": result.source,
+                    "warnings": result.warnings,
+                    "rows": [r.to_excel_dict() for r in result.rows],
+                },
+                indent=2,
+                default=str,
+            ),
+            encoding="utf-8",
+        )
+        written.append(out)
+    if results:
+        merged = merge_apec_results(results)
+        cand = resolved.ai_drafts_dir / "apecs_candidates.json"
+        cand.write_text(
+            json.dumps(
+                {
+                    "disclaimer": merged.disclaimer,
+                    "row_count": len(merged.rows),
+                    "rows": [r.to_excel_dict() for r in merged.rows],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        written.append(cand)
+    return written
+
+
 def enrich_project_folder(
     resolved: ResolvedProjectFolder,
     *,
@@ -597,29 +669,57 @@ def enrich_project_folder(
         if inv.source_pdfs and not summaries_path.is_file():
             written.extend(source_ingest_for_folder(resolved, use_llm=use_llm))
     if "narratives" in modes:
-        written.append(
-            draft_narratives_for_folder(resolved, use_llm=use_llm, core_files=core)
-        )
+        written.append(draft_narratives_for_folder(resolved, use_llm=use_llm, core_files=core))
     if "appendix-classify" in modes:
         path = classify_appendices_for_folder(resolved, use_llm=use_llm)
         if path is not None:
             written.append(path)
+    if "apec-extract" in modes:
+        # Dedicated APEC pass (source-ingest also writes apec drafts when present)
+        written.extend(apec_extract_for_folder(resolved, use_llm=use_llm))
     return written
 
 
-def load_manual_appendices(resolved: ResolvedProjectFolder) -> list[Any]:
-    """Load PDFs from appendices/ as AppendixFile list (upload wins at render)."""
+def appendix_label_conflicts(resolved: ResolvedProjectFolder) -> list[str]:
+    """Human-readable conflicts between appendix_manifest.json and filename heuristics."""
     from ai.appendix_classifier import heuristic_appendix_label
+    from ai.apply_drafts import load_appendix_manifest_labels
+
+    manifest = load_appendix_manifest_labels(resolved.ai_drafts_dir)
+    if not manifest:
+        return []
+    notes: list[str] = []
+    for pdf in resolved.inventory.appendix_pdfs:
+        heur = heuristic_appendix_label(pdf)
+        preferred = manifest.get(pdf.name)
+        if preferred and preferred != heur:
+            notes.append(
+                f"{pdf.name}: manifest **{preferred}** vs filename heuristic **{heur}** "
+                f"(using manifest)"
+            )
+    return notes
+
+
+def load_manual_appendices(resolved: ResolvedProjectFolder) -> list[Any]:
+    """Load PDFs from appendices/ as AppendixFile list (upload wins at render).
+
+    Prefers labels from ``ai_drafts/appendix_manifest.json`` (Analyze folder /
+    appendix-classify) when present; otherwise filename heuristics.
+    """
+    from ai.appendix_classifier import heuristic_appendix_label
+    from ai.apply_drafts import load_appendix_manifest_labels
     from deliverable_pack import AppendixFile
 
     pdfs = resolved.inventory.appendix_pdfs
     if not pdfs:
         return []
+    manifest = load_appendix_manifest_labels(resolved.ai_drafts_dir)
     out: list[AppendixFile] = []
     for pdf in pdfs:
+        label = manifest.get(pdf.name) or heuristic_appendix_label(pdf)
         out.append(
             AppendixFile(
-                label=heuristic_appendix_label(pdf),
+                label=label,
                 data=_read_pdf_bytes(pdf),
                 filename=pdf.name,
                 format="pdf",
@@ -636,7 +736,6 @@ def render_project_folder(
     include_appendices: bool = True,
 ) -> dict[str, Path]:
     """Render report (+ optional package) into delivered/."""
-    from appendix_generator import phase1_profile_includes_appendices
     from deliverable_pack import build_deliverable_zip_bytes
     from engine import suggested_download_name
     from provenance import sha256_hex
@@ -648,9 +747,6 @@ def render_project_folder(
     meta = dict(resolved.meta)
 
     uploaded = load_manual_appendices(resolved) if include_appendices else []
-    inc_ap = include_appendices and phase1_profile_includes_appendices(
-        meta.get("report_type", ""), meta.get("report_phase", "")
-    )
 
     result = render_report(
         RenderRequest(
@@ -659,7 +755,7 @@ def render_project_folder(
             meta=meta,
             excel_filename=resolved.excel_path.name,
             template_filename=resolved.template_path.name,
-            include_appendices=inc_ap,
+            include_appendices=include_appendices,
             uploaded_appendices=uploaded,
         )
     )
@@ -697,9 +793,8 @@ def render_project_folder(
         outputs["package"] = zip_path
 
     warn_path = resolved.delivered_dir / "render_warnings.txt"
-    all_warnings = list(warnings) + list(eco_warnings)
-    if all_warnings:
-        warn_path.write_text("\n".join(all_warnings) + "\n", encoding="utf-8")
+    if warnings:
+        warn_path.write_text("\n".join(warnings) + "\n", encoding="utf-8")
         outputs["warnings"] = warn_path
 
     return outputs
@@ -784,8 +879,10 @@ def _seed_sample_folder_extras(dest: Path, *, profile: str) -> None:
                 encoding="utf-8",
             )
 
-    rag_src = ROOT / "rag_corpus" / (
-        "phase2_intro.txt" if profile == "phase2_esa" else "phase1_alberta_aer.txt"
+    rag_src = (
+        ROOT
+        / "rag_corpus"
+        / ("phase2_intro.txt" if profile == "phase2_esa" else "phase1_alberta_aer.txt")
     )
     rag_dest = dest / "rag" / rag_src.name
     if rag_src.is_file() and not rag_dest.is_file():

@@ -45,6 +45,7 @@ LAB_SHEET = "LabResults"
 GROUNDWATER_LAB_SHEET = "GroundwaterLab"
 MONITORING_WELLS_SHEET = "MonitoringWells"
 WATER_LEVELS_SHEET = "WaterLevels"
+APECS_SHEET = "Apecs"
 DRILLING_WASTE_SHEET = "DrillingWaste"
 STORAGE_TANKS_SHEET = "StorageTanks"
 DWDA_CHECKLIST_SHEET = "DwdaChecklist"
@@ -556,6 +557,7 @@ class ReportEngine:
             "lab_results",
             "drilling_waste",
             "storage_tanks",
+            "apecs",
             "monitoring_wells",
             "water_levels",
             "groundwater_results",
@@ -1267,6 +1269,32 @@ def generate_phase1_alberta_excel(path: str) -> None:
             },
         ]
     )
+    apecs = pd.DataFrame(
+        [
+            {
+                "apec_id": "APEC-1",
+                "apec_name": "Historical flare pit",
+                "location_description": "SW corner of lease",
+                "concern_type": "flare_pit",
+                "source_of_concern": "air_photo",
+                "evidence_summary": "Air photos show former flare pit depression.",
+                "source_document": "appendix_c_air_photos.pdf",
+                "phase2_recommended": "Y",
+                "notes": "Sample for confirmation if Phase II proceeds.",
+            },
+            {
+                "apec_id": "APEC-2",
+                "apec_name": "Produced water tank berm",
+                "location_description": "SE of well centre",
+                "concern_type": "storage_tank",
+                "source_of_concern": "records",
+                "evidence_summary": "Above-ground produced water tank noted in records.",
+                "source_document": "historical_phase1.pdf",
+                "phase2_recommended": "N",
+                "notes": "",
+            },
+        ]
+    )
     catalog_rows: list[dict[str, str]] = []
     for phrase_key, spec in sorted(list_phrase_definitions().items()):
         for opt in spec.get("options", []):
@@ -1284,6 +1312,7 @@ def generate_phase1_alberta_excel(path: str) -> None:
         waste.to_excel(w, sheet_name=DRILLING_WASTE_SHEET, index=False)
         dwda_checklist.to_excel(w, sheet_name=DWDA_CHECKLIST_SHEET, index=False)
         tanks.to_excel(w, sheet_name=STORAGE_TANKS_SHEET, index=False)
+        apecs.to_excel(w, sheet_name=APECS_SHEET, index=False)
         if not phrase_catalog.empty:
             phrase_catalog.to_excel(w, sheet_name=PHRASE_CATALOG_SHEET, index=False)
 
@@ -1364,6 +1393,31 @@ def generate_phase1_alberta_template_docx(path: str) -> None:
     doc.add_heading("10.7 Records review", level=2)
     doc.add_paragraph("{{ records_review_summary }}")
     doc.add_paragraph("Air photos: {{ air_photo_observations }}")
+    _add_docx_table_loop(
+        doc,
+        "Areas of potential environmental concern (APECs):",
+        "apecs",
+        [
+            "APEC ID",
+            "Name",
+            "Location",
+            "Concern type",
+            "Source",
+            "Evidence",
+            "Document",
+            "Phase II?",
+        ],
+        [
+            "apec_id",
+            "apec_name",
+            "location_description",
+            "concern_type",
+            "source_of_concern",
+            "evidence_summary",
+            "source_document",
+            "phase2_recommended",
+        ],
+    )
     doc.add_heading("10.8 Interviews", level=2)
     doc.add_paragraph("Operator: {{ interview_operator_summary }}")
     doc.add_paragraph("Landowner: {{ interview_landowner_summary }}")

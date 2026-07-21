@@ -1,2 +1,5 @@
-# Optional local dev / browser smoke (CI uses streamlit.testing AppTest instead)
+# Optional local dev / CI quality gates
 playwright>=1.49.0
+ruff==0.14.13
+coverage==7.13.4
+mypy==1.19.1

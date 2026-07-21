@@ -25,6 +25,7 @@ Client name, UWI, and well identifiers come from project Excel data per engageme
 ### Optional (no lab sheet for Phase 1)
 
 - **`DrillingWaste`** — mud type, volume (m³), disposal method, location, disposal type, GPS, sump dimensions, manifests → `drilling_waste` loop in Word.
+- **`Apecs`** (optional) — APEC inventory (`apec_id`, concern type, evidence, source document, Phase II flag) → `apecs` loop under §10.7. Populate manually or via **AI drafts & tools** (folder) / **AI tools** (upload) → Historical docs → APECs.
 - **`StorageTanks`** — tank type, content, location, capacity → `storage_tanks` loop.
 - **`ReportConfig`** — key/value rows to override profile or sheet mappings (see [13-flexible-report-profiles.md](13-flexible-report-profiles.md)).
 
@@ -44,10 +45,10 @@ Do **not** require **`LabResults`** when sidebar **Report phase** is **Phase 1**
 
 1. Sidebar: **Phase 1**, profile **Alberta Phase I ESA**, **Prepared by**, date, template version.  
 2. Upload `phase1_alberta_data.xlsx` + `phase1_alberta_template.docx` (or `.pdf` layout reference—convert and tag in Word if needed).  
-3. Pre-flight → optional dry run → **Generate Report**.  
-4. Review auto-generated appendices **D** (checklist) and **G** (calc tables) in step 4 downloads; upload other appendix PDFs **A–C, E–F, H** (ABADATA, air photos, land title, site sketch, etc.) under **Optional tools**.  
-5. Review **SED 002 §10** completeness in pre-flight; download QP checklist if needed.  
-6. Download **Report (.docx)**, **manifest JSON**, and **deliverable package (.zip)** (includes generated appendices and `onestop/` summary for OneStop).
+3. Pre-flight → **Generate report** (primary CTA on the Report tab).
+4. Upload B/C/E/F/H PDFs under **Appendices (optional PDF uploads)** below **Generate**; click **Generate** again to include new uploads in the zip. A/D/G auto-generate on Generate (review D checklist and G calc tables under Advanced downloads).
+5. Review **SED 002 §10** completeness in pre-flight; download QP checklist if needed.
+6. Download **deliverable package (.zip)** (primary) — includes report, manifest, generated appendices, and `onestop/` summary for OneStop.
 
 Export generated appendix `.docx` files to PDF in Word before OneStop submission. Combined **Final_Report.pdf** (Word + appendices in one file) is not merged in-app.
 

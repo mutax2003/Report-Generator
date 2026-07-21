@@ -15,6 +15,7 @@
         "LabResults": "lab_results",
         "DrillingWaste": "drilling_waste",
         "StorageTanks": "storage_tanks",
+        "Apecs": "apecs",
         "DwdaChecklist": "dwda_checklist",
         "DwdaCalculations": "dwda_calc_sheet"
       },
@@ -77,6 +78,7 @@
       "sheet_mappings": {
         "DrillingWaste": "drilling_waste",
         "StorageTanks": "storage_tanks",
+        "Apecs": "apecs",
         "DwdaChecklist": "dwda_checklist",
         "DwdaCalculations": "dwda_calc_sheet"
       },
@@ -192,6 +194,7 @@
       "sheet_mappings": {
         "DrillingWaste": "drilling_waste",
         "StorageTanks": "storage_tanks",
+        "Apecs": "apecs",
         "DwdaChecklist": "dwda_checklist",
         "DwdaCalculations": "dwda_calc_sheet",
         "ReclamationTasks": "reclamation_tasks",
@@ -260,7 +263,7 @@
         "remediation_status",
         "executive_summary",
         "conclusions_recommendations",
-        "confirmatory_status",
+        "confirmatory_summary",
         "closure_recommendation"
       ]
     },

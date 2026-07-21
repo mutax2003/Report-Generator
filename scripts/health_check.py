@@ -323,14 +323,39 @@ def check_ecoventure_dwda_merge() -> bool:
 
 
 def check_test_count() -> bool:
-    result = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "count_tests.py")],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError((result.stdout + result.stderr).strip() or "count_tests failed")
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from scripts.count_tests import main as count_tests_main
+
+    rc = count_tests_main()
+    if rc != 0:
+        raise RuntimeError("count_tests failed — update DOCUMENTED_TEST_COUNT / docs")
+    return True
+
+
+def check_help_pack() -> bool:
+    """Ensure packaged HTML help exists (F1 / Help → Contents)."""
+    index = ROOT / "help" / "index.html"
+    if not index.is_file():
+        # Build once for local/CI trees that omit a committed help pack.
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "build_help.py")],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=str(ROOT),
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                (result.stdout + result.stderr).strip() or "build_help failed"
+            )
+    if not index.is_file():
+        raise RuntimeError("help/index.html missing after build_help")
+    text = index.read_text(encoding="utf-8")
+    if "ESA Report Generator Help" not in text:
+        raise RuntimeError("help/index.html missing expected title")
+    if "F1" not in text:
+        raise RuntimeError("help/index.html missing F1 shortcut docs")
     return True
 
 
@@ -352,6 +377,7 @@ CHECKS = [
     check_source_ingest,
     check_ecoventure_dwda_merge,
     check_test_count,
+    check_help_pack,
 ]
 
 CHECK_NAMES = [
@@ -372,6 +398,7 @@ CHECK_NAMES = [
     "source PDF ingest",
     "ecoventure dwda merge",
     "documented test count",
+    "HTML help pack",
 ]
 
 

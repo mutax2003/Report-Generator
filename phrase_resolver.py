@@ -9,7 +9,6 @@ import hashlib
 import io
 import json
 import re
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -46,11 +45,12 @@ def list_phrase_definitions() -> dict[str, dict[str, Any]]:
     return {str(k): dict(v) for k, v in raw.items()}
 
 
-@lru_cache(maxsize=16)
-def _read_phrase_catalog_sheet_cached(
-    excel_digest: str, excel_bytes: bytes
-) -> tuple[tuple[str, str, str], ...]:
-    """Immutable cache key for PhraseCatalog sheet rows."""
+_PHRASE_SHEET_CACHE: dict[str, tuple[tuple[str, str, str], ...]] = {}
+_PHRASE_SHEET_ORDER: list[str] = []
+_PHRASE_SHEET_MAX = 16
+
+
+def _parse_phrase_catalog_rows(excel_bytes: bytes) -> tuple[tuple[str, str, str], ...]:
     if not excel_bytes or len(excel_bytes) < 100:
         return ()
     bio = io.BytesIO(excel_bytes)
@@ -80,7 +80,16 @@ def read_phrase_catalog_sheet(excel_bytes: bytes) -> dict[tuple[str, str], str]:
     Returns {(phrase_key, option_id): text}.
     """
     digest = hashlib.sha256(excel_bytes).hexdigest() if excel_bytes else ""
-    rows = _read_phrase_catalog_sheet_cached(digest, excel_bytes)
+    if not digest:
+        return {}
+    rows = _PHRASE_SHEET_CACHE.get(digest)
+    if rows is None:
+        rows = _parse_phrase_catalog_rows(excel_bytes)
+        _PHRASE_SHEET_CACHE[digest] = rows
+        _PHRASE_SHEET_ORDER.append(digest)
+        while len(_PHRASE_SHEET_ORDER) > _PHRASE_SHEET_MAX:
+            old = _PHRASE_SHEET_ORDER.pop(0)
+            _PHRASE_SHEET_CACHE.pop(old, None)
     return {(k, o): t for k, o, t in rows}
 
 
@@ -142,12 +151,9 @@ def apply_phrase_resolution(
         excel_lookup = read_phrase_catalog_sheet(excel_bytes)
     selections = extract_selection_ids_from_project(project)
     defs = list_phrase_definitions()
-    phrase_keys = set(defs) | {k for k, _ in excel_lookup}
 
     for phrase_key, option_id in selections.items():
-        text = resolve_phrase_text(
-            phrase_key, option_id, excel_lookup=excel_lookup
-        )
+        text = resolve_phrase_text(phrase_key, option_id, excel_lookup=excel_lookup)
         if text:
             context[phrase_key] = text
             context[f"{phrase_key}_option_id"] = option_id

@@ -123,7 +123,7 @@ Path("out_manifest.json").write_bytes(record.to_json_bytes())
 
 ## `automate` package
 
-**Module:** `automate/render.py` — delegates to **`render_service`** (`render_report_from_bytes`, `render_deliverable_zip_from_bytes`, `render_report_from_paths`).
+**Module:** `automate/render.py` — delegates to **`render_service`** (`render_report_from_bytes`, `render_batch_from_bytes`, `render_deliverable_zip_from_bytes`, `render_report_from_paths`).
 
 ```python
 from automate.render import render_report_from_paths, render_report_from_bytes
@@ -170,9 +170,12 @@ curl -X POST http://127.0.0.1:8765/render \
 python scripts\render_cli.py
 python scripts\render_cli.py --excel path.xlsx --template path.docx --out out.docx `
   --prepared-by "Name" --date 2026-05-20 --phase "Phase 2"
+python scripts\render_cli.py --all-rows --excel path.xlsx --template path.docx --out batch.zip
 ```
 
-Writes `out_manifest.json` beside output.
+`--all-rows` uses `render_service.render_batch_reports` (same path as Streamlit batch generate). Writes a `.zip` of reports + manifests (+ appendices when Phase I flags apply).
+
+Writes `out_manifest.json` beside single-report output.
 
 ### `scripts/create_samples.py`
 

@@ -46,8 +46,8 @@ docker compose up -d --force-recreate
 
 | Check | Command / action |
 |-------|------------------|
-| Health script | `python scripts\health_check.py` → **15/15 passed** |
-| Unit tests | `python -m unittest discover -s tests -q` → **176 OK** (3 may skip) |
+| Health script | `python scripts\health_check.py` → **18/18 passed** |
+| Unit tests | `python -m unittest discover -s tests -q` → **389 tests OK** (4 may skip) |
 | UI smoke | Open app URL → upload `samples/sample_data.xlsx` + `samples/sample_template.docx` → pre-flight → generate → download |
 | Version visible | Note git commit in Teams post: `git log -1 --oneline` |
 
@@ -82,7 +82,7 @@ Smoke test passed on server <date>.
 ## When to skip or delay deploy
 
 - CI failing on `master` (fix before deploy)
-- `health_check.py` not 15/15 on the server
+- `health_check.py` not 18/18 on the server
 - Friday afternoon before a long weekend (unless urgent fix)
 
 ## Environment reminders

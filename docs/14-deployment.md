@@ -91,6 +91,29 @@ Copy [`.streamlit/config.production.toml.example`](../.streamlit/config.producti
 
 Do **not** set `enableCORS = false` while XSRF protection is on.
 
+## Production hardening (internal team host)
+
+The Docker image and compose file include baseline production controls:
+
+| Control | Location | Notes |
+|---------|----------|-------|
+| Non-root container user | [`Dockerfile`](../Dockerfile) | Runs as `esa` system user |
+| Resource limits | [`docker-compose.yml`](../docker-compose.yml) | 2 GiB memory cap, 2 CPU limit |
+| Structured JSON logs | `ESA_JSON_LOG=1` | [`esa_logging.py`](../esa_logging.py) |
+| Append-only audit trail | `ESA_AUDIT_ENABLED=1` | [`audit_trail.py`](../audit_trail.py) → `.esa_audit/` volume |
+| Audit log path | `ESA_AUDIT_LOG` | Default `.esa_audit/audit.jsonl` |
+| Hosted / no folder workflow | `ESA_HOSTED_MODE=1` or `ESA_DISABLE_FOLDER_WORKFLOW=1` | **Default in `docker-compose.yml`** — hides local project-folder path UI |
+| Pinned dependencies | [`requirements.txt`](../requirements.txt), [`requirements.lock`](../requirements.lock) | Reproducible installs |
+| CI quality gates | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | ruff, mypy, coverage, Python 3.11–3.13 matrix |
+| HTTP API auth (optional) | `ESA_API_KEY` + `X-ESA-API-Key` | [`esa_auth.py`](../esa_auth.py); roles from `ESA_DEFAULT_ROLES` (client `X-ESA-Roles` ignored) |
+| Pin HTTP actor | `ESA_API_SERVICE_USER` | Server-side identity for shared automation keys |
+| Require key on localhost | `ESA_REQUIRE_API_KEY=1` | Forces auth even when binding `127.0.0.1` |
+| Rate limiting | `ESA_RATE_LIMIT_MAX` | [`esa_rate_limit.py`](../esa_rate_limit.py) — IP + API-key digest buckets |
+
+The Docker [`docker-entrypoint.sh`](../docker-entrypoint.sh) briefly runs as root to **chown** the audit volume (`.esa_audit`) for the non-root `esa` user, then drops privileges.
+
+**Entra ID / VPN posture (confirmed):** Streamlit has no built-in SSO. Production deployments **must** use Application Proxy, OAuth2 reverse proxy, or VPN-only access — see options below. Do not publish port 8501 without authentication.
+
 ## HTTPS and Microsoft Entra ID (required for ~50 users)
 
 Streamlit has no built-in Entra SSO. Use one of these patterns:
@@ -134,6 +157,34 @@ Streamlit has no built-in Entra SSO. Use one of these patterns:
 4. Run Streamlit as a **Windows Service** (NSSM) or scheduled task at logon.
 5. IIS or Application Proxy in front for HTTPS + Entra.
 
+## Streamlit Community Cloud (tester share URL)
+
+Use this for a **public or invite-only** browser URL for pilot testers. Prefer Docker/Windows internal host for production ([above](#docker-recommended-for-internal-team-host)).
+
+1. Push this repo to GitHub (`mutax2003/Report-Generator`).
+2. Open [share.streamlit.io](https://share.streamlit.io) → **New app**.
+3. Repository: `mutax2003/Report-Generator` · Branch: `master` · Main file: `app.py`.
+4. **Advanced settings:**
+   - Python **3.12**
+   - Secrets (paste):
+
+```toml
+ESA_HOSTED_MODE = "1"
+```
+
+   Optional AI (tester cloud drafts):
+
+```toml
+ESA_HOSTED_MODE = "1"
+AI_PROVIDER = "gemini"
+GEMINI_API_KEY = "..."
+```
+
+5. Deploy. Share the `*.streamlit.app` URL with testers.
+6. Tester path: **Excel + Word template** workflow → Load Alberta Phase I sample → Generate → download zip.
+
+**Notes:** Project-folder workflow is hidden when `ESA_HOSTED_MODE=1`. Do not commit real API keys. Community Cloud is fine for pilots; do not put client confidential site data on a public app without IT approval.
+
 ## HTTP render API (optional, same host)
 
 For future Power Automate ([15-power-automate-guide.md](15-power-automate-guide.md)):
@@ -148,10 +199,15 @@ Bind to **127.0.0.1** only; do not expose port 8765 without the same auth layer 
 
 - [ ] Streamlit not reachable on the public internet without Entra/VPN/proxy auth
 - [ ] `ESA_VALIDATION_BYPASS` and `ESA_SKIP_VALIDATION` **unset**
+- [ ] `ESA_DISABLE_RATE_LIMIT` **unset** in production
+- [ ] `ESA_API_KEY` set for any non-localhost HTTP bind; rotate periodically
+- [ ] `ESA_QP_SIGNING_SECRET` set when QP sealing is enabled; store in secrets manager
+- [ ] `ESA_RETENTION_POLICY` points at approved policy (or default schema)
 - [ ] Templates versioned in filenames (`phase1_ecoventure_v2.1.docx`)
 - [ ] SharePoint library published per [sharepoint/PUBLISH_CHECKLIST.md](../sharepoint/PUBLISH_CHECKLIST.md)
 - [ ] Generation manifests saved next to issued reports on SharePoint
-- [ ] `python scripts\health_check.py` after each deploy
+- [ ] `python scripts\build_help.py` and `help/` present in deploy package (F1 help)
+- [ ] `python scripts\health_check.py` after each deploy (**18 checks**)
 - [ ] Update process documented and tested ([17-server-update-runbook.md](17-server-update-runbook.md))
 
 ## Related

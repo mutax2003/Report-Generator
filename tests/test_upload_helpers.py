@@ -54,6 +54,7 @@ class UploadHelpersTests(unittest.TestCase):
         upload = MagicMock()
         upload.name = "template.docx"
         upload.size = len(payload)
+        upload.file_id = "file-abc123"
         upload.getvalue = MagicMock(return_value=payload)
 
         first = cached_upload_bytes(upload, slot="template")
@@ -61,6 +62,32 @@ class UploadHelpersTests(unittest.TestCase):
         self.assertEqual(first, payload)
         self.assertIs(second, first)
         self.assertEqual(upload.getvalue.call_count, 1)
+
+    @patch("ui.helpers.st")
+    def test_cached_upload_bytes_same_name_size_different_content(self, mock_st: MagicMock) -> None:
+        from ui.helpers import cached_upload_bytes
+
+        mock_st.session_state = _SessionState()
+        size = 100
+        first_payload = b"A" * size
+        second_payload = b"B" * size
+
+        upload1 = MagicMock()
+        upload1.name = "data.xlsx"
+        upload1.size = size
+        upload1.file_id = "file-first"
+        upload1.getvalue = MagicMock(return_value=first_payload)
+
+        upload2 = MagicMock()
+        upload2.name = "data.xlsx"
+        upload2.size = size
+        upload2.file_id = "file-second"
+        upload2.getvalue = MagicMock(return_value=second_payload)
+
+        cached_upload_bytes(upload1, slot="excel")
+        result = cached_upload_bytes(upload2, slot="excel")
+        self.assertEqual(result, second_payload)
+        self.assertNotEqual(result, first_payload)
 
     def test_format_folder_error_excel_hint(self) -> None:
         from ui.project_folder import _format_folder_error

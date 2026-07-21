@@ -156,23 +156,26 @@ Streamlit orchestration only: session state, workflow picker, uploads or folder 
 
 ### `ui/` package
 
+**Report tab order** (must match [esa-streamlit-ui.mdc](../.cursor/rules/esa-streamlit-ui.mdc)): next steps → pre-flight → **Generate** → appendices → deliverable zip → Advanced → Help & documentation.
+
 | Module | Role |
 |--------|------|
-| `sidebar.py` | Profile, phase sync, meta, executive summary override, sample downloads |
+| `onboarding.py` | Welcome card, **Your next steps** (`compute_next_actions`), glossary, Simple mode |
+| `sidebar.py` | Profile, phase sync, meta, Simple mode, sample load button, **getting-started checklist**, sample downloads |
 | `phrase_panel.py` | Standard phrases selectboxes → `phrase_meta` merged into render meta |
-| `helpers.py` | Template cache, PDF conversion download, `_ensure_samples`, upload/engine caches |
-| `preflight.py` | Cached preflight, SED 002 §10 metrics, appendix-aware checklist, ReportConfig export |
-| `preview.py` | Dry-run panel |
-| `appendix_panel.py` | Appendix A–H PDF uploads, generated D/G downloads, deliverable zip + OneStop export |
-| `results.py` | Download buttons, context preview, manifest; batch zip includes per-site `appendices/` |
-| `workflow.py` | Step indicator (delegates to `layout.py`) |
-| `workflow_mode.py` | Startup picker: project folder + AI vs Excel + template upload |
+| `helpers.py` | Template cache, PDF conversion, `_ensure_samples`, sample session load, upload/engine caches |
+| `preflight.py` | Cached preflight, SED 002 / DWDA in labeled expanders, `can_generate`, ReportConfig export |
+| `preview.py` | Dry-run panel (Advanced expander on Report tab) |
+| `appendix_panel.py` | Appendix A–H checklist/uploads; `build_deliverable_zip_for_session()` (bytes; UI in `results.py`) |
+| `results.py` | **`render_deliverable_success`**, **`render_batch_deliverable_success`** — primary zip, OneStop checklist, Advanced downloads; `render_batch_download_section` is a legacy alias |
+| `layout.py` | Section headers, upload zones, generate CTA, workflow stepper, **context strip** (`render_workflow_context_strip`) |
+| `workflow_mode.py` | Startup picker + public APIs: `WORKFLOW_*`, `get_workflow_mode`, `clear_generation_session`, `reset_workflow_session` (do not call private `_clear_*`) |
 | `project_folder.py` | Folder path loader, Browse/Load/Analyze, meta merge, session bundle cache |
 | `folder_picker.py` | Native OS folder dialog (tkinter; headless → manual path) |
-| `layout.py` | Section headers, workflow step computation |
-| `branding.py` | App header / Ecoventure branding |
+| `branding.py` | Compact header + global CSS (stepper, badges, sticky CTA); `status_badge_html` |
+| `menubar.py` | Windows-style File/Edit/View/Tools/Help; F1 → `help/index.html`; rebuild with `python scripts/build_help.py` after docs/help/menubar edits |
 | `alberta_imagery.py` | Hero imagery cache for header |
-| `ai_panel.py` | AI tab (Tier 1 & 2) |
+| `ai_panel.py` | AI tab (Tier 1 & 2); sidebar under **Advanced — AI options** when Simple mode on |
 
 **Streamlit widget rule:** never assign `st.session_state.<widget_key>` after that widget is instantiated. Use a pending key set before render (e.g. `project_folder_path_pending`).
 
@@ -204,6 +207,26 @@ Optional LLM features; each module has offline fallback. Does not modify `Report
 | `generation_record` | `GenerationRecord \| None` | Manifest source |
 | `rendering` | `bool` | Concurrency guard |
 | `ai_audit_log` | `list` | Copied into manifest on generate |
+| `ux_welcome_dismissed` | `bool` | Welcome card dismissed |
+| `ux_simple_mode` | `bool` | Simple mode toggle (sidebar) |
+| `ux_checklist_dismissed` | `bool` | Getting started checklist dismissed |
+| `ux_deliverable_download_clicked` | `bool` | User clicked primary deliverable zip |
+| `session_excel_bytes` | `bytes \| None` | Sample load or session Excel |
+| `session_template_bytes` | `bytes \| None` | Sample load or session template |
+| `session_excel_name` | `str \| None` | Filename for session Excel |
+| `session_template_name` | `str \| None` | Filename for session template |
+
+## Architecture backlog (deferred)
+
+Items documented for team planning; not implemented in the current Streamlit UI.
+
+| Item | Notes |
+|------|--------|
+| **Microsoft Entra ID** | Recommended: reverse proxy / Azure App Proxy in front of Docker host ([14-deployment.md](14-deployment.md), [16-team-rollout.md](16-team-rollout.md)). CLI/automation unchanged. |
+| **Split `engine.py`** | Extract `engine_context.py` / `engine_batch.py` when adding major profiles — high regression cost; run full E2E after. |
+| **Per-row batch appendices** | Today one appendix upload set applies to all batch rows; needs `RenderRequest` per-row map + UI. |
+| **Word → PDF for appendices D/G** | OneStop checklist still manual export in Word; defer LibreOffice headless or M365 Graph unless committed. |
+| **Playwright in CI** | Optional local only ([`scripts/playwright_smoke.py`](../scripts/playwright_smoke.py)); AppTest covers most UX. |
 
 ## Extending the engine
 
@@ -229,7 +252,7 @@ Extend `_lab_frame_to_records` in `engine.py`.
 ### Batch reports
 
 - Multiple non-blank `ProjectData` rows (row 1 = headers).
-- `ReportEngine.render_batch()` / Streamlit **All N reports (batch)** via `render_service.render_batch_reports` / `render_cli.py --all-rows`.
+- `ReportEngine.render_batch()` / Streamlit **All N sites (batch zip)** via `render_service.render_batch_reports` / `render_cli.py --all-rows`.
 - **Batch limitation:** the same uploaded appendix set applies to every row; per-row appendix labels are not supported yet.
 - Table sheets can link per site via `site_name`, `project_number`, `uwi`, `well_name`, or `project_id`.
 - Limits: `MAX_PROJECT_ROWS` (100), `MAX_BATCH_REPORTS` (50).
@@ -256,7 +279,67 @@ streamlit run app.py
 
 ## CI
 
-GitHub Actions: `.github/workflows/ci.yml` — install, samples, appendix templates, tag, unittest, CLI smoke, package smoke, production E2E, Phase I E2E, user docs test, 17-step health check. Profile E2E and project-folder CLI are local-only (see [08-testing.md](08-testing.md)).
+GitHub Actions: `.github/workflows/ci.yml` — install, samples, appendix templates, tag, unittest, Streamlit AppTest smoke, CLI smoke, package smoke, production E2E, Phase I/II/III E2E, project-folder CLI, user docs test, DWDA E2E, 18-step health check. See [08-testing.md](08-testing.md) for the full step list.
+
+## Cursor multi-agent orchestration
+
+For day-to-day development with Cursor: parent agent classifies work, delegates discovery to subagents, and runs verification before merge. Index: [AGENTS.md](../AGENTS.md#multi-agent-workflow-cursor) · skill: [`.cursor/skills/esa-dev-orchestration/SKILL.md`](../.cursor/skills/esa-dev-orchestration/SKILL.md) · rule: [`.cursor/rules/esa-dev-orchestration.mdc`](../.cursor/rules/esa-dev-orchestration.mdc).
+
+```mermaid
+flowchart TD
+  classify[Classify playbook A-E]
+  rule[Load glob rule]
+  parallel[Parallel explore subagents]
+  implement[Parent implements diff]
+  verify[verify_tier.py]
+  bugbot[bugbot pre-PR]
+  classify --> rule --> parallel --> implement --> verify --> bugbot
+```
+
+### Verification runner
+
+```powershell
+python scripts\verify_tier.py --tier unit
+python scripts\verify_tier.py --tier ux
+python scripts\verify_tier.py --tier profile --playbook b
+python scripts\verify_tier.py --tier release
+```
+
+Optional **pre-commit** (UX tier when `app.py` or `ui/` is staged):
+
+```powershell
+pip install pre-commit
+.\scripts\install_pre_commit.ps1
+# skip once: git commit --no-verify
+```
+
+### Live orchestration example
+
+Typical parent-agent session for a small UX fix:
+
+1. **Classify** — playbook **A** (Streamlit). Load [esa-streamlit-ui.mdc](../.cursor/rules/esa-streamlit-ui.mdc).
+2. **Parallel explore** (readonly subagents):
+   - *Map `render_next_actions_card` callers and Report tab order in `app.py`.*
+   - *List AppTest patterns in `tests/test_streamlit_smoke.py`.*
+3. **Parent implements** — focused diff in `ui/` + test update.
+4. **Shell subagent** — `python scripts\verify_tier.py --tier ux`.
+5. **Pre-PR** — bugbot on `branch changes`; security-review only if uploads touched.
+
+Copy-paste starter:
+
+> Classify playbook A. Explore `ui/onboarding.py` and `tests/test_streamlit_smoke.py` in parallel. Implement the change. Shell: run `verify_tier.py --tier ux`. Then bugbot on branch changes.
+
+### PR checklist
+
+Copy into PR description or use [`.github/pull_request_template.md`](../.github/pull_request_template.md):
+
+- [ ] **Playbook** identified (A UX / B engine / C compliance / D schemas / E CI)
+- [ ] Relevant **`.cursor/rules/`** glob rule read
+- [ ] **Hard boundaries** respected (`render_service`, no Streamlit in `engine.py`, profile fields in `report_profiles.json`)
+- [ ] **Verification tier** run (see AGENTS.md table)
+- [ ] `python scripts\count_tests.py` PASS (if tests added/removed)
+- [ ] **bugbot** run on branch changes (or note why skipped)
+- [ ] **security-review** run if `security.py`, uploads, or deploy touched
 
 ## Related
 

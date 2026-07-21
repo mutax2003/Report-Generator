@@ -29,7 +29,7 @@ Row 3+: (ignored by engine)
 
 - **Row 1** — Column headers (become Jinja keys after normalization).
 - **Row 2** — **Only row used** for the report (single-report mode).
-- **Row 3+** — Additional sites. Use **batch generation** in the app (*All N reports*) or `scripts/render_cli.py --all-rows`. Blank rows are skipped (max 100 rows, 50 reports per batch).
+- **Row 3+** — Additional sites. Use **batch generation** in the app (*All N sites (batch zip)*) or `scripts/render_cli.py --all-rows`. Blank rows are skipped (max 100 rows, 50 reports per batch).
 - **Linking table sheets** — If `LabResults`, `DrillingWaste`, or `StorageTanks` include a `site_name`, `project_number`, `uwi`, `well_name`, or `project_id` column, only matching rows are merged for each report. Otherwise all table rows are shared across reports.
 
 Empty `ProjectData` (headers only) produces a pre-flight / render error.

@@ -68,6 +68,17 @@ Cell strings starting with `=+-@\t\r` get leading `'` in `_cell_str`.
 | Variable | Effect |
 |----------|--------|
 | `ESA_VALIDATION_BYPASS=1` | Skip upload validation (tests only) |
+| `ESA_SKIP_VALIDATION=1` | Alias of `ESA_VALIDATION_BYPASS` (tests only) |
+| `ESA_HOSTED_MODE=1` / `ESA_DISABLE_FOLDER_WORKFLOW=1` | Disable local project-folder workflow on shared hosts |
+| `ESA_AUDIT_ENABLED=1` | Enable append-only audit trail |
+| `ESA_AUDIT_LOG` | Audit JSONL path (default `.esa_audit/audit.jsonl`) |
+| `ESA_API_KEY` | Required for non-localhost HTTP bind; validates `X-ESA-API-Key` |
+| `ESA_REQUIRE_API_KEY=1` | Force API-key auth even on localhost |
+| `ESA_DEFAULT_ROLES` | Comma-separated roles for API key context (default `author`) |
+| `ESA_RATE_LIMIT_MAX` / `ESA_RATE_LIMIT_WINDOW_SEC` | HTTP sliding-window rate limit |
+| `ESA_DISABLE_RATE_LIMIT=1` | **Dev/tests only** — disables rate limiting (never set in production) |
+| `ESA_QP_SIGNING_SECRET` | HMAC secret for QP signature helpers (`qp_signature.py`) |
+| `ESA_RETENTION_POLICY` | Path to retention JSON (default `schemas/records_retention_policy.json`) |
 | `OPENAI_API_KEY` | Enables cloud LLM in AI tab |
 
 ## Deployment guidance

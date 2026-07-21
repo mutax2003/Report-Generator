@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+import os
+
 import streamlit as st
 
 from ui.project_folder import clear_folder_session
@@ -17,6 +19,24 @@ _LABELS = {
     WORKFLOW_FOLDER: "Project folder + AI",
     WORKFLOW_UPLOAD: "Excel + Word template",
 }
+
+
+def hosted_mode_enabled() -> bool:
+    """True on shared/docker/Streamlit Cloud hosts where local folder paths are unavailable."""
+    for key in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW"):
+        if os.environ.get(key, "").strip().lower() in ("1", "true", "yes"):
+            return True
+        try:
+            if key in st.secrets and str(st.secrets[key]).strip().lower() in (
+                "1",
+                "true",
+                "yes",
+            ):
+                return True
+        except Exception:
+            # No secrets.toml / Streamlit secrets not configured
+            pass
+    return False
 
 
 def get_workflow_mode() -> WorkflowMode | None:
@@ -33,6 +53,27 @@ def workflow_label(mode: WorkflowMode) -> str:
 def render_workflow_picker() -> None:
     """Full-width choice screen shown before the main app workflow."""
     st.subheader("How do you want to generate your report?")
+
+    if hosted_mode_enabled():
+        st.caption(
+            "This server uses the **Excel + Word template** workflow. "
+            "Upload your `.xlsx` and `.docx` (or PDF template) in the browser."
+        )
+        with st.container(border=True):
+            st.markdown("#### Excel + Word template")
+            st.markdown(
+                "Upload **Excel** and a **Word or PDF template**, review pre-flight, "
+                "then download a **deliverable package (.zip)**."
+            )
+            if st.button(
+                "Continue with Excel + template",
+                type="primary",
+                width="stretch",
+                key="pick_workflow_upload",
+            ):
+                _set_workflow(WORKFLOW_UPLOAD)
+        return
+
     st.caption(
         "Pick one path to start. You can switch later — loaded files will be cleared."
     )
@@ -43,20 +84,17 @@ def render_workflow_picker() -> None:
         with st.container(border=True):
             st.markdown("#### Project folder + AI")
             st.markdown(
-                "Work from a **local site folder** on your PC. The app reads "
-                "`project_data.xlsx`, `template.docx`, and PDFs in `source/` and "
-                "`appendices/`, then can draft narratives and checklists with AI "
-                "into `ai_drafts/` before you generate the final Word report."
+                "Work from a **local site folder** with `project_data.xlsx`, "
+                "`template.docx`, and PDFs in `source/` and `appendices/`. "
+                "Optional AI drafts save to `ai_drafts/` before you generate."
             )
-            st.markdown(
-                "- Best for **full site packages** (260109R-style folders)\n"
-                "- **Browse…** to pick a folder on your PC\n"
-                "- Optional **LLM** for inventory, narratives, appendix labels\n"
-                "- Outputs can go to `delivered/` on disk"
+            st.caption(
+                "Best for full site packages (260109R-style folders). "
+                "See [project folder workflow](docs/22-project-folder-workflow.md)."
             )
             if st.button(
                 "Use project folder workflow",
-                type="primary",
+                type="secondary",
                 width="stretch",
                 key="pick_workflow_folder",
             ):
@@ -64,17 +102,13 @@ def render_workflow_picker() -> None:
 
     with col_upload:
         with st.container(border=True):
-            st.markdown("#### Excel + Word template")
+            st.markdown("#### Excel + Word template  ·  *Recommended for first report*")
             st.markdown(
-                "Upload an **Excel data file** and a **Word or PDF template** "
-                "directly in the browser. The engine merges Jinja tags — no folder "
-                "layout required. Use standard phrases, appendices, and pre-flight "
-                "as today."
+                "Upload **Excel** and a **Word or PDF template** in the browser. "
+                "Review pre-flight, generate, and download a **deliverable package (.zip)**."
             )
-            st.markdown(
-                "- Best for **quick one-off** merges and testing\n"
-                "- Supports **batch** when Excel has multiple `ProjectData` rows\n"
-                "- PDF templates auto-convert to Word"
+            st.caption(
+                "Best for one-off merges, testing, and batch runs when Excel has multiple sites."
             )
             if st.button(
                 "Use Excel + template workflow",
@@ -89,10 +123,10 @@ def render_workflow_picker() -> None:
             """
 | Situation | Recommended |
 |-----------|-------------|
-| You already have a project folder with `source/`, `appendices/`, etc. | **Project folder + AI** |
+| First time using the app | **Excel + Word template** — try **Load Alberta Phase I sample** in the sidebar |
+| You have a project folder with `source/`, `appendices/`, etc. | **Project folder + AI** |
 | You only have one `.xlsx` and one `.docx` to merge | **Excel + Word template** |
 | You want AI narrative drafts saved under `ai_drafts/` | **Project folder + AI** |
-| You are testing a new template tag layout | **Excel + Word template** |
 
 See [docs/22-project-folder-workflow.md](docs/22-project-folder-workflow.md) for folder layout.
 """
@@ -112,6 +146,8 @@ def _has_loaded_inputs() -> bool:
     if st.session_state.get("project_folder_loaded"):
         return True
     if st.session_state.get("project_folder_excel_bytes"):
+        return True
+    if st.session_state.get("session_excel_bytes"):
         return True
     if st.session_state.get("upload_excel") or st.session_state.get("upload_template"):
         return True
@@ -163,21 +199,23 @@ def render_workflow_banner(mode: WorkflowMode) -> None:
 
 
 def render_workflow_hint(mode: WorkflowMode) -> None:
+    """One-line path reminder after the welcome card is dismissed."""
+    if not st.session_state.get("ux_welcome_dismissed"):
+        return
     if mode == WORKFLOW_FOLDER:
-        st.markdown(
-            "**Steps:** Sidebar settings → **Browse…** (loads immediately) or paste path + "
-            "**Load folder** → optional **Analyze folder** → **Report** tab → download"
+        st.caption(
+            "Path: Settings → **Load folder** → **Report** tab → download **deliverable package (.zip)**"
         )
     else:
-        st.markdown(
-            "**Steps:** Sidebar settings → **upload Excel + template** → **Report** tab "
-            "(pre-flight & generate) → download · **AI tools** tab optional"
+        st.caption(
+            "Path: upload Excel + template → **Report** tab → download **deliverable package (.zip)**"
         )
 
 
 def _set_workflow(mode: WorkflowMode) -> None:
     _reset_workflow_session()
     st.session_state.workflow_mode = mode
+    st.session_state.show_welcome = True
     st.rerun()
 
 
@@ -189,6 +227,9 @@ def _clear_upload_session() -> None:
             st.session_state.pop(key, None)
     st.session_state.pop("last_prepared_template", None)
     st.session_state.pop("suggested_template_version", None)
+    from ui.helpers import clear_session_sample_bytes
+
+    clear_session_sample_bytes()
 
 
 def _clear_generation_session() -> None:
@@ -202,9 +243,17 @@ def _clear_generation_session() -> None:
         "generated_appendices",
         "batch_reports_zip",
         "batch_deliverable_zip",
-        "rendering",
+        "deliverable_zip_bytes",
+        "enriched_manifest_bytes",
+        "ux_deliverable_download_clicked",
     ):
         st.session_state.pop(key, None)
+    st.session_state["rendering"] = False
+
+
+def clear_generation_session() -> None:
+    """Public alias for menu / external callers."""
+    _clear_generation_session()
 
 
 def _reset_workflow_session() -> None:
@@ -218,3 +267,10 @@ def _reset_workflow_session() -> None:
     st.session_state.pop("_upload_bytes_cache", None)
     st.session_state.pop("_template_analysis_cache", None)
     st.session_state.pop("confirm_workflow_change", None)
+    st.session_state.pop("_ecoventure_merged_cache", None)
+    st.session_state.pop("_ai_excel_context_cache", None)
+
+
+def reset_workflow_session() -> None:
+    """Public alias for menu / external callers."""
+    _reset_workflow_session()

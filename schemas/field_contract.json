@@ -82,6 +82,22 @@
       "loop_variable": "storage_tanks",
       "row_fields": ["tank_type", "content", "location", "capacity_m3"]
     },
+    "Apecs": {
+      "layout": "One row per area of potential environmental concern. Loop variable: apecs.",
+      "required_phase_1_alberta": false,
+      "loop_variable": "apecs",
+      "row_fields": [
+        "apec_id",
+        "apec_name",
+        "location_description",
+        "concern_type",
+        "source_of_concern",
+        "evidence_summary",
+        "source_document",
+        "phase2_recommended",
+        "notes"
+      ]
+    },
     "LabResults": {
       "layout": "One row per analyte. Headers: Analyte, Result, Unit, Criteria, Exceedance (aliases accepted).",
       "required_phase_2": true,
@@ -94,8 +110,8 @@
       "row_fields": ["checklist_item_id", "response", "notes"]
     },
     "DwdaCalculations": {
-      "layout": "Optional calc ingest row(s). Loop variable: dwda_calc_sheet.",
-      "loop_variable": "dwda_calc_sheet",
+      "layout": "Optional calc ingest row(s). Context key dwda_calc_sheet is flattened into scalar calc fields and popped — not a Word table loop.",
+      "ingest_key": "dwda_calc_sheet",
       "row_fields": [
         "metal_sacks_per_metre",
         "salt_sacks_per_m3",

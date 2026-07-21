@@ -22,9 +22,9 @@ On first launch, pick one path (see also [00-start-here.md](00-start-here.md)):
 | Choice | When to use |
 |--------|-------------|
 | **Project folder + AI** | Local site folder with `project_data.xlsx`, `template.docx`, optional `source/`, `appendices/`, `rag/`. AI drafts land in `ai_drafts/`. |
-| **Excel + Word template** | Upload `.xlsx` + `.docx`/`.pdf` directly — classic merge. |
+| **Excel + Word template** | Upload `.xlsx` + `.docx`/`.pdf` directly — **recommended for first report**. |
 
-Use **Change** in the banner to switch workflows later.
+Use **Change** in the banner to switch workflows later. A dismissible **Welcome** card guides first-time users.
 
 ### Project folder path
 
@@ -36,6 +36,20 @@ Use **Change** in the banner to switch workflows later.
 Full layout and CLI: [22-project-folder-workflow.md](22-project-folder-workflow.md).
 
 ## Screen layout
+
+### Menu bar and keyboard shortcuts
+
+Under the Ecoventure header, a Windows-style menu bar provides **File**, **Edit**, **View**, **Tools**, and **Help**:
+
+| Menu | Common actions |
+|------|----------------|
+| **File** | Open / focus project folder, load Alberta Phase I sample, clear outputs, change workflow |
+| **Edit** | Toggle Simple mode |
+| **View** | Glossary, restore Getting started checklist |
+| **Tools** | Pointers to AI tools and folder analyze |
+| **Help** | Contents (HTML help), keyboard shortcuts, About |
+
+Press **F1** to open the packaged HTML help (`help/index.html`) in your browser. Rebuild help with `python scripts/build_help.py`. Other actions are menu-driven — Streamlit runs in the browser and does not own a native OS accelerator bar (only **F1** is hooked globally).
 
 ### Header and upload zones (Excel + template workflow)
 
@@ -67,43 +81,52 @@ After selection, a caption shows file name and size.
 
 See [13-flexible-report-profiles.md](13-flexible-report-profiles.md) for custom templates and optional **`ReportConfig`** sheet in Excel.
 
+### Sidebar — Simple mode and samples
+
+- **Simple mode (recommended for new users)** — hides executive summary override; AI settings move to **Advanced — AI options**.
+- **Getting started** checklist — tracks workflow → metadata → files → pre-flight → generate → download.
+- **Load Alberta Phase I sample into session** — one-click demo pair under **Sample templates** (no manual upload required).
+
 Sidebar also provides **download buttons** for sample Excel and Word files when `samples/` exists (auto-created on first use if missing).
 
-### AI settings (sidebar, bottom)
+### AI settings (sidebar, Advanced when Simple mode on)
 
-- Toggle **Use cloud LLM** — requires `OPENAI_API_KEY` in environment or `.streamlit/secrets.toml`.
+- Toggle **Use free/local LLM when available** — prefers Ollama (local) or Gemini/Groq free tier from `.streamlit/secrets.toml` (see [09-ai-assistant.md](09-ai-assistant.md)).
 - When off, AI tab uses offline rule-based fallbacks only.
 
 ### Tabs
 
 #### Report generation (primary workflow)
 
-1. **Analyze uploaded Word template** (expander) — Lists root `{{ variables }}` and block tags; warns about possible split tags.
-2. **Pre-flight checks** — Sheet names, errors, warnings, matched/missing template variables (profile-aware checklist), split-tag lint; download **missing-fields checklist** or **ReportConfig sheet (Excel)**.
-3. **Workflow step indicator** — Visual checklist: Excel → Template → Pre-flight OK → Output.
-4. **Preview data (dry run)** — Builds merge context and manifest **without** rendering Word (fast QA); top scalar keys and table row counts.
-5. **Standard phrases (optional)** — Select preset paragraphs (drilling waste intro, site recon, Phase II recommendation, etc.); overrides Excel for those keys.
-6. **Appendices (optional)** — Upload PDFs labeled **A–H** (Alberta Phase I / SED 002); included in deliverable zip and SED preflight.
-7. **Generate Report** — Primary action; disabled until uploads valid and pre-flight has no **errors**.
-8. **Download section** — Report `.docx`, warnings, context preview, manifest JSON, **Download deliverable package (.zip)** when report or appendices exist.
+Follow the **1–4 step indicator**: Inputs → Pre-flight → Generate → Download.
+
+1. **File status** — Excel / template loaded chips at top of Report tab.
+2. **Your next steps** — plain-language action card (errors first, then warnings).
+3. **Pre-flight checks** — summary line; technical details in expanders (**Regulatory checklist (SED 002)**, **Drilling waste compliance (DWDA)**, **Review recommended**).
+4. **Generate report** — primary action; disabled until pre-flight has no **errors**.
+5. **Appendices (optional PDF uploads)** — OneStop checklist row for **B, C, E, F, H**; expand per letter to upload PDFs (below Generate; re-generate to include new uploads in the zip).
+6. **Download deliverables** — **Download deliverable package (.zip)** as primary button; **Before OneStop upload** checklist; **Advanced downloads** for `.docx`, manifest, generated appendices.
+7. **Advanced** expander — dry-run preview, template tag analysis, glossary.
+8. **Help & documentation** expander — links to consultant docs (collapsed).
+9. **Standard phrases (optional)** — expander above the Report / AI tabs.
 
 #### AI assistant
 
-Optional tools: template tagger, lab PDF → Excel, narrative drafts, pre-flight copilot, consistency checker, exceedance notes. See [09-ai-assistant.md](09-ai-assistant.md). **All AI output is draft** — review before client use.
+Second tab: **AI drafts & tools** (project folder workflow) or **AI tools** (Excel + template upload). Optional: template tagger, lab PDF → Excel, narrative drafts, pre-flight copilot, consistency checker, exceedance notes. See [09-ai-assistant.md](09-ai-assistant.md). **All AI output is draft** — review before client use.
 
 ## Standard workflow (recommended)
 
 ```mermaid
 flowchart TD
-  A[Upload Excel + Word template] --> B[Set sidebar meta-data]
-  B --> C[Review Pre-flight checks]
+  A[Load sample or upload Excel + template] --> B[Set sidebar meta-data]
+  B --> C[Review Your next steps + pre-flight]
   C --> D{Errors?}
   D -->|Yes| E[Fix Excel sheets or template tags]
   E --> A
-  D -->|No| F[Optional: Preview dry run]
-  F --> G[Generate Report]
-  G --> H[Review warnings]
-  H --> I[Download Report manifest zip package]
+  D -->|No| G[Generate report]
+  G --> F[Optional appendices below Generate]
+  F --> H[Review warnings / re-generate if needed]
+  H --> I[Download deliverable package zip]
 ```
 
 ### Step 1 — Upload files
@@ -130,14 +153,14 @@ Expander **Preview data (dry run)**:
 - Download manifest JSON without producing Word.
 - Use before a long render or when validating a new template.
 
-### Step 4 — Generate Report
+### Step 4 — Generate report
 
-When Excel has more than one populated `ProjectData` row, choose:
+When Excel has more than one populated `ProjectData` row, choose **Generation mode**:
 
 | Mode | Use when |
 |------|----------|
-| **Single report** | One site (uses row 2 only) |
-| **All N reports (batch)** | Multiple sites — one `.docx` per row (max 50 per run) |
+| **Single site** | One site (pick which `ProjectData` row) |
+| **All N sites (batch zip)** | Multiple sites — one `.docx` per row (max 50 per run) |
 
 - Spinner shows while `ReportEngine` renders (or batch loop).
 - Success message includes warning count and suggested filename (or batch count).
@@ -149,10 +172,10 @@ For batch runs, link shared table sheets with `site_name`, `project_number`, `uw
 
 | Download | Use |
 |----------|-----|
-| **Download Report** | Client-ready `.docx` |
-| **Download batch reports (.zip)** | When batch mode was used — all generated `.docx` files |
+| **Download deliverable package (.zip)** | **Primary** — report, manifest, appendices, OneStop export |
+| **Download report (.docx)** | Advanced downloads — client-ready Word only |
+| **Download reports only (.docx zip, N files)** | Advanced batch downloads — Word files without full packages |
 | **Download generation manifest (JSON)** | Audit: SHA-256 hashes, timestamps, missing variables, template source (`docx`/`pdf`), appendix hashes, AI audit entries |
-| **Download deliverable package (.zip)** | `report.docx`, manifest JSON, `appendices/` folder (and converted template if PDF was uploaded) |
 
 Store manifest alongside issued reports for reproducibility ([BEST_PRACTICES.md](../BEST_PRACTICES.md)). A single merged client PDF is not produced in-app—export Word to PDF separately if needed.
 
@@ -194,14 +217,11 @@ Production-aligned samples: `production_data.xlsx`, `production_template.docx`.
 | Another render in progress | Wait for spinner to finish |
 | Wrong file extension | Use `.xlsx` and `.docx` or `.pdf` for template |
 
-## Template help expander
+## Help & documentation
 
-Bottom of Report tab links to:
+Collapsed expander at the bottom of the Report tab links to consultant docs (start-here, user guide, Phase I, DWDA, Excel/Word authoring).
 
-- `PRODUCTION_TEMPLATE_GUIDE.txt`
-- `EXCEL_LAYOUT.txt`
-- `JINJA2_CHEATSHEET.txt`
-- `BEST_PRACTICES.md`
+Developer reference files (repo root / `docs/`): `PRODUCTION_TEMPLATE_GUIDE.txt`, `EXCEL_LAYOUT.txt`, `JINJA2_CHEATSHEET.txt`, `BEST_PRACTICES.md`.
 
 Full detail: [03-excel-data-guide.md](03-excel-data-guide.md), [04-template-authoring.md](04-template-authoring.md).
 

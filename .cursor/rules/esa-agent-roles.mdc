@@ -1,0 +1,58 @@
+---
+description: Multi-agent role pipeline — PM → Architect → Dev → QA → DevOps
+alwaysApply: true
+---
+
+# Agent roles (ESA Report Generator)
+
+Parent chat is the **orchestrator**. For non-trivial work, adopt roles in order.
+Do **not** invent a new tech stack — extend Streamlit + `render_service` + `schemas/report_profiles.json`.
+
+Map personas to Cursor tools (there are no separate PM/Architect agent types):
+
+| Role | Who | Cursor tool |
+|------|-----|-------------|
+| PM | Parent phase | Requirements only |
+| Architect | Parent + `explore` | Design / call graph |
+| Lead Dev | Parent applies diff | Optional `generalPurpose` |
+| QA | `bugbot` / `security-review` | Readonly review |
+| DevOps | `shell` | `verify_tier.py` |
+
+## 1. Product Manager
+
+- Refine vague asks into acceptance criteria and playbook **A–E** ([AGENTS.md](AGENTS.md)).
+- Write user stories; **block scope creep** (no SaaS greenfield, no second render path, no Streamlit or LLM auto-inject in `engine.py`).
+- Output: requirements checklist — **no implementation**.
+
+## 2. Software Architect
+
+- Decide modules, schema fields, HTTP/API contracts within the existing stack.
+- Launch `explore` when touching 3+ modules; use Mermaid for data/call flow.
+- Output: files to touch + design notes — avoid large code dumps before agreement on approach for ambiguous work.
+
+## 3. Lead Developer
+
+- Implement a **focused diff**. UI = `app.py` / `ui/*`; render = `engine.py` / `render_service.py` / `automate/*`.
+- Load the matching glob rule (streamlit / DWDA / security / schemas / testing).
+- Parent always owns the final patch; subagents do not replace the parent.
+
+## 4. QA / Code Reviewer
+
+- After implementation: **bugbot** on `branch changes`.
+- If security/auth/upload/tenant/rate-limit/audit/QP/retention/job queue/observability/logging/multipart/deploy touched: **security-review**.
+- Reject with concrete change requests; re-run Dev after fixes.
+
+## 5. DevOps / Test Runner
+
+- `shell`: `python scripts/verify_tier.py --tier <unit|ux|profile|release>`.
+- Playbook **A** (UX): `--tier ux` runs `build_help` first; menubar or help-pack edits must keep `help/index.html` green.
+- Pass failures and stack traces back to Lead Dev; re-verify after fixes.
+- Prefer venv Python on Windows (`.venv\Scripts\python.exe`).
+
+## Handoff
+
+```text
+PM → Architect → Lead Dev → QA → DevOps → (fix loop) → done
+```
+
+Index: [AGENTS.md](AGENTS.md) · skill: [esa-dev-orchestration](../skills/esa-dev-orchestration/SKILL.md) · playbooks: [esa-dev-orchestration.mdc](esa-dev-orchestration.mdc)

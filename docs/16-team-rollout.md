@@ -46,6 +46,7 @@ Deploy using [14-deployment.md](14-deployment.md) (Docker, VM, or Azure Containe
 
 - HTTPS on a private hostname (e.g. `https://esa-reports.company.internal`)
 - **Microsoft Entra ID** (or VPN + network restriction) — do not expose Streamlit on the public internet without auth
+- **Production controls enabled on Docker host:** `ESA_JSON_LOG=1`, `ESA_AUDIT_ENABLED=1`, audit volume mounted (see [14-deployment.md](14-deployment.md#production-hardening-internal-team-host))
 - Secrets (`OPENAI_API_KEY` if using AI tab) in host secrets, not in GitHub
 
 **Author workflow:** Same as [02-user-guide.md](02-user-guide.md) — choose **Excel + Word template** or **Project folder + AI** (local desktop Browse; see [22-project-folder-workflow.md](22-project-folder-workflow.md)), sidebar profile, optional phrases and appendices, deliverable zip.
@@ -60,13 +61,16 @@ Deploy using [14-deployment.md](14-deployment.md) (Docker, VM, or Azure Containe
 |------|--------|
 | 1 | Deploy internal app to pilot URL (can be same host, restricted group in Entra) |
 | 2 | Select pilot users: one Phase I, one Phase II, one template author, one QA |
-| 3 | Each pilot generates one real (or redacted) report; save manifest JSON |
-| 4 | Collect feedback: pre-flight clarity, PDF templates, batch mode, download names |
+| 3 | Each pilot runs: **Load Alberta Phase I sample** → Generate → **Download deliverable package (.zip)**; save manifest JSON |
+| 4 | Collect feedback: next-steps card clarity, OneStop checklist, PDF templates, batch mode |
 | 5 | Run `python scripts\health_check.py` on server after any template change |
 
 **Pilot exit criteria:**
 
-- [ ] All pilots completed generate + download without IT help
+- [ ] All pilots completed generate + **deliverable zip** download without IT help
+- [ ] Pilots understood **Your next steps** and primary download button without developer help
+- [ ] First deliverable zip from **Load sample** in under 5 minutes unaided (per pilot)
+- [ ] At most 2 “which download button?” support questions per pilot user
 - [ ] Template owner signed off Alberta Phase I sample pair
 - [ ] No blocking security findings from [07-security-and-deployment.md](07-security-and-deployment.md)
 - [ ] Update runbook tested once on server
@@ -77,7 +81,7 @@ Deploy using [14-deployment.md](14-deployment.md) (Docker, VM, or Azure Containe
 |------|--------|
 | 1 | Open Entra access to all report authors (or company security group) |
 | 2 | Teams announcement: app URL + SharePoint library + link to 00-start-here |
-| 3 | Optional: 30-minute live demo (upload, pre-flight, generate, zip) |
+| 3 | Optional: 30-minute live demo (**Load sample** → pre-flight → generate → **deliverable zip**) |
 | 4 | Name **internal support contact** (template + app); escalate IT for host down |
 
 **Defer Power Automate** ([15-power-automate-guide.md](15-power-automate-guide.md)) until the Streamlit app is stable for 4+ weeks — automation is harder to support without interactive pre-flight.

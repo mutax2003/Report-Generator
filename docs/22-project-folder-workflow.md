@@ -39,7 +39,7 @@ python scripts\ingest_project_folder.py --init-sample --folder C:\Projects\demo_
 
 Schema: [`schemas/project_folder.json`](../schemas/project_folder.json)
 
-**AI drafts:** `--ai enrich` writes advisory text to `ai_drafts/` only. Render uses `project_data.xlsx` + sidebar meta — copy draft content into Excel or use the executive summary override if you want it in the report.
+**AI drafts:** `--ai enrich` writes advisory text to `ai_drafts/` only. Render uses `project_data.xlsx` + sidebar meta. In Streamlit, open the **AI drafts & tools** tab → **Folder AI drafts** and use **Apply to Excel** (or executive summary override) after review — nothing is auto-merged into `ReportEngine`.
 
 ## CLI commands
 
@@ -65,7 +65,7 @@ python scripts\ingest_project_folder.py --folder C:\Projects\260109R --ai lab-pd
 python scripts\ingest_project_folder.py --folder C:\Projects\260109R --render --package
 ```
 
-Review files under `ai_drafts\` before changing `project_data.xlsx`. AI does **not** write Excel automatically unless you use `--write-lab-excel` with `--ai lab-pdf`.
+Review files under `ai_drafts\` before changing `project_data.xlsx`. AI does **not** write Excel automatically unless you use `--write-lab-excel` with `--ai lab-pdf`, or click **Apply** / **Merge into current workbook** in the Streamlit **AI drafts & tools** tab (folder workflow; upload workflow uses **AI tools**).
 
 ## Streamlit (local desktop)
 
@@ -86,9 +86,11 @@ Requires local/desktop Streamlit (not multi-tenant hosted).
 | `source_index.json` | `ai/source_ingest.py` — PDF index |
 | `source_extracts/*.txt` | Raw text from `source/` PDFs |
 | `source_summaries.json` | LLM or offline summaries per PDF |
-| `excel_field_suggestions.json` | Suggested ProjectData fields (advisory) |
-| `narratives.json` | `ai/narrative.py` + `rag/` + source summaries |
-| `appendix_manifest.json` | `ai/appendix_classifier.py` |
+| `excel_field_suggestions.json` | Suggested ProjectData fields — Apply from **AI drafts & tools** |
+| `narratives.json` | `ai/narrative.py` + `rag/` + source summaries — Apply from **AI drafts & tools** |
+| `apecs_candidates.json` | Combined APEC rows from source PDFs — Apply from **AI drafts & tools** |
+| `apec_extract_*.json` | Per-PDF APEC extract |
+| `appendix_manifest.json` | Preferred labels when loading `appendices/` (vs filename heuristics) |
 | `lab_extract_*.json` | `ai/lab_extract.py` or source-ingest lab route |
 
 ## Safety

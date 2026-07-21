@@ -25,9 +25,13 @@ On first open, pick one path:
 | Choice | When to use |
 |--------|-------------|
 | **Project folder + AI** | You have a local site folder (`project_data.xlsx`, `template.docx`, `source/`, `appendices/`, …). Optional AI drafts go to `ai_drafts/`. |
-| **Excel + Word template** | Upload `.xlsx` + `.docx`/`.pdf` directly — classic merge, no folder layout. |
+| **Excel + Word template** | Upload `.xlsx` + `.docx`/`.pdf` directly — **recommended for first report**. |
 
-Use **Change** in the blue banner to switch workflows later.
+Use **Change** in the blue banner to switch workflows later. A **Welcome** card appears on first use — click **Got it** when you are ready.
+
+**Menus:** Use the **File / Edit / View / Tools / Help** bar under the header. Press **F1** for HTML help.
+
+**First time?** In the sidebar, open **Sample templates** and click **Load Alberta Phase I sample into session**, then open the **Report** tab.
 
 ### Excel + template path
 
@@ -40,40 +44,45 @@ Use **Change** in the blue banner to switch workflows later.
 
 Enter the folder path (e.g. `C:\Projects\260109R`), click **Browse…** to pick a folder (loads immediately), or paste the path and click **Load folder**. Optional: **Analyze folder** for AI drafts. See [22-project-folder-workflow.md](22-project-folder-workflow.md).
 
-Optional (both paths): **Standard phrases** on the Report tab — preset paragraphs for tagged fields (see [04-template-authoring.md](04-template-authoring.md)).
-
-**First time?** Use sidebar **Download Alberta Phase I Excel** and **Download Alberta Phase I template**.
+Optional (both paths): **Standard phrases** — preset paragraphs for tagged fields (see [04-template-authoring.md](04-template-authoring.md)).
 
 ## 3. Sidebar settings
 
 | Setting | Phase I typical value |
 |---------|------------------------|
+| **Simple mode** | On (recommended) — hides advanced options |
 | **Report phase** | Phase 1 |
 | **Profile** | Alberta Phase I ESA (Ecoventure) |
 | **Prepared by** | Your name |
 | **Date of issue** | Today |
 | **Template version** | e.g. `2.1` (optional; auto-filled from filename if it contains `v2.1`) |
 
-Optional: **Override executive summary** — replaces Excel / auto-generated text.
+Optional (turn off Simple mode): **Override executive summary** — replaces Excel / auto-generated text.
+
+**Advanced — AI options** (sidebar): optional LLM for narratives, lab PDF parse, and folder analysis. Default is **offline** (no API key). For **free local** use, set `AI_PROVIDER=ollama` in `.streamlit/secrets.toml`; for **free cloud**, try `gemini` or `groq` — see [09-ai-assistant.md](09-ai-assistant.md). Keep cloud LLM off for strictly confidential site files.
+
+The sidebar **Getting started** checklist tracks your progress through load → pre-flight → generate → download.
 
 ## 4. Pre-flight
+
+The **Report** tab shows **Your next steps** at the top — fix red items first. Expand **Regulatory checklist (SED 002)** or **Drilling waste compliance (DWDA)** for details.
 
 Fix any **red errors** before generating. Yellow warnings are OK for a draft.
 
 Use **Download missing-fields checklist** or **Download ReportConfig sheet** if you are building a new Excel file.
 
+See **Glossary** under pre-flight or **Advanced** for OneStop, SED 002, and DWDA definitions.
+
 ## 5. Generate and download
 
-1. Choose **Single report** (row 2) or **All N reports (batch)** if Excel has multiple sites on `ProjectData`
-2. **Generate Report**
-3. **Download Report (.docx)** — or batch zip when multiple sites were generated
-4. **Download generation manifest (JSON)** — save with the report on SharePoint
-5. **Download Generated appendices D/G** (and **A** QP declaration when shown) — export each `.docx` to PDF in Word before OneStop
-6. Upload appendix PDFs **B/C/E/F/H** (air photos, ABADATA, land title, site sketch, …) on the **Report** tab **Appendices** section if needed
-7. Review **DWDA / Directive 050** pre-flight panel; download DWDA QP checklist if needed
-8. **Download deliverable package (.zip)** — report + manifest + appendices + **`qp_checklists/`** (SED 002 + DWDA QP review markdown) + OneStop export
+1. On the Report tab, **Generate report** sits above the **Appendices** expander. Optional: upload B/C/E/F/H PDFs there before you click Generate (or upload after and Generate again).
+2. Choose **Single site** (pick a `ProjectData` row) or **All N sites (batch zip)** if Excel has multiple sites on `ProjectData`
+3. **Generate report**
+4. **Download deliverable package (.zip)** — **primary output** (report + manifest + appendices + OneStop export + QP checklists)
+5. Follow the **Before OneStop upload** checklist on screen (review warnings, export generated D/G to PDF, confirm appendices)
+6. **Advanced downloads** expander — individual `.docx`, manifest JSON, generated appendices
 
-For batch runs, use **Download all deliverable packages** for one zip with a folder per site.
+For batch runs, use **Download all deliverable packages** as the primary button.
 
 Export to client PDF in Word if needed; the app does not merge appendices into one PDF automatically.
 

@@ -52,6 +52,18 @@ Sheet: DrillingWaste (optional — Alberta Phase I)
 
   Template: {%tr for item in drilling_waste %} ... {%tr endfor %}
 
+Sheet: Apecs (optional — Alberta Phase I APEC inventory)
+--------------------------------------------------------
+- Row 1: headers; each data row -> apecs list for Phase I findings table.
+- Columns: apec_id, apec_name, location_description, concern_type,
+  source_of_concern, evidence_summary, source_document, phase2_recommended, notes
+- concern_type vocab: spill, drilling_waste, storage_tank, flare_pit,
+  unknown_disposal, pipeline, other
+- source_of_concern: records, air_photo, interview, site_visit, historical_report
+
+  Template: {%tr for item in apecs %} ... {%tr endfor %}
+  AI extract: AI tools → Historical docs → APECs (advisory; Apply/Merge to Excel)
+
 Sheet: DwdaCalculations (optional — DWDA calc ingest)
 ----------------------------------------------------
 - Row 1: headers; optional row from Ecoventure xltm ingest or manual entry.

@@ -126,7 +126,7 @@ One row per disposal event: `disposal_type`, `gps_coordinates`, `sump_depth_m`, 
 3. **Pre-flight** — open **DWDA / Directive 050** panel; note scope, completeness %, Phase II triggers.
 4. **Download** **DWDA QP review checklist** (markdown) from preflight.
 5. **Upload Appendix H** — site sketch with all on-lease disposal locations (GPS, sump/cover depths on sketch or in Excel).
-6. **Generate Report** — main `.docx` plus auto appendices **D** (checklist companion) and **G** (calc table).
+6. **Generate report** — main `.docx` plus auto appendices **D** (checklist companion) and **G** (calc table).
 7. **Deliverable zip** — includes OneStop summary fields (`dwda_compliance_option`, `dwda_checklist_scope`, `cuttings_volume_on_lease_m3`, etc.) and **`qp_checklists/dwda_directive050_qp_checklist.md`** (same markdown as preflight download).
 8. **OneStop** — complete official AER checklist DOC/XLS; export report PDF per [20-aer-sed002-phase1-esa.md](20-aer-sed002-phase1-esa.md).
 

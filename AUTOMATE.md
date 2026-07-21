@@ -50,7 +50,7 @@ python -m automate.http_server --port 8765
 
 Response body is the rendered `.docx`. Warnings may appear in header `X-ESA-Warnings`.
 
-**Security:** bind `127.0.0.1` only unless behind VPN or authenticated reverse proxy.
+**Security:** bind `127.0.0.1` only unless behind VPN or authenticated reverse proxy. Binding to a non-localhost address requires **`ESA_API_KEY`** (server exits otherwise). When set, clients must send `X-ESA-API-Key` (plus optional `X-ESA-User-Id`, `X-ESA-Tenant-Id`). Roles come from server env **`ESA_DEFAULT_ROLES`** — client `X-ESA-Roles` is ignored.
 
 ## Power Automate
 

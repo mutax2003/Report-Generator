@@ -1,0 +1,3 @@
+# System packages for Streamlit Community Cloud (Debian/Ubuntu apt).
+# pdf2docx / cryptography usually need no extra apt packages; keep this file
+# so Cloud has an explicit dependency hook if we add native libs later.

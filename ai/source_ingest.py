@@ -17,6 +17,10 @@ from project_folder import _read_pdf_bytes
 
 LAB_FILENAME = re.compile(r"coa|certificate|cert\.?of|anal(?:ytical)?|lab.?report", re.I)
 ESA_FILENAME = re.compile(r"phase\s*1|phase\s*i|\besa\b|environmental", re.I)
+APEC_FILENAME = re.compile(
+    r"abadata|spill|release|air.?photo|historical|records.?review|apec",
+    re.I,
+)
 
 MAX_EXTRACT_CHARS = 24_000
 CHUNK_SIZE = 4000
@@ -53,6 +57,8 @@ def classify_pdf_route(filename: str) -> str:
         return "lab"
     if ESA_FILENAME.search(name):
         return "esa"
+    if APEC_FILENAME.search(name):
+        return "apec"
     return "generic"
 
 
@@ -161,6 +167,7 @@ def ingest_source_pdfs(
     summaries_for_narrative: list[dict[str, str]] = []
     written: list[Path] = []
     index_entries: list[dict[str, Any]] = []
+    all_apec_rows: list[dict[str, str]] = []
 
     for pdf in pdfs:
         route = classify_pdf_route(pdf.name)
@@ -259,6 +266,40 @@ def ingest_source_pdfs(
             except Exception as e:
                 warnings.append(f"ESA metadata parse failed: {e}")
 
+        apec_row_count = None
+        if route in ("esa", "apec", "generic") and text.strip():
+            try:
+                from ai.apec_extract import extract_apecs_from_text
+
+                apec_result, apec_audit = extract_apecs_from_text(
+                    text, source_document=pdf.name, use_llm=use_llm
+                )
+                apec_row_count = len(apec_result.rows)
+                if apec_result.rows:
+                    apec_path = drafts_dir / f"apec_extract_{pdf.stem}.json"
+                    apec_path.write_text(
+                        json.dumps(
+                            {
+                                "disclaimer": apec_result.disclaimer,
+                                "source_pdf": pdf.name,
+                                "row_count": len(apec_result.rows),
+                                "source": apec_result.source,
+                                "warnings": apec_result.warnings,
+                                "rows": [r.to_excel_dict() for r in apec_result.rows],
+                            },
+                            indent=2,
+                            default=str,
+                        ),
+                        encoding="utf-8",
+                    )
+                    written.append(apec_path)
+                    all_apec_rows.extend(r.to_excel_dict() for r in apec_result.rows)
+                if apec_audit.used_llm:
+                    audit.used_llm = True
+                    audit.model = openai_model() or apec_audit.model
+            except Exception as e:
+                warnings.append(f"APEC extract failed: {e}")
+
         summary, used_llm = summarize_pdf_text(
             pdf.name, text, route, use_llm=use_llm
         )
@@ -287,6 +328,7 @@ def ingest_source_pdfs(
                 "warnings": record.warnings,
                 "esa_meta": record.esa_meta,
                 "lab_row_count": record.lab_row_count,
+                "apec_row_count": apec_row_count,
                 "extract_file": record.extract_file,
             }
         )
@@ -326,7 +368,7 @@ def ingest_source_pdfs(
                 {
                     "disclaimer": (
                         "Suggested ProjectData fields from source PDFs — "
-                        "copy into project_data.xlsx manually; not auto-applied."
+                        "review then Apply from the AI tools tab (not auto-applied)."
                     ),
                     "fields": suggestions,
                 },
@@ -335,6 +377,46 @@ def ingest_source_pdfs(
             encoding="utf-8",
         )
         written.append(sugg_path)
+
+    if all_apec_rows:
+        from ai.apec_extract import merge_apec_results
+        from ai.models import ApecExtractResult, ApecExtractRow
+
+        # Renumber via merge helper
+        fake = ApecExtractResult(
+            rows=[
+                ApecExtractRow(
+                    apec_id=str(r.get("apec_id", "")),
+                    apec_name=str(r.get("apec_name", "")),
+                    location_description=str(r.get("location_description", "")),
+                    concern_type=str(r.get("concern_type", "other")),
+                    source_of_concern=str(r.get("source_of_concern", "historical_report")),
+                    evidence_summary=str(r.get("evidence_summary", "")),
+                    source_document=str(r.get("source_document", "")),
+                    phase2_recommended=str(r.get("phase2_recommended", "N")),
+                    notes=str(r.get("notes", "")),
+                )
+                for r in all_apec_rows
+            ]
+        )
+        merged = merge_apec_results([fake])
+        cand_path = drafts_dir / "apecs_candidates.json"
+        cand_path.write_text(
+            json.dumps(
+                {
+                    "disclaimer": (
+                        "AI-suggested APECs from source/ PDFs — QP review required. "
+                        "Apply from the AI tools tab (not auto-written to Excel)."
+                    ),
+                    "row_count": len(merged.rows),
+                    "rows": [r.to_excel_dict() for r in merged.rows],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        written.append(cand_path)
+        audit.features = list(audit.features) + ["apec_extract"]
 
     return written, summaries_for_narrative, audit
 

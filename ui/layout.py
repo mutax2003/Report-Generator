@@ -31,23 +31,82 @@ def compute_workflow_step(
 
 
 def render_workflow_stepper(current_step: int) -> None:
-    """Horizontal 1–4 progress indicator (read-only; no extra widgets)."""
+    """Horizontal 1–4 progress rail (read-only; CSS states via branding styles)."""
     labels = ("Inputs", "Pre-flight", "Generate", "Download")
-    cols = st.columns(len(labels))
-    for i, (col, label) in enumerate(zip(cols, labels), start=1):
-        with col:
-            if i < current_step:
-                st.markdown(f"**{i}. {label}** ✓")
-            elif i == current_step:
-                st.markdown(f"**→ {i}. {label}**")
-            else:
-                st.markdown(f"{i}. {label}")
+    parts: list[str] = ['<div class="ev-stepper" role="list" aria-label="Workflow progress">']
+    for i, label in enumerate(labels, start=1):
+        if i < current_step:
+            state = "ev-step-done"
+            num = "✓"
+        elif i == current_step:
+            state = "ev-step-current"
+            num = str(i)
+        else:
+            state = "ev-step-pending"
+            num = str(i)
+        parts.append(
+            f'<div class="ev-step {state}" role="listitem">'
+            f'<span class="ev-step-num">{num}</span>'
+            f'<span class="ev-step-label">{i}. {label}</span>'
+            f"</div>"
+        )
+        if i < len(labels):
+            conn = "ev-step-conn-done" if i < current_step else ""
+            parts.append(f'<div class="ev-step-conn {conn}" aria-hidden="true"></div>')
+    parts.append("</div>")
+    st.markdown("".join(parts), unsafe_allow_html=True)
 
 
-def render_workflow_hint() -> None:
-    """Deprecated — use ui.workflow_mode.render_workflow_hint(mode)."""
+def _html_escape(text: str) -> str:
+    return (
+        (text or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def render_workflow_context_strip(
+    *,
+    mode_label: str,
+    profile_label: str = "",
+    excel_name: str = "",
+    template_name: str = "",
+    site_label: str = "",
+) -> None:
+    """SharePoint-style breadcrumb: workflow › profile › files."""
+    bits: list[str] = [
+        f'<span><span class="ev-context-muted">Workflow</span> '
+        f"<strong>{_html_escape(mode_label)}</strong></span>"
+    ]
+    if profile_label:
+        bits.append(
+            f'<span><span class="ev-context-muted">Profile</span> '
+            f"<strong>{_html_escape(profile_label)}</strong></span>"
+        )
+    if site_label:
+        bits.append(
+            f'<span><span class="ev-context-muted">Site</span> '
+            f"<strong>{_html_escape(site_label)}</strong></span>"
+        )
+    if excel_name:
+        bits.append(
+            f'<span><span class="ev-context-muted">Excel</span> '
+            f"<strong>{_html_escape(excel_name)}</strong></span>"
+        )
+    else:
+        bits.append('<span class="ev-context-muted">Excel — not loaded</span>')
+    if template_name:
+        bits.append(
+            f'<span><span class="ev-context-muted">Template</span> '
+            f"<strong>{_html_escape(template_name)}</strong></span>"
+        )
+    else:
+        bits.append('<span class="ev-context-muted">Template — not loaded</span>')
     st.markdown(
-        "**Workflow:** Choose a mode at startup, then follow the steps shown."
+        f'<div class="ev-context">{"".join(bits)}</div>',
+        unsafe_allow_html=True,
     )
 
 
@@ -59,14 +118,34 @@ def render_section_header(step: int, title: str, *, caption: str = "") -> None:
 
 def render_upload_empty_state() -> None:
     from ui.alberta_imagery import has_alberta_images, render_empty_state_banner
+    from ui.helpers import load_phase1_alberta_sample_into_session
 
     if has_alberta_images():
         render_empty_state_banner()
-    st.info(
-        "**Getting started** — In the sidebar, choose your report profile and enter "
-        "*Prepared by* / *Date of issue*. Then upload your Excel and Word template below. "
-        "Open the **Report** tab to review pre-flight and generate."
+    st.markdown(
+        '<div class="ev-empty-panel">'
+        "<strong>Getting started</strong> — Set <em>Prepared by</em> in the sidebar, "
+        "then upload Excel + Word below — or load the Alberta Phase I sample to try "
+        "the full flow."
+        "</div>",
+        unsafe_allow_html=True,
     )
+    c1, c2 = st.columns([2, 3])
+    with c1:
+        if st.button(
+            "Load Alberta Phase I sample",
+            type="primary",
+            width="stretch",
+            key="load_phase1_alberta_sample_empty",
+            help="Loads starter Excel + Word into this session (same as sidebar).",
+        ):
+            if load_phase1_alberta_sample_into_session():
+                st.session_state.sample_load_toast = True
+                st.rerun()
+            else:
+                st.error("Sample files missing — run scripts/create_samples.py first.")
+    with c2:
+        st.caption("Or upload your own `.xlsx` and `.docx` / `.pdf` in the columns above.")
 
 
 def render_upload_step() -> tuple[Any, Any, Any, list[str]]:
@@ -107,7 +186,16 @@ def render_upload_step() -> tuple[Any, Any, Any, list[str]]:
                     label_visibility="collapsed",
                 )
                 if eco_file is not None:
-                    st.session_state["ecoventure_workbook_bytes"] = eco_file.getvalue()
+                    from security import SecurityError, user_safe_error, validate_excel_upload
+
+                    eco_bytes = eco_file.getvalue()
+                    try:
+                        validate_excel_upload(eco_bytes, eco_file.name or "")
+                    except SecurityError as exc:
+                        st.error(user_safe_error(exc))
+                        st.session_state.pop("ecoventure_workbook_bytes", None)
+                    else:
+                        st.session_state["ecoventure_workbook_bytes"] = eco_bytes
 
     with col2:
         with st.container(border=True):
@@ -137,7 +225,15 @@ def render_upload_step() -> tuple[Any, Any, Any, list[str]]:
         st.info("Upload your **Excel** file (.xlsx) in the column on the left.")
 
     if not excel_file and not template_file:
-        render_upload_empty_state()
+        from ui.helpers import session_loaded_file_names
+
+        ex_name, tpl_name = session_loaded_file_names()
+        if ex_name and tpl_name:
+            st.success(
+                f"Sample loaded: **{ex_name}** + **{tpl_name}** — open the **Report** tab."
+            )
+        else:
+            render_upload_empty_state()
 
     return excel_file, template_file, prepared_tpl, template_prep_warnings
 
@@ -157,6 +253,8 @@ def _prepare_template_from_upload(template_file: Any) -> tuple[Any, list[str]]:
         st.error(user_safe_error(e))
         return None, []
 
+
+from security import MAX_BATCH_REPORTS
 
 _LARGE_TEMPLATE_BYTES = 10 * 1024 * 1024
 
@@ -182,6 +280,10 @@ def generate_blockers(
 
 def render_phrase_expander(render_fn: Any) -> dict[str, str]:
     with st.expander("Standard phrases (optional)", expanded=False):
+        st.caption(
+            "Optional wording for tagged Phase I fields — leave as default unless your "
+            "template uses these phrases."
+        )
         return render_fn(compact=True)
 
 
@@ -194,6 +296,7 @@ def render_generate_cta(
     project_row_count: int,
     project_row_labels: list[str],
     template_bytes: bytes | None = None,
+    prepared_by: str = "",
 ) -> tuple[bool, bool, int]:
     render_section_header(
         3,
@@ -205,6 +308,10 @@ def render_generate_cta(
     project_row_index = 0
 
     with st.container(border=True):
+        st.markdown(
+            '<div class="ev-sticky-cta" aria-label="Generate report actions">',
+            unsafe_allow_html=True,
+        )
         if rendering:
             st.info("Generating report — please wait.")
         elif template_bytes and len(template_bytes) > _LARGE_TEMPLATE_BYTES:
@@ -212,18 +319,30 @@ def render_generate_cta(
                 "Large template — generation may take **30–60 seconds**."
             )
 
+        if has_excel and has_template and can_generate and not (prepared_by or "").strip():
+            st.warning(
+                "**Prepared by** is empty — set it in the sidebar before client delivery."
+            )
+
         if project_row_count > 1:
             st.caption(
                 f"**{project_row_count} sites** on `ProjectData` "
                 "(row 1 = headers; each row 2+ = one report)."
             )
-            gen_mode = st.radio(
-                "Generation mode",
-                ["Single site", f"All {project_row_count} sites (batch zip)"],
-                horizontal=True,
-                key="projectdata_gen_mode",
-            )
-            batch_mode = gen_mode.startswith("All")
+            if project_row_count > MAX_BATCH_REPORTS:
+                st.warning(
+                    f"Batch zip supports at most **{MAX_BATCH_REPORTS}** sites per run "
+                    f"({project_row_count} rows). Use single-site mode or split the workbook."
+                )
+                gen_mode = "Single site"
+            else:
+                gen_mode = st.radio(
+                    "Generation mode",
+                    ["Single site", f"All {project_row_count} sites (batch zip)"],
+                    horizontal=True,
+                    key="projectdata_gen_mode",
+                )
+            batch_mode = isinstance(gen_mode, str) and gen_mode.startswith("All")
             if not batch_mode:
                 project_row_index = st.selectbox(
                     "Which site?",
@@ -264,13 +383,13 @@ def render_generate_cta(
             disabled=generate_disabled,
             key="generate_report_btn",
         )
+        st.markdown("</div>", unsafe_allow_html=True)
 
     return generate_clicked, batch_mode, project_row_index
-
 
 def render_outputs_section_header() -> None:
     render_section_header(
         4,
         "Download deliverables",
-        caption="Word report, JSON manifest, and optional zip with appendices.",
+        caption="Primary download is the **deliverable package (.zip)** — Word report, manifest, and appendices.",
     )

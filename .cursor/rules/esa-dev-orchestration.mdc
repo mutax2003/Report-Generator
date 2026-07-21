@@ -1,0 +1,28 @@
+---
+description: Cursor multi-agent orchestration — parent/subagent routing, playbooks, verify_tier
+globs: AGENTS.md,.cursor/skills/**,docs/05-developer-guide.md,.github/pull_request_template.md
+alwaysApply: false
+---
+
+# Dev orchestration (Cursor)
+
+**Index:** [AGENTS.md](AGENTS.md#multi-agent-workflow-cursor) · **Skill:** [`.cursor/skills/esa-dev-orchestration/SKILL.md`](.cursor/skills/esa-dev-orchestration/SKILL.md)
+
+Parent agent classifies → loads glob rule → delegates `explore`/`shell` → implements → runs **`scripts/verify_tier.py`**.
+
+**Roles** (always-on): [esa-agent-roles.mdc](esa-agent-roles.mdc) — PM → Architect → Lead Dev → QA (`bugbot`/`security-review`) → DevOps (`verify_tier`).
+
+```powershell
+python scripts\verify_tier.py --tier unit
+python scripts\verify_tier.py --tier ux
+python scripts\verify_tier.py --tier profile --playbook b
+python scripts\verify_tier.py --tier release
+```
+
+Tiers: **unit** = count_tests + unittest · **ux** = build_help → unit → streamlit_smoke · **release** = full RELEASE_STEPS (canonical pre-merge).
+
+Pre-PR: verification tier PASS → `count_tests.py` → **bugbot** → **security-review** if uploads/auth/tenant/rate-limit/audit/QP/retention/job queue/observability/logging/multipart/deploy touched.
+
+Hard boundaries: no Streamlit / no LLM auto-inject in `engine.py`; Report tab = next steps → preflight → **Generate** → appendices → zip ([esa-streamlit-ui.mdc](esa-streamlit-ui.mdc)).
+
+Do not delegate the full feature to a subagent without parent applying the diff.

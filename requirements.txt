@@ -1,11 +1,12 @@
 # ESA Report Generator — Python 3.10+ recommended
+# Direct dependencies (pinned). Full resolved tree: requirements.lock
 streamlit==1.56.0
 docxtpl==0.19.1
 pandas==3.0.2
 openpyxl==3.1.5
 python-docx==1.1.2
 Jinja2==3.1.6
-openai>=1.40.0
-pypdf>=4.0.0
-cryptography>=3.1
-pdf2docx>=0.5.8
+openai==2.37.0
+pypdf==6.11.0
+cryptography==48.0.0
+pdf2docx==0.5.13

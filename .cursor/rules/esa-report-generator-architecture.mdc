@@ -28,29 +28,31 @@ Use venv `python` or `.\.venv\Scripts\python.exe` — system `python` lacks `pan
 | `LabResults` | Optional | **Required** | `lab_results` list |
 | `DrillingWaste` | Optional | Optional | `drilling_waste` list (Alberta Phase I tables) |
 | `StorageTanks` | Optional | Optional | `storage_tanks` list |
+| `Apecs` | Optional | — | `apecs` list (APEC inventory; Phase I / reclamation) |
 | `PhraseCatalog` | Optional | Optional | Phrase options + `phrase_key_selected` columns (see `phrase_resolver.py`) |
 | `ReportConfig` | Optional | Optional | key/value overrides (`report_type`, `map_*`) |
-| `DwdaCalculations` | Optional | — | Ecoventure DWDA calc ingest (`dwda_calculations.py`) |
+| `DwdaCalculations` | Optional | — | Ecoventure DWDA calc ingest (`dwda_calculations.py`) → `dwda_calc_sheet` |
 | `DwdaChecklist` | Optional | — | QP checklist responses (`dwda_compliance.py`) |
 | `MonitoringWells` | GW profile | — | `monitoring_wells` list |
 | `WaterLevels` | GW profile | — | `water_levels` list |
 | `GroundwaterLab` | GW profile | — | `groundwater_results` list |
+| `FieldNotes` | GW profile | — | `field_events` list |
 
-Full sheet inventory: [`EXCEL_LAYOUT.txt`](EXCEL_LAYOUT.txt) and [`schemas/report_profiles.json`](schemas/report_profiles.json) `sheet_mappings`.
+Full sheet inventory: [`EXCEL_LAYOUT.txt`](EXCEL_LAYOUT.txt) and [`schemas/report_profiles.json`](schemas/report_profiles.json) `sheet_mappings` (incl. reclamation `ReclamationTasks` / `SoilPlacement` / `Vegetation` and phase3 `RemediationObjectives` / `TreatmentEvents` / `ConfirmatorySampling` / `WasteManifests`).
 
-**Code layout:** `app.py` + `ui/*` (Streamlit, incl. `workflow_mode`, `project_folder`, `layout`, `folder_picker`, `phrase_panel`, `preflight`, `appendix_panel`) · `render_service.py` (unified headless render) · `engine.py` (`ReportEngine`, `render_batch`) · `project_folder.py` · `appendix_generator.py` (Phase I appendices **A/D/G**) · `compliance_helpers.py` (shared SED/DWDA/Ecoventure helpers) · `ecoventure_workbook.py` · `dwda_calculations.py` · `dwda_compliance.py` · `phase2_triggers.py` · `phrase_resolver.py` · `report_profile.py` · `template_attachments.py` · `template_size.py` · `deliverable_pack.py` · `phase1_narrative.py` · `phase1_decision.py` · `sed002_compliance.py` · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `esa_launcher.py` · `ai/*` · `schemas/*` · `templates/ecoventure_dwda/` · `scripts/` · `automate/`.
+**Code layout:** `app.py` + `ui/*` (Streamlit — module roles and Report tab order: [esa-streamlit-ui.mdc](esa-streamlit-ui.mdc); incl. `onboarding`, `workflow_mode`, `menubar`, `branding`, `project_folder`, `layout`, `folder_picker`, `phrase_panel`, `preflight`, `appendix_panel`, `results`) · `render_service.py` (unified headless render) · `engine.py` (`ReportEngine`, `render_batch`) · `project_folder.py` · `appendix_generator.py` (appendices **A/D/G** for `phase1_alberta`, `phase1_devon`, `reclamation_certificate`) · `compliance_helpers.py` · `ecoventure_workbook.py` · `dwda_calculations.py` · `dwda_compliance.py` · `phase2_triggers.py` · `phrase_resolver.py` · `groundwater_narrative.py` · `report_profile.py` · `template_attachments.py` · `template_size.py` · `deliverable_pack.py` · `phase1_narrative.py` · `phase1_decision.py` · `sed002_compliance.py` · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `esa_launcher.py` · `esa_auth.py` · `esa_logging.py` · `esa_observability.py` · `esa_rate_limit.py` · `esa_tenant.py` · `audit_trail.py` · `job_queue.py` · `qp_signature.py` · `records_retention.py` · `ai/*` (advisory drafts; do **not** auto-inject into `ReportEngine`) · `schemas/*` · `templates/ecoventure_dwda/` · `help/` (HTML help pack from `scripts/build_help.py`) · `scripts/` · `automate/` (incl. `multipart.py`).
 
 **Report profiles (7):** `phase1_alberta`, `phase1_devon`, `phase2_esa`, `groundwater_monitoring`, `reclamation_certificate`, `phase3_remediation`, `template_driven` — see [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md).
 
-**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (**284 tests**, 3 may skip) · regression: `python scripts\health_check.py` (**17 checks**)
+**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (**389 tests**, 4 may skip) · regression: `python scripts\health_check.py` (**18 checks**, incl. HTML help pack)
 
 **Multiple-choice phrases:** [`schemas/phrase_catalog.json`](schemas/phrase_catalog.json) · Excel `PhraseCatalog` sheet · Streamlit **Standard phrases** panel · see [docs/04-template-authoring.md](docs/04-template-authoring.md)
 
 ---
 
-## Objective (V1 baseline)
+## Product objective
 
-Web-based **Environmental Report Generation Engine**: Excel + Word or PDF template (upload or local project folder) → download rendered Phase 1 or Phase 2 ESA `.docx` (+ optional deliverable zip with appendices).
+Web-based **Environmental Report Generation Engine**: Excel + Word or PDF template (upload or local project folder) → **primary deliverable zip** (rendered `.docx` + appendices/manifest) across **multi-profile** report types (Phase I/II ESA, groundwater, reclamation, Phase III remediation, template-driven).
 
 ## Tech stack
 
@@ -63,28 +65,21 @@ Web-based **Environmental Report Generation Engine**: Excel + Word or PDF templa
 
 ### Streamlit UI
 
-- **Startup workflow** (`ui/workflow_mode.py`): **Project folder + AI** (local path + optional `ai_drafts/`) vs **Excel + Word template** (classic upload)
-- **Project folder path** (`ui/project_folder.py`, `ui/folder_picker.py`): Browse or paste path; **Load folder** / **Analyze folder**; meta from `project.json`; appendices from `appendices/` — see [docs/22-project-folder-workflow.md](docs/22-project-folder-workflow.md)
-- Two upload zones (Excel + template workflow): Excel (`.xlsx`) and report template (`.docx` or `.pdf`; PDF cached and converted in `ui/helpers.py`)
-- **Standard phrases** panel (`ui/phrase_panel.py`) — optional preset paragraphs from `schemas/phrase_catalog.json`
-- Sidebar: **Profile** (`report_type`), **Report phase** (syncs with profile), Prepared By, Date of Issue, template version, **executive summary override**
-- **Generate Report** — single site or **All N reports (batch)** when Excel has multiple `ProjectData` rows; batch downloads via `ui/results.py`
-- Download rendered `.docx`, manifest JSON, **deliverable package (.zip)**
-- **Appendices A–H** — **D** and **G** auto-generated as `.docx` via `appendix_generator.py` (from `DrillingWaste` / `ProjectData`); **B, C, E, F, H** PDF upload in `ui/appendix_panel.py`; included in deliverable zip with SHA-256 in manifest; SED preflight counts uploaded + predicted generated labels
-- After PDF upload: **Download converted Word template** for tagging in Word
-- Pre-flight: profile-aware missing-field checklist; **SED 002 §10 completeness** (Phase I); **Download ReportConfig sheet (Excel)**
-- Session state persists generated file for download
+**Canonical UI order, module roles, menubar/F1 help, and Simple mode:** see [esa-streamlit-ui.mdc](esa-streamlit-ui.mdc). Do not duplicate Report-tab steps here.
+
+Summary: workflow picker → uploads or project folder → **Report** tab (next steps → pre-flight → **Generate** → appendices → deliverable zip) · **AI tools** / **AI drafts & tools** tab is advisory.
 
 ### Rendering engine (`engine.py`)
 
 - `ProjectData` → dict per row (headers → snake_case keys); `render_batch()` for multi-row Excel
 - `PhraseCatalog` / `*_selected` / UI phrase meta → resolved text via `phrase_resolver.py`
 - `LabResults` → `lab_results` for `{%tr for item in lab_results %}`
-- `DrillingWaste` / `StorageTanks` → optional table loops (Phase I)
+- `DrillingWaste` / `StorageTanks` / `Apecs` → optional table loops (Phase I)
 - `RichText` for lab exceedances (`result_display` bold red)
 - Phase I: auto `executive_summary` via `phase1_narrative.py` when empty (sidebar override wins)
 - Missing scalar tags: warn + empty string, do not crash
 - Validate file extensions and upload size/zip safety (`security.py`)
+- **No LLM / AI inside `ReportEngine`** — drafts stay in `ai/*` and UI apply paths (`ai/apply_drafts.py`); never auto-inject into merge/render
 
 ### Architecture
 
@@ -92,13 +87,9 @@ Web-based **Environmental Report Generation Engine**: Excel + Word or PDF templa
 - **Session state** for generated bytes and manifest
 - **M365 / portability:** Reuse `render_service.py` (wraps `ReportEngine`) for headless paths; Streamlit uses the same service on generate
 
-## Deliverables (present in repo)
+## Repo inventory
 
-- `app.py`, `engine.py`, `project_folder.py`, `appendix_generator.py`, `deliverable_pack.py`, `esa_launcher.py`
-- `EXCEL_LAYOUT.txt`, `JINJA2_CHEATSHEET.txt`
-- `scripts/create_samples.py` — demo + production + phase1_alberta fixtures
-- `scripts/build_windows_deploy.ps1` — Windows portable folder + optional `.exe` (`dist/ESA-Report-Generator/`)
-- `Dockerfile`, `docs/14-deployment.md`, `docs/15-power-automate-guide.md`
+Canonical module index: [AGENTS.md](AGENTS.md) **Key modules**. Deploy package includes `help/index.html` (F1) via `scripts/build_help.py` + `scripts/build_windows_deploy.ps1`. Also: `EXCEL_LAYOUT.txt`, `JINJA2_CHEATSHEET.txt`, `Dockerfile`, [docs/14-deployment.md](docs/14-deployment.md), [docs/15-power-automate-guide.md](docs/15-power-automate-guide.md).
 
 ## Agent guidance
 
@@ -107,3 +98,4 @@ Web-based **Environmental Report Generation Engine**: Excel + Word or PDF templa
 - Match sample headers when adding fields
 - Word tags: single formatting run per `{{ tag }}`; table headers above `{%tr for ... %}` loops
 - After template/engine changes: `python scripts\health_check.py` and `python -m unittest discover -s tests -v`
+- After Streamlit/UX changes: `python scripts\verify_tier.py --tier ux` (runs `build_help` first)

@@ -10,10 +10,10 @@ Complete documentation for the Environmental Site Assessment (ESA) report genera
 |----------|----------------|
 | [00-start-here.md](00-start-here.md) | **Consultants** — upload, profile, generate, appendices (one page) |
 | [01-overview.md](01-overview.md) | Everyone — purpose, architecture, data flow |
-| [02-user-guide.md](02-user-guide.md) | Consultants, report authors, QA reviewers |
+| [02-user-guide.md](02-user-guide.md) | Consultants — Streamlit UI, **menu bar / F1 help**, workflows |
 | [03-excel-data-guide.md](03-excel-data-guide.md) | Data preparers — workbook structure and field contract |
 | [04-template-authoring.md](04-template-authoring.md) | Word template authors — Jinja2, tables, production merge |
-| [05-developer-guide.md](05-developer-guide.md) | Developers — modules, extension points, conventions |
+| [05-developer-guide.md](05-developer-guide.md) | Developers — modules, extension points, **Cursor multi-agent orchestration** |
 | [06-api-reference.md](06-api-reference.md) | Integrators — `ReportEngine`, CLI, HTTP, automation |
 | [07-security-and-deployment.md](07-security-and-deployment.md) | IT / admins — limits, deployment, hardening |
 | [08-testing.md](08-testing.md) | QA / developers — unit tests, E2E, CI |

@@ -15,4 +15,4 @@ headless = true
 
 [browser]
 gatherUsageStats = false
-serverAddress = "localhost"
+# Do not set serverAddress=localhost — breaks Streamlit Community Cloud share URLs.

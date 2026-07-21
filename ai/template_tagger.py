@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from ai.client import complete_json, prompt_version
+from ai.config import openai_model
 from ai.docx_extract import extract_docx_full_text
 from ai.models import AiAudit, TagSuggestion
 
@@ -160,36 +161,45 @@ def suggest_template_tags(
     report_type: str | None = None,
 ) -> tuple[list[TagSuggestion], AiAudit]:
     text = extract_docx_full_text(template_bytes)
-    allowed = _allowed_keys(report_type)
-    suggestions = _rule_suggestions(text, report_type=report_type)
+    rt = (report_type or "phase1_alberta").strip() or "phase1_alberta"
+    allowed = _allowed_keys(rt)
+    suggestions = _rule_suggestions(text, report_type=rt)
+    features = ["template_tagger", f"profile:{rt}"]
+    if rt == "phase1_alberta":
+        features.append("phase1_alberta")
     audit = AiAudit(
-        features=["template_tagger"]
-        + (["phase1_alberta"] if report_type == "phase1_alberta" else []),
+        features=features,
         prompt_version=prompt_version(),
     )
 
     existing_keys = {s.jinja_tag for s in suggestions if s.confidence >= 1.0}
     if use_llm:
         system_extra = ""
-        if report_type == "phase1_alberta":
+        if rt == "phase1_alberta":
             system_extra = (
                 " This is an Alberta O&G Phase I ESA (AER Schedule Two style). "
                 "Prioritize cover fields, executive_summary, conclusions_recommendations, "
                 "well_name, uwi, drilling_waste_summary."
             )
+        elif rt == "groundwater_monitoring":
+            system_extra = (
+                " This is a groundwater monitoring report. "
+                "Prioritize well IDs, sampling dates, and trend narrative fields."
+            )
         llm_rows = _llm_suggestions(text, allowed, system_extra=system_extra)
         audit.used_llm = bool(llm_rows)
         if llm_rows:
-            audit.model = __import__("ai.config", fromlist=["openai_model"]).openai_model()
+            audit.model = openai_model()
         for row in llm_rows:
             if row.jinja_tag not in existing_keys:
                 suggestions.append(row)
 
-    # Flag keys not in contract
     for s in suggestions:
         m = re.search(r"\{\{\s*(\w+)\s*\}\}", s.jinja_tag)
         if m and m.group(1) not in allowed:
-            s.notes = (s.notes + " Warning: not in field_contract.json.").strip()
+            s.notes = (
+                s.notes + " Warning: not in profile recommended_fields."
+            ).strip()
 
     return suggestions, audit
 

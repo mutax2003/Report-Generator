@@ -123,6 +123,46 @@ class RenderPathParityTests(unittest.TestCase):
         )
         self.assertIn("H", result.record.appendix_labels_evaluated or [])
 
+    def test_render_batch_service_matches_engine(self) -> None:
+        """render_batch_reports (CLI --all-rows path) matches engine.render_batch with labels."""
+        from engine import ReportEngine
+        from render_service import RenderRequest, render_batch_reports
+        from template_attachments import prepare_template_upload_cached
+
+        meta = self._meta()
+        excel_bytes = self.xlsx.read_bytes()
+        template_bytes = self.tpl.read_bytes()
+        labels = {"H"}
+        appendix_h = self._appendix_h()
+
+        prepared = prepare_template_upload_cached(template_bytes, self.tpl.name)
+        engine = ReportEngine(excel_bytes=excel_bytes, template_bytes=prepared.docx_bytes)
+        engine_batch = engine.render_batch(
+            meta=meta,
+            excel_filename=self.xlsx.name,
+            template_filename=self.tpl.name,
+            appendix_labels_present=labels,
+        )
+
+        service_batch = render_batch_reports(
+            RenderRequest(
+                excel_bytes=excel_bytes,
+                template_bytes=template_bytes,
+                meta=meta,
+                excel_filename=self.xlsx.name,
+                template_filename=self.tpl.name,
+                uploaded_appendices=[appendix_h],
+                appendix_labels_present=labels,
+            )
+        )
+
+        self.assertEqual(len(engine_batch), len(service_batch))
+        self.assertGreater(len(service_batch), 0)
+        self.assertEqual(
+            self._dwda_snapshot(engine_batch[0].context),
+            self._dwda_snapshot(service_batch[0].context),
+        )
+
     def test_project_folder_matches_engine_with_appendix_h(self) -> None:
         from engine import ReportEngine
         from project_folder import init_sample_project_folder, render_project_folder, resolve_project_folder

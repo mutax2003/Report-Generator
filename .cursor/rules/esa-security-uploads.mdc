@@ -1,6 +1,6 @@
 ---
 description: Upload validation, limits, and safe errors (security.py)
-globs: security.py,app.py,ui/helpers.py,project_folder.py
+globs: security.py,app.py,ui/helpers.py,project_folder.py,automate/http_server.py,automate/multipart.py,esa_auth.py,esa_rate_limit.py,esa_tenant.py,esa_observability.py,esa_logging.py,audit_trail.py,job_queue.py,qp_signature.py,records_retention.py
 alwaysApply: false
 ---
 
@@ -10,15 +10,52 @@ alwaysApply: false
 
 - **Validate at upload** — size, ZIP structure, OOXML markers, path traversal, encrypted members.
 - **Clamp context** — `clamp_context` caps lab rows and string lengths before Jinja merge.
-- **User-facing errors** — use `user_safe_error()` / allowed `ValueError` prefixes only; redact internals.
+- **User-facing errors** — use `user_safe_error()` / allowed `ValueError` prefixes only; redact internals. `user_safe_error` also maps `AuthError` to a safe auth message.
 
 ## Tunables (file top)
 
-`MAX_EXCEL_BYTES`, `MAX_TEMPLATE_BYTES`, `MAX_RENDERED_DOCX_BYTES`, zip member/count/ratio limits, `MAX_LAB_ROWS`, `MAX_META_VALUE_LEN`, `MAX_DOWNLOAD_NAME_LEN`. Change with production sizing in mind — document in PR if limits shift.
+`MAX_EXCEL_BYTES`, `MAX_TEMPLATE_BYTES`, `MAX_RENDERED_DOCX_BYTES`, `MAX_APPENDIX_PDF_BYTES`, `MAX_HTTP_POST_BYTES`, zip member/count/ratio limits, `MAX_LAB_ROWS`, `MAX_PROJECT_ROWS`, `MAX_BATCH_REPORTS`, `MAX_META_VALUE_LEN`, `MAX_DOWNLOAD_NAME_LEN`. Change with production sizing in mind — document in PR if limits shift.
 
 ## Tests only
 
 - **`ESA_VALIDATION_BYPASS=1`** — construct minimal fixtures in unit tests only.
+- **`ESA_SKIP_VALIDATION=1`** — alias of the same bypass (also tests only).
+
+## HTTP / auth (`automate/http_server.py`, `esa_auth.py`, `esa_rate_limit.py`, `automate/multipart.py`)
+
+- Non-localhost bind requires **`ESA_API_KEY`** (server refuses to start without it).
+- Optional **`ESA_REQUIRE_API_KEY=1`** forces auth even on localhost.
+- Request headers: `X-ESA-API-Key` (required when key configured); `X-ESA-User-Id` / `X-ESA-Tenant-Id` (advisory, sanitized).
+- **`X-ESA-Roles` is ignored** — roles come from `ESA_DEFAULT_ROLES` (default `author`).
+- Pin actor with **`ESA_API_SERVICE_USER`** on shared automation keys (ignores client user id).
+- Rate limit: IP bucket before auth + API-key digest bucket after auth.
+- Responses: `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`.
+- Auth failures raise `AuthError`; surface via `user_safe_error`.
+- Validation bypass is **refused** when `ESA_HOSTED_MODE` / `ESA_API_KEY` is set.
+- Multipart parsing stays in `automate/multipart.py` — do not trust client filenames/paths.
+
+## Related env
+
+Align with [docs/07-security-and-deployment.md](docs/07-security-and-deployment.md):
+
+| Variable | Effect |
+|----------|--------|
+| `ESA_AUDIT_ENABLED=1` | Append-only audit trail (`audit_trail.py`) |
+| `ESA_AUDIT_LOG` | Audit JSONL path (default `.esa_audit/audit.jsonl`) |
+| `ESA_TENANT_DATA_ROOT` | Tenant isolation root (`esa_tenant.py`; default `.esa_tenants`) |
+| `ESA_QP_SIGNING_SECRET` | HMAC secret for QP signature helpers (`qp_signature.py`) |
+| `ESA_RETENTION_POLICY` | Retention JSON path (default `schemas/records_retention_policy.json`) |
+| `ESA_RATE_LIMIT_MAX` / `ESA_RATE_LIMIT_WINDOW_SEC` | HTTP sliding-window rate limit |
+| `ESA_DISABLE_RATE_LIMIT=1` | **Dev/tests only** — never set in production |
+| `ESA_JSON_LOG=1` | Structured JSON logs (`esa_logging.py`; Docker default) |
+| `ESA_LOG_LEVEL` | Log level (default `INFO`) |
+| `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` | Hide local project-folder workflow on shared hosts |
+| `ESA_API_SERVICE_USER` | Server-side audit/actor identity for shared API keys |
+| `ESA_DEFAULT_ROLES` | Server-side roles (comma-separated); client roles ignored |
+| `ESA_REQUIRE_API_KEY` | Require API key even on localhost bind |
+| `ESA_SKIP_VALIDATION` | Alias of `ESA_VALIDATION_BYPASS` (tests only; blocked when hosted) |
+
+Platform modules on this rule’s globs: `esa_tenant`, `esa_observability`, `esa_logging`, `job_queue`, `qp_signature`, `records_retention`, `automate/multipart` — changes here warrant **security-review**.
 
 ## Templates as code
 
@@ -30,4 +67,4 @@ Jinja in `.docx` is **trusted** (authors with template access). Untrusted input 
 
 ## Upload byte cache (`ui/helpers.py`)
 
-`cached_upload_bytes` / `stable_upload_digest` avoid re-reading uploads on Streamlit reruns. Engine cache keys include appendix labels and ecoventure workbook digest — not just Excel + template hashes.
+`cached_upload_bytes` / `stable_upload_digest` avoid re-reading uploads on Streamlit reruns. Engine cache keys on Excel + template + Ecoventure workbook digest only — appendix uploads belong on the preflight cache key, not `ReportEngine` construction.

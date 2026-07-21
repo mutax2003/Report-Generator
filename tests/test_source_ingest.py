@@ -16,7 +16,8 @@ class SourceIngestTests(unittest.TestCase):
 
         self.assertEqual(classify_pdf_route("lab_coa_certificate.pdf"), "lab")
         self.assertEqual(classify_pdf_route("260109R Phase 1 ESA Final.pdf"), "esa")
-        self.assertEqual(classify_pdf_route("ABADATA_spill_search.pdf"), "generic")
+        self.assertEqual(classify_pdf_route("ABADATA_spill_search.pdf"), "apec")
+        self.assertEqual(classify_pdf_route("meeting_notes.pdf"), "generic")
 
     def test_chunk_text(self) -> None:
         from ai.source_ingest import chunk_text

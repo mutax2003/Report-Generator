@@ -21,6 +21,19 @@
 | **Split tag** | Jinja split across multiple Word XML runs — breaks render |
 | **Sidebar meta** | User inputs: prepared by, date, phase, template version |
 
+### Consultant terms (also in-app Glossary)
+
+These match the **Glossary** expander on the Report tab ([`ui/onboarding.py`](../ui/onboarding.py)):
+
+| Term | Definition |
+|------|------------|
+| **OneStop** | Alberta Energy Regulator (AER) online portal for submitting Phase I ESA reports and supporting documents |
+| **SED 002** | AER Standard for Environmental Due Diligence — Section 10 checklist items for QP sign-off on Phase I |
+| **DWDA** | Drilling Waste Disposal Area — compliance with Directive 050 for on-lease drilling waste and cuttings |
+| **Deliverable package** | ZIP with Word report, manifest JSON, appendices folder, and OneStop export summary — primary download in the app |
+
+See also [21-dwda-directive-050-compliance.md](21-dwda-directive-050-compliance.md) and [20-aer-sed002-phase1-esa.md](20-aer-sed002-phase1-esa.md).
+
 ## Frequently asked questions
 
 ### General
@@ -32,7 +45,7 @@ A: Input: `.xlsx` and `.docx`. Output: `.docx` only.
 A: No. Open the `.docx` in Word and export to PDF if needed.
 
 **Q: Can one Excel file produce multiple reports?**  
-A: Yes. Put one site per row on `ProjectData` (row 1 = headers). In Streamlit choose **All N reports (batch)** or use `python scripts\render_cli.py --all-rows`. Optional: add `site_name` or `project_number` on `LabResults` / `DrillingWaste` rows to link table data per site.
+A: Yes. Put one site per row on `ProjectData` (row 1 = headers). In Streamlit choose **All N sites (batch zip)** or use `python scripts\render_cli.py --all-rows`. Optional: add `site_name` or `project_number` on `LabResults` / `DrillingWaste` rows to link table data per site.
 
 **Q: Phase 1 vs Phase 2?**  
 A: Phase 2 requires `LabResults`. Phase 1 does not.

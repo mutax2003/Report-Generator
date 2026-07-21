@@ -15,11 +15,52 @@ from deliverable_pack import enrich_manifest_dict
 from provenance import GenerationRecord, record_filename, sha256_hex
 
 APPENDIX_LABELS = ("A", "B", "C", "D", "E", "F", "G", "H")
+PHASE1_ONESTOP_APPENDIX_LABELS = ("B", "C", "E", "F", "H")
+AUTO_GENERATED_LABELS = frozenset({"A", "D", "G"})
 PDF_MIME = "application/pdf"
 DOCX_MIME = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
 ZIP_MIME = "application/zip"
+
+
+def _mark_deliverable_download() -> None:
+    st.session_state.ux_deliverable_download_clicked = True
+
+
+def generated_appendix_labels() -> set[str]:
+    """Uppercase labels of auto-generated appendices in session."""
+    return {
+        ap.label.upper()
+        for ap in (st.session_state.get("generated_appendices") or [])
+        if getattr(ap, "source", "") == "generated"
+    }
+
+
+def first_missing_onestop_label(
+    uploaded: set[str],
+    predicted: set[str],
+) -> str | None:
+    """First B/C/E/F/H label not uploaded and not auto-generated."""
+    for label in PHASE1_ONESTOP_APPENDIX_LABELS:
+        if label not in uploaded and label not in predicted:
+            return label
+    return None
+
+
+def appendix_package_caption() -> str | None:
+    """Summary line for deliverable package appendix counts."""
+    appendices = all_appendices_from_session()
+    if not appendices:
+        return None
+    gen_n = sum(1 for a in appendices if a.source == "generated")
+    up_n = len(appendices) - gen_n
+    parts: list[str] = []
+    if gen_n:
+        parts.append(f"{gen_n} generated")
+    if up_n:
+        parts.append(f"{up_n} uploaded")
+    return f"{len(appendices)} appendix file(s) in package ({', '.join(parts)})."
 
 
 def appendix_labels_from_session() -> set[str]:
@@ -81,44 +122,100 @@ def render_appendix_step(
     """Step-level appendix uploader (Report tab main path)."""
     _init_appendix_state()
     if show_header:
-        st.caption(
-            "Upload PDF appendices for the deliverable package (Phase I: B, C, E, F, H). "
-            "Auto-generated A, D, G are included when you generate."
+        render_section_header(
+            "For OneStop, you typically need **B, C, E, F, H** as PDFs. "
+            "**A, D, G** are auto-generated from Excel when you generate."
         )
     store: dict[str, AppendixFile] = st.session_state.appendix_files
     has_uploads = bool(store)
+    generated_labels = {
+        ap.label.upper() for ap in (st.session_state.get("generated_appendices") or [])
+    }
     if expanded is None:
         expanded = report_type == "phase1_alberta" or has_uploads
 
-    with st.expander("Appendices (PDF uploads)", expanded=expanded):
-        st.caption(
-            "Upload PDF appendices **B, C, E, F, H** (and others as needed). "
-            "Appendices **A, D, and G** can be auto-generated from Excel when you generate. "
-            "Included in the deliverable package at step 4."
-        )
+    with st.expander("Appendices (optional PDF uploads)", expanded=expanded):
+        _render_appendix_checklist_row(store, generated_labels)
+        st.divider()
         for label in APPENDIX_LABELS:
-            uploaded = st.file_uploader(
-                f"Appendix {label} (PDF)"
-                + (" — auto-generated if empty" if label in ("D", "G") else ""),
-                type=["pdf"],
-                key=f"appendix_upload_{label}",
-                accept_multiple_files=False,
-            )
-            if uploaded is not None:
-                data = cached_upload_bytes(uploaded, slot=f"appendix_{label}") or b""
-                store[label] = AppendixFile(
-                    label=label,
-                    data=data,
-                    filename=uploaded.name or f"appendix_{label}.pdf",
-                    format="pdf",
-                    source="uploaded",
+            kind, short = _appendix_status(label, store, generated_labels)
+            hint = ""
+            if label in AUTO_GENERATED_LABELS:
+                hint = " — auto-generated from Excel if empty"
+            with st.expander(f"Appendix {label} — {short}{hint}", expanded=False):
+                uploaded = st.file_uploader(
+                    f"Upload Appendix {label} (PDF)",
+                    type=["pdf"],
+                    key=f"appendix_upload_{label}",
+                    accept_multiple_files=False,
+                    label_visibility="collapsed",
                 )
-            elif label in store:
-                del store[label]
+                if uploaded is not None:
+                    data = cached_upload_bytes(uploaded, slot=f"appendix_{label}") or b""
+                    from security import SecurityError, user_safe_error, validate_appendix_pdf_upload
+
+                    try:
+                        validate_appendix_pdf_upload(
+                            data, uploaded.name or f"appendix_{label}.pdf"
+                        )
+                    except SecurityError as exc:
+                        st.error(user_safe_error(exc))
+                        if label in store:
+                            del store[label]
+                    else:
+                        store[label] = AppendixFile(
+                            label=label,
+                            data=data,
+                            filename=uploaded.name or f"appendix_{label}.pdf",
+                            format="pdf",
+                            source="uploaded",
+                        )
+                elif label in store:
+                    del store[label]
         if st.button("Clear all appendices", width="stretch", key="clear_appendix_step"):
             st.session_state.appendix_files = {}
             st.rerun()
     return list(store.values())
+
+
+def render_section_header(caption: str) -> None:
+    st.caption(caption)
+
+
+def _appendix_status(
+    label: str,
+    store: dict[str, AppendixFile],
+    generated_labels: set[str],
+) -> tuple[str, str]:
+    """Return (badge_kind, short_label) for OneStop appendix status."""
+    if label in store:
+        return "ok", "uploaded"
+    if label in generated_labels:
+        return "ok", "generated"
+    if label in AUTO_GENERATED_LABELS:
+        return "info", "auto on Generate"
+    if label in PHASE1_ONESTOP_APPENDIX_LABELS:
+        return "warn", "missing"
+    return "muted", "optional"
+
+
+def _render_appendix_checklist_row(
+    store: dict[str, AppendixFile],
+    generated_labels: set[str],
+) -> None:
+    """OneStop-focused status row for B, C, E, F, H."""
+    from ui.branding import status_badge_html
+
+    st.markdown("**OneStop appendices**")
+    cols = st.columns(len(PHASE1_ONESTOP_APPENDIX_LABELS))
+    for col, label in zip(cols, PHASE1_ONESTOP_APPENDIX_LABELS):
+        with col:
+            kind, short = _appendix_status(label, store, generated_labels)
+            st.markdown(
+                f"**{label}**  \n{status_badge_html(kind, short)}",
+                unsafe_allow_html=True,
+            )
+    st.caption("A, D, G: auto-generated at Generate (expand individual rows to upload overrides).")
 
 
 def render_appendix_uploader() -> list[AppendixFile]:
@@ -126,25 +223,17 @@ def render_appendix_uploader() -> list[AppendixFile]:
     return render_appendix_step(expanded=False)
 
 
-def render_deliverable_downloads(
-    docx_bytes: bytes | None,
+def build_deliverable_zip_for_session(
+    docx_bytes: bytes,
     filename: str | None,
     generation_record: GenerationRecord | None,
     *,
     prepared_template: Any = None,
     render_context: dict | None = None,
     render_meta: dict | None = None,
-) -> None:
-    if not docx_bytes:
-        return
-
+) -> tuple[bytes, str]:
+    """Build (or retrieve cached) deliverable zip bytes and download filename."""
     appendices = all_appendices_from_session()
-    if not appendices and not generation_record:
-        return
-
-    render_generated_appendix_downloads()
-
-    st.subheader("Deliverable package")
     manifest_bytes = None
     manifest_name = record_filename(filename)
     fmt = ""
@@ -169,10 +258,13 @@ def render_deliverable_downloads(
         render_meta=render_meta,
         include_onestop_export=bool(render_context),
         converted_template_docx=(
-            prepared_template.docx_bytes if prepared_template and prepared_template.source_format == "pdf" else None
+            prepared_template.docx_bytes
+            if prepared_template and prepared_template.source_format == "pdf"
+            else None
         ),
         converted_template_name=(
-            (prepared_template.source_filename or "converted.docx").rsplit(".", 1)[0] + "_converted.docx"
+            (prepared_template.source_filename or "converted.docx").rsplit(".", 1)[0]
+            + "_converted.docx"
             if prepared_template and prepared_template.source_format == "pdf"
             else None
         ),
@@ -187,25 +279,5 @@ def render_deliverable_downloads(
     if st.session_state.get("_deliverable_zip_key") != cache_key:
         st.session_state._deliverable_zip_key = cache_key
         st.session_state._deliverable_zip_bytes = build_deliverable_zip(pkg)
-    zip_bytes = st.session_state._deliverable_zip_bytes
-    st.download_button(
-        "Download deliverable package (.zip)",
-        data=zip_bytes,
-        file_name=(filename or "esa_report").rsplit(".", 1)[0] + "_package.zip",
-        mime=ZIP_MIME,
-        width="stretch",
-        help="Contains report .docx, manifest JSON, appendices/, and onestop/ summary export.",
-    )
-
-    if appendices:
-        gen_n = sum(1 for a in appendices if a.source == "generated")
-        up_n = len(appendices) - gen_n
-        parts = []
-        if gen_n:
-            parts.append(f"{gen_n} generated")
-        if up_n:
-            parts.append(f"{up_n} uploaded")
-        st.caption(
-            f"{len(appendices)} appendix file(s) in package ({', '.join(parts)}). "
-            "Export generated .docx appendices to PDF in Word before OneStop upload."
-        )
+    zip_name = (filename or "esa_report").rsplit(".", 1)[0] + "_package.zip"
+    return st.session_state._deliverable_zip_bytes, zip_name

@@ -6,15 +6,20 @@ Derives appendix labels before Word merge so DWDA/SED enrichment matches uploade
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
 from appendix_generator import attach_appendices_to_record
 from compliance_helpers import normalize_appendix_labels, resolved_appendix_labels
-from deliverable_pack import AppendixFile, build_deliverable_zip_bytes
+from deliverable_pack import AppendixFile, build_deliverable_zip_bytes, enrich_manifest_dict
 from engine import BatchReportResult, ReportEngine
+from esa_logging import get_logger
 from provenance import GenerationRecord, apply_compliance_snapshot, sha256_hex
 from template_attachments import PreparedTemplate, prepare_template_upload_cached
+
+logger = get_logger(__name__)
 
 
 def appendix_labels_from_uploads(uploaded: list[AppendixFile] | None) -> frozenset[str]:
@@ -33,6 +38,8 @@ class RenderRequest:
     appendix_labels_present: set[str] | frozenset[str] | None = None
     include_appendices: bool = True
     include_coverage: bool = True
+    engine: ReportEngine | None = None
+    emit_audit: bool = True
 
 
 @dataclass
@@ -43,6 +50,7 @@ class RenderResult:
     appendices: list[AppendixFile] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     package_bytes: bytes | None = None
+    enriched_manifest_bytes: bytes | None = None
 
 
 def resolve_request_labels(req: RenderRequest) -> frozenset[str]:
@@ -51,14 +59,19 @@ def resolve_request_labels(req: RenderRequest) -> frozenset[str]:
     return appendix_labels_from_uploads(req.uploaded_appendices)
 
 
-def _prepare_engine(req: RenderRequest) -> tuple[dict[str, str], PreparedTemplate, frozenset[str], ReportEngine]:
+def _prepare_engine(
+    req: RenderRequest,
+) -> tuple[dict[str, str], PreparedTemplate, frozenset[str], ReportEngine]:
     meta = req.meta or {}
     prepared = prepare_template_upload_cached(req.template_bytes, req.template_filename)
     labels = resolve_request_labels(req)
-    engine = ReportEngine(
-        excel_bytes=req.excel_bytes,
-        template_bytes=prepared.docx_bytes,
-    )
+    if req.engine is not None:
+        engine = req.engine
+    else:
+        engine = ReportEngine(
+            excel_bytes=req.excel_bytes,
+            template_bytes=prepared.docx_bytes,
+        )
     return meta, prepared, labels, engine
 
 
@@ -95,13 +108,16 @@ def render_report(req: RenderRequest) -> RenderResult:
     appendices, all_warnings = _finalize_render(
         req, record, context, labels, list(prepared.warnings) + list(warnings)
     )
-    return RenderResult(
+    result = RenderResult(
         docx_bytes=docx_bytes,
         context=context,
         record=record,
         appendices=appendices,
         warnings=all_warnings,
     )
+    if req.emit_audit:
+        _maybe_audit_render(record, req.meta, event="render.report")
+    return result
 
 
 def render_batch_reports(req: RenderRequest) -> list[BatchReportResult]:
@@ -123,16 +139,54 @@ def render_batch_reports(req: RenderRequest) -> list[BatchReportResult]:
         )
         item.appendices = appendices
         item.warnings = all_warnings
+        if req.emit_audit:
+            _maybe_audit_render(item.record, req.meta, event="render.batch")
     return batch
 
 
 def render_deliverable_package(req: RenderRequest, *, report_filename: str) -> RenderResult:
     """Render report + appendices and build deliverable zip bytes."""
-    result = render_report(req)
+    # Single audit event on finalize (avoid duplicate render.report + deliverable).
+    result = render_report(
+        RenderRequest(
+            excel_bytes=req.excel_bytes,
+            template_bytes=req.template_bytes,
+            meta=req.meta,
+            excel_filename=req.excel_filename,
+            template_filename=req.template_filename,
+            project_row_index=req.project_row_index,
+            uploaded_appendices=req.uploaded_appendices,
+            appendix_labels_present=req.appendix_labels_present,
+            include_appendices=req.include_appendices,
+            include_coverage=req.include_coverage,
+            engine=req.engine,
+            emit_audit=False,
+        )
+    )
+    return finalize_deliverable_package(
+        result,
+        req,
+        report_filename=report_filename,
+    )
+
+
+def finalize_deliverable_package(
+    result: RenderResult,
+    req: RenderRequest,
+    *,
+    report_filename: str,
+    template_source_format: str = "",
+) -> RenderResult:
+    """Build deliverable zip on an existing RenderResult (no second Word merge)."""
     record = result.record
     record.output_filename = report_filename
     record.output_sha256 = sha256_hex(result.docx_bytes)
-    manifest_bytes = record.to_json_bytes()
+    rec_dict = enrich_manifest_dict(
+        record.to_dict(),
+        template_source_format=template_source_format,
+        appendices=result.appendices,
+    )
+    manifest_bytes = json.dumps(rec_dict, indent=2, sort_keys=True).encode("utf-8")
     result.package_bytes = build_deliverable_zip_bytes(
         result.docx_bytes,
         report_filename,
@@ -141,4 +195,34 @@ def render_deliverable_package(req: RenderRequest, *, report_filename: str) -> R
         manifest_bytes,
         result.appendices,
     )
+    result.enriched_manifest_bytes = manifest_bytes
+    _maybe_audit_render(record, req.meta, event="render.deliverable")
     return result
+
+
+def _maybe_audit_render(
+    record: GenerationRecord,
+    meta: dict[str, str] | None,
+    *,
+    event: str = "render.report",
+) -> None:
+    if os.environ.get("ESA_AUDIT_ENABLED", "").strip().lower() not in ("1", "true", "yes"):
+        return
+    try:
+        from audit_trail import append_audit_event
+
+        m = meta or {}
+        append_audit_event(
+            event,
+            actor=m.get("audit_actor") or m.get("prepared_by", ""),
+            tenant_id=m.get("tenant_id", ""),
+            resource=record.output_filename or "report.docx",
+            details={
+                "report_type": record.report_type,
+                "output_sha256": record.output_sha256 or "",
+                "warning_count": record.warning_count,
+                "prepared_by": m.get("prepared_by", ""),
+            },
+        )
+    except Exception as exc:
+        logger.warning("Audit trail append failed: %s", exc)

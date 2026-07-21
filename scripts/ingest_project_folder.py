@@ -59,6 +59,7 @@ def main() -> int:
             "enrich",
             "lab-pdf",
             "appendix-classify",
+            "apec-extract",
         ),
         help="Run AI advisory step(s); outputs go to ai_drafts/",
     )
@@ -163,6 +164,16 @@ def main() -> int:
             print("Note: no PDF files in source/ or appendices/", file=sys.stderr)
             return 0
         print(f"Wrote appendix classifications: {path}")
+    elif args.ai == "apec-extract":
+        from project_folder import apec_extract_for_folder
+
+        paths = apec_extract_for_folder(resolved, use_llm=use_llm)
+        if not paths:
+            print("Note: no APEC candidates from source/ PDFs", file=sys.stderr)
+            return 0
+        print(f"APEC extract wrote {len(paths)} file(s) to {resolved.ai_drafts_dir}")
+        for p in paths:
+            print(f"  - {p.name}")
 
     if args.render:
         outputs = render_project_folder(resolved, package=args.package)

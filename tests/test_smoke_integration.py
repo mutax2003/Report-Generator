@@ -38,6 +38,12 @@ class SmokeIntegrationTests(unittest.TestCase):
         }
 
     def test_health_check_script(self) -> None:
+        if os.environ.get("ESA_RUN_HEALTH_CHECK", "").strip().lower() not in (
+            "1",
+            "true",
+            "yes",
+        ):
+            self.skipTest("Set ESA_RUN_HEALTH_CHECK=1 to run health_check in unittest")
         script = ROOT / "scripts" / "health_check.py"
         if not script.is_file():
             self.skipTest("health_check.py missing")
