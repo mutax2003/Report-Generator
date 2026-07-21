@@ -1,12 +1,14 @@
-# ESA Report Generator — Python 3.10+ recommended
-# Direct dependencies (pinned). Full resolved tree: requirements.lock
+# ESA Report Generator — Python 3.11–3.12 recommended (Streamlit Community Cloud: select 3.12)
+# Direct dependencies. Full resolved tree: requirements.lock
 streamlit==1.56.0
 docxtpl==0.19.1
-pandas==3.0.2
+pandas==3.0.3
 openpyxl==3.1.5
 python-docx==1.1.2
 Jinja2==3.1.6
 openai==2.37.0
 pypdf==6.11.0
-cryptography==48.0.0
+cryptography>=43.0.0,<49
 pdf2docx==0.5.13
+# Explicit pin so Cloud gets a manylinux wheel (pdf2docx pulls this transitively)
+opencv-python-headless==4.10.0.84

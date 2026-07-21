@@ -165,7 +165,7 @@ Use this for a **public or invite-only** browser URL for pilot testers. Prefer D
 2. Open [share.streamlit.io](https://share.streamlit.io) → **New app**.
 3. Repository: `mutax2003/Report-Generator` · Branch: `master` · Main file: `app.py`.
 4. **Advanced settings:**
-   - Python **3.12**
+   - Python **3.12** (required — 3.13 can fail wheels for some deps)
    - Secrets (paste):
 
 ```toml
