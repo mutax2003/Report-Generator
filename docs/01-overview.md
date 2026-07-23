@@ -99,7 +99,7 @@ Primary Alberta Phase I workflow: [11-alberta-phase1-esa.md](11-alberta-phase1-e
 | `schemas/report_profiles.json` | **Canonical** recommended fields per profile |
 | `schemas/field_contract.json` | Legacy reference and AI tagger |
 | `samples/` | Committed demo and production-aligned fixtures |
-| `tests/` | Unit and integration tests (389 tests) |
+| `tests/` | Unit and integration tests (392 tests) |
 | `Dockerfile` | Container image for Streamlit |
 | `docs/` | This documentation set |
 

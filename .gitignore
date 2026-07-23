@@ -28,6 +28,9 @@ samples/phase1_devon_e2e_rendered_package.zip
 samples/groundwater_monitoring_rendered.docx
 samples/groundwater_monitoring_rendered_manifest.json
 samples/*_package.zip
+samples/*_rendered.docx
+samples/*_rendered_manifest.json
+samples/batch_cli.zip
 
 # Client reference PDFs (confidential)
 samples/*.pdf
@@ -59,3 +62,10 @@ user_test/*.xlsx
 Thumbs.db
 .idea/
 .vscode/
+
+# Local test / coverage noise
+.coverage
+coverage.xml
+htmlcov/
+verify_release.log
+*.log

@@ -183,7 +183,20 @@ GEMINI_API_KEY = "..."
 5. Deploy. Share the `*.streamlit.app` URL with testers.
 6. Tester path: **Excel + Word template** workflow → Load Alberta Phase I sample → Generate → download zip.
 
-**Notes:** Project-folder workflow is hidden when `ESA_HOSTED_MODE=1`. Do not commit real API keys. Community Cloud is fine for pilots; do not put client confidential site data on a public app without IT approval. Prefer **no** `packages.txt` unless a package truly needs apt (Cloud’s Debian mix often breaks glib/OpenCV system deps); `opencv-python-headless` is enough for `pdf2docx`.
+**Live smoke (2026-07-21):** App URL pattern `https://mutax2003-report-generator-app-ad7xpb.streamlit.app/` responds with hosted-mode picker (“This server uses the Excel + Word template workflow”). Confirm Advanced settings stay on Python **3.12** and secrets `ESA_HOSTED_MODE = "1"`. Treat PDF templates / multi-row batch as “may OOM on free Cloud” until proven. Note any **Manage app** reboot errors in the Streamlit dashboard.
+
+**Help on Cloud:** **F1** / **Help → Contents** opens a `file://` path on the *server* container — it does **not** work for testers in the browser. Use the in-app **Help & documentation** expander on the Report tab (or SharePoint Guides). Folder menu items (**Open project folder…**) are hidden when `ESA_HOSTED_MODE=1`.
+
+**Notes:** Project-folder workflow is hidden when `ESA_HOSTED_MODE=1`. Do not commit real API keys. **Community Cloud = sample / synthetic pilot data only** — no client-confidential uploads without IT. Prefer **no** `packages.txt` unless a package truly needs apt (Cloud’s Debian mix often breaks glib/OpenCV system deps); `opencv-python-headless` is enough for `pdf2docx`. Production client work → Docker / internal host + Entra (see [Hosting lock](#hosting-lock-after-pilot) below).
+
+## Hosting lock (after pilot)
+
+| Workload | Host | Auth / data |
+|----------|------|-------------|
+| Sample / synthetic pilot, UX feedback | Streamlit Community Cloud | Public or invite URL; **sample data only** |
+| Real client Phase I/II / confidential PDFs | Docker or Windows VM per this doc | Entra / VPN; run [17-server-update-runbook.md](17-server-update-runbook.md) once |
+
+Do not expand Community Cloud into a production client pipeline. Optional interim: Windows champion package (`dist\ESA-Report-Generator\` via `scripts/build_windows_deploy.ps1`) for offline champions if IT cannot host yet.
 
 ## HTTP render API (optional, same host)
 

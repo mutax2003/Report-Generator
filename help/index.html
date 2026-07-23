@@ -43,6 +43,7 @@ kbd {
 <h1>Start here — consultants</h1>
 <p>One-page path for **Ecoventure** staff generating Alberta Phase I or Phase II ESA reports. No Python knowledge required.</p>
 <h2>1. Open the app</h2>
+<p>**Desktop (local):**</p>
 <pre><code>
 cd &quot;Report Generator&quot;
 
@@ -57,10 +58,11 @@ streamlit run app.py
 
 </code></pre>
 <p>Browser: http://localhost:8501</p>
+<p>**Streamlit Community Cloud (pilot):** Open the shared `*.streamlit.app` URL. Use **Excel + Word template** only — **sample / synthetic data only** (no client-confidential uploads). Project-folder workflow is unavailable on Cloud. See <a href="14-deployment.md">14-deployment.md</a>.</p>
 <h2>2. Choose your workflow</h2>
-<p>On first open, pick one path:</p>
-<p>Use **Change** in the blue banner to switch workflows later. A **Welcome** card appears on first use — click **Got it** when you are ready.</p>
-<p>**Menus:** Use the **File / Edit / View / Tools / Help** bar under the header. Press **F1** for HTML help.</p>
+<p>On first open (desktop), pick one path:</p>
+<p>Use **Change** in the blue banner to switch workflows later (desktop). A **Welcome** card appears on first use — click **Got it** when you are ready.</p>
+<p>**Menus:** Use the **File / Edit / View / Tools / Help** bar under the header. On desktop, press **F1** for HTML help. On Cloud, **F1** does not open local help — use the Report tab **Help &amp; documentation** expander (or this guide on SharePoint).</p>
 <p>**First time?** In the sidebar, open **Sample templates** and click **Load Alberta Phase I sample into session**, then open the **Report** tab.</p>
 <h3>Excel + template path</h3>
 <h3>Project folder path</h3>
@@ -724,11 +726,15 @@ ui/ai_panel.py
 </section><section id="shortcuts">
 <h2 id="shortcuts">Keyboard shortcuts</h2>
 <p>The ESA Report Generator shows a Windows-style menu bar (File, Edit, View, Tools, Help).
-Press <strong>F1</strong> anytime to open this help file.</p>
+On a <strong>local desktop</strong> install, press <strong>F1</strong> to open this help file.
+On <strong>Streamlit Community Cloud</strong> (hosted mode), F1 cannot open local
+<code>file://</code> help — use the in-app <strong>Help &amp; documentation</strong>
+expander on the Report tab instead.</p>
 <table>
 <tr><th>Action</th><th>How</th></tr>
-<tr><td>Help contents</td><td><kbd>F1</kbd> (global) or Help → Contents</td></tr>
-<tr><td>Open / focus project folder</td><td>File menu</td></tr>
+<tr><td>Help contents (desktop)</td><td><kbd>F1</kbd> (global) or Help → Contents</td></tr>
+<tr><td>Help contents (Cloud)</td><td>Report tab → Help &amp; documentation expander</td></tr>
+<tr><td>Open / focus project folder</td><td>File menu (desktop only; hidden when hosted)</td></tr>
 <tr><td>Load Alberta Phase I sample</td><td>File menu</td></tr>
 <tr><td>Clear generated outputs</td><td>File menu</td></tr>
 <tr><td>Toggle Simple mode</td><td>Edit menu</td></tr>
@@ -736,7 +742,7 @@ Press <strong>F1</strong> anytime to open this help file.</p>
 </table>
 <p>Only <strong>F1</strong> is hooked globally in the browser. Use the menus for other actions.</p>
 </section>
-      <p class="footer">Created by Andrew Liu, Ecoventure Inc., Copyright 2026 · F1 opens this help from the app.</p>
+      <p class="footer">Created by Andrew Liu, Ecoventure Inc., Copyright 2026 · Desktop: F1 opens this help; Cloud: use in-app Help &amp; documentation.</p>
     </main>
   </div>
 </body>

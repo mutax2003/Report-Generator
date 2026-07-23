@@ -120,7 +120,7 @@ See [docs/12-testing-with-your-documents.md](docs/12-testing-with-your-documents
 | `.\scripts\build_windows_deploy.ps1 -BuildExe` | Windows portable folder + `ESA-Report-Generator.exe` |
 | `.\run.ps1 scripts\test_with_your_documents.py` | Same, via venv Python (Windows) |
 | `.\scripts\package_team_sharepoint.ps1` | Build `dist\team-sharepoint\` for SharePoint upload |
-| `python -m unittest discover -s tests -v` | Full test suite (**389 tests**, 4 may skip) |
+| `python -m unittest discover -s tests -v` | Full test suite (**392 tests**, 4 may skip) |
 | `python scripts\streamlit_smoke.py` | Streamlit AppTest smoke (workflow + folder load) |
 
 ## Automation
@@ -161,7 +161,7 @@ schemas/                report_profiles.json, field_contract.json, DWDA checklis
 samples/                Demo and production fixtures
 templates/ecoventure_dwda/  QP xltm/dotm templates (shipped in deliverable zip)
 docs/                   Full documentation
-tests/                  Unit and integration tests (389 tests)
+tests/                  Unit and integration tests (392 tests)
 Dockerfile              Container image for Streamlit
 ```
 

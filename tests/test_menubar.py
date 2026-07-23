@@ -79,6 +79,13 @@ class MenubarHelperTests(unittest.TestCase):
         from ui import menubar as mb
 
         with mock.patch.object(mb, "HELP_INDEX", ROOT / "help" / "__missing_help__.html"):
+            with mock.patch("ui.workflow_mode.hosted_mode_enabled", return_value=False):
+                self.assertFalse(mb.open_help_contents())
+
+    def test_open_help_contents_skips_on_hosted(self) -> None:
+        from ui import menubar as mb
+
+        with mock.patch("ui.workflow_mode.hosted_mode_enabled", return_value=True):
             self.assertFalse(mb.open_help_contents())
 
 
@@ -153,6 +160,46 @@ class StreamlitMenubarSmoke(unittest.TestCase):
         self.assertEqual(len(at.exception), 0, msg=str(at.exception))
         after = bool(self._session_get(at, "ux_simple_mode"))
         self.assertNotEqual(before, after)
+
+    def test_hosted_hides_folder_menu(self) -> None:
+        from streamlit.testing.v1 import AppTest
+
+        at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=60)
+        at.run()
+        # Inject hosted mode via secrets-like env before widgets re-run.
+        import os
+
+        os.environ["ESA_HOSTED_MODE"] = "1"
+        try:
+            at.run()
+            self.assertEqual(len(at.exception), 0, msg=str(at.exception))
+            labels = []
+            for attr in ("button", "popover"):
+                widgets = getattr(at, attr, None)
+                if widgets is None:
+                    continue
+                try:
+                    for w in widgets:
+                        labels.append(
+                            getattr(w, "label", None) or getattr(w, "value", None) or ""
+                        )
+                except TypeError:
+                    pass
+            joined = " ".join(str(x) for x in labels)
+            self.assertNotIn("Open project folder", joined)
+            self.assertIn("Load Alberta Phase I sample", joined)
+            # Hosted picker is upload-only.
+            markdown = " ".join(m.value or "" for m in at.markdown)
+            captions = " ".join(getattr(c, "value", "") or "" for c in at.caption)
+            self.assertTrue(
+                "Excel + Word template" in joined
+                or "Excel + Word template" in markdown
+                or "Excel + Word template" in captions
+                or any("Excel + template" in str(x) for x in labels),
+                f"Expected hosted upload picker (got {labels!r})",
+            )
+        finally:
+            os.environ.pop("ESA_HOSTED_MODE", None)
 
 
 if __name__ == "__main__":

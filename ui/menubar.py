@@ -39,7 +39,16 @@ def help_index_uri() -> str | None:
 
 
 def open_help_contents(*, anchor: str = "") -> bool:
-    """Open packaged HTML help in the default browser (Windows-friendly)."""
+    """Open packaged HTML help in the default browser (Windows-friendly).
+
+    On Streamlit Community Cloud / hosted servers, ``file://`` URIs point at the
+    remote container and do not open for the tester — callers should show the
+    in-app Help expander hint instead (see ``process_menubar_actions``).
+    """
+    from ui.workflow_mode import hosted_mode_enabled
+
+    if hosted_mode_enabled():
+        return False
     uri = help_index_uri()
     if not uri:
         return False
@@ -91,10 +100,17 @@ def _pending(key: str) -> bool:
 
 def process_menubar_actions() -> None:
     """Apply deferred menu actions early in the page (before main widgets)."""
+    from ui.workflow_mode import hosted_mode_enabled
+
+    hosted = hosted_mode_enabled()
+
     if _pending("menu_open_help"):
-        ensure_help_built()
-        if not open_help_contents():
-            st.session_state["menu_help_missing"] = True
+        if hosted:
+            st.session_state["menu_help_hosted"] = True
+        else:
+            ensure_help_built()
+            if not open_help_contents():
+                st.session_state["menu_help_missing"] = True
 
     if _pending("menu_show_shortcuts"):
         st.session_state["menu_shortcuts_open"] = True
@@ -143,11 +159,16 @@ def process_menubar_actions() -> None:
         # No st.rerun() — caller processes actions before reading workflow mode.
 
     if _pending("menu_focus_folder"):
-        st.session_state["workflow_mode"] = "folder"
-        st.session_state["menu_highlight_folder_path"] = True
-        st.session_state["menu_action_toast"] = (
-            "Switched to project folder — paste a path or click Browse…"
-        )
+        if hosted:
+            st.session_state["menu_action_toast"] = (
+                "Project folder is unavailable on this hosted server — use Excel + template upload."
+            )
+        else:
+            st.session_state["workflow_mode"] = "folder"
+            st.session_state["menu_highlight_folder_path"] = True
+            st.session_state["menu_action_toast"] = (
+                "Switched to project folder — paste a path or click Browse…"
+            )
 
     if _pending("menu_restore_checklist"):
         st.session_state["ux_checklist_dismissed"] = False
@@ -164,16 +185,27 @@ def _menu_item(label: str, shortcut: str, pending_key: str, *, key: str) -> None
 
 def render_menubar(*, folder_mode: bool = False) -> None:
     """Render File / Edit / View / Tools / Help menubar under the app header."""
+    from ui.workflow_mode import hosted_mode_enabled
+
+    hosted = hosted_mode_enabled()
+
     # Cheap: mark ready if help exists; build only when Help is opened or F1 needs URI.
     if HELP_INDEX.is_file():
         st.session_state["_help_pack_ready"] = True
-    elif not st.session_state.get("_help_build_attempted"):
+    elif not hosted and not st.session_state.get("_help_build_attempted"):
         st.session_state["_help_build_attempted"] = True
         ensure_help_built()
 
     toast = st.session_state.pop("menu_action_toast", None)
     if toast:
         st.toast(toast)
+
+    if st.session_state.pop("menu_help_hosted", False):
+        st.info(
+            "**F1 / Help → Contents** opens local `file://` help on the server, which "
+            "does not work in Streamlit Community Cloud. Use the in-app "
+            "**Help & documentation** expander on the Report tab instead."
+        )
 
     if st.session_state.pop("menu_help_missing", False):
         st.warning(
@@ -189,20 +221,22 @@ def render_menubar(*, folder_mode: bool = False) -> None:
     with c_file:
         with st.popover("File", use_container_width=True):
             st.caption("File")
-            if not folder_mode:
-                _menu_item(
-                    "Open project folder…",
-                    SHORTCUTS["file_open_folder"],
-                    "menu_focus_folder",
-                    key="menu_file_open_folder",
-                )
-            else:
-                _menu_item(
-                    "Focus folder path",
-                    SHORTCUTS["file_open_folder"],
-                    "menu_focus_folder",
-                    key="menu_file_focus_folder",
-                )
+            # Local folder paths are unavailable on Cloud / Docker hosted mode.
+            if not hosted:
+                if not folder_mode:
+                    _menu_item(
+                        "Open project folder…",
+                        SHORTCUTS["file_open_folder"],
+                        "menu_focus_folder",
+                        key="menu_file_open_folder",
+                    )
+                else:
+                    _menu_item(
+                        "Focus folder path",
+                        SHORTCUTS["file_open_folder"],
+                        "menu_focus_folder",
+                        key="menu_file_focus_folder",
+                    )
             _menu_item(
                 "Load Alberta Phase I sample",
                 SHORTCUTS["file_load_sample"],
@@ -216,12 +250,13 @@ def render_menubar(*, folder_mode: bool = False) -> None:
                 "menu_clear_outputs",
                 key="menu_file_clear",
             )
-            _menu_item(
-                "Change workflow…",
-                "",
-                "menu_change_workflow",
-                key="menu_file_workflow",
-            )
+            if not hosted:
+                _menu_item(
+                    "Change workflow…",
+                    "",
+                    "menu_change_workflow",
+                    key="menu_file_workflow",
+                )
 
     with c_edit:
         with st.popover("Edit", use_container_width=True):
@@ -257,7 +292,8 @@ def render_menubar(*, folder_mode: bool = False) -> None:
                     'Open the **AI tools** tab above for tagger, lab/APEC extract, and Apply drafts.'
                 )
                 st.rerun()
-            st.caption("Analyze folder is on the project-folder step.")
+            if not hosted:
+                st.caption("Analyze folder is on the project-folder step.")
 
     with c_help:
         with st.popover("Help", use_container_width=True):
@@ -283,12 +319,37 @@ def render_menubar(*, folder_mode: bool = False) -> None:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    _inject_f1_help_listener()
-    _render_menu_dialogs()
+    _inject_f1_help_listener(hosted=hosted)
+    _render_menu_dialogs(hosted=hosted)
 
 
-def _inject_f1_help_listener() -> None:
-    """F1 opens packaged help in a new browser tab (does not alter Streamlit session)."""
+def _inject_f1_help_listener(*, hosted: bool = False) -> None:
+    """F1 opens packaged help locally; on hosted Cloud, show an in-browser tip instead."""
+    if hosted:
+        st.html(
+            """
+<script>
+(function() {
+  const handler = function(e) {
+    if (e.key === 'F1') {
+      e.preventDefault();
+      window.alert(
+        'F1 local help is not available on Streamlit Community Cloud. ' +
+        'Open the Help & documentation expander on the Report tab.'
+      );
+    }
+  };
+  const doc = window.parent.document;
+  doc.removeEventListener('keydown', window.__esaF1Help);
+  window.__esaF1Help = handler;
+  doc.addEventListener('keydown', handler);
+})();
+</script>
+""",
+            unsafe_allow_javascript=True,
+        )
+        return
+
     uri = help_index_uri() or ""
     safe = uri.replace("\\", "\\\\").replace("'", "\\'")
     st.html(
@@ -315,16 +376,26 @@ def _inject_f1_help_listener() -> None:
     )
 
 
-def _render_menu_dialogs() -> None:
+def _render_menu_dialogs(*, hosted: bool = False) -> None:
     if st.session_state.pop("menu_shortcuts_open", False):
+        folder_row = (
+            ""
+            if hosted
+            else "| Open / focus project folder | **File** menu |\n"
+        )
+        help_row = (
+            "| Help contents | In-app **Help & documentation** expander "
+            "(F1 `file://` help is unavailable on Cloud) |"
+            if hosted
+            else "| Help contents | **F1** (global) or **Help → Contents** |"
+        )
         with st.expander("Keyboard shortcuts", expanded=True):
             st.markdown(
-                """
+                f"""
 | Action | How |
 |--------|-----|
-| Help contents | **F1** (global) or **Help → Contents** |
-| Open / focus project folder | **File** menu |
-| Load Alberta Phase I sample | **File** menu |
+{help_row}
+{folder_row}| Load Alberta Phase I sample | **File** menu |
 | Clear generated outputs | **File** menu |
 | Toggle Simple mode | **Edit** menu |
 | Glossary | **View** menu |

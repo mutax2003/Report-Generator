@@ -395,9 +395,16 @@ def _render_report_tab(
         render_glossary_expander()
 
     with st.expander("Help & documentation", expanded=False):
+        from ui.workflow_mode import hosted_mode_enabled
+
+        if hosted_mode_enabled():
+            st.caption(
+                "On Streamlit Community Cloud, **F1 / Help → Contents** cannot open local "
+                "`file://` help. Use the links below (or SharePoint Guides)."
+            )
         folder_doc = (
             "| Project folder | [docs/22-project-folder-workflow.md](docs/22-project-folder-workflow.md) |\n"
-            if folder_mode
+            if folder_mode and not hosted_mode_enabled()
             else ""
         )
         st.markdown(

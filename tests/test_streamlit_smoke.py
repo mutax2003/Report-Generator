@@ -111,6 +111,47 @@ class StreamlitSmokeTests(unittest.TestCase):
         self.assertIn("Your report is ready", self._markdown_text(at))
         self.assertTrue(self._session_get(at, "generation_record"), "Expected generation_record")
 
+    def test_hosted_golden_path_generate_deliverable_zip(self) -> None:
+        """Cloud-like path: ESA_HOSTED_MODE=1 → upload-only → sample → Generate → zip."""
+        import os
+
+        from streamlit.testing.v1 import AppTest
+
+        os.environ["ESA_HOSTED_MODE"] = "1"
+        try:
+            at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=120)
+            at.run()
+            self._assert_no_exceptions(at)
+            at.button(key="pick_workflow_upload").click().run()
+            self._assert_no_exceptions(at)
+            self.assertEqual(at.session_state["workflow_mode"], "upload")
+            labels = []
+            for attr in ("button", "popover"):
+                widgets = getattr(at, attr, None)
+                if widgets is None:
+                    continue
+                try:
+                    for w in widgets:
+                        labels.append(
+                            getattr(w, "label", None) or getattr(w, "value", None) or ""
+                        )
+                except TypeError:
+                    pass
+            joined = " ".join(str(x) for x in labels)
+            self.assertNotIn("Open project folder", joined)
+
+            at = self._click_load_alberta_sample(at)
+            at.button(key="ux_welcome_dismiss").click().run()
+            self._assert_no_exceptions(at)
+            at.button(key="generate_report_btn").click().run()
+            self._assert_no_exceptions(at)
+            self.assertTrue(self._session_get(at, "generated_docx"))
+            zip_bytes = self._session_get(at, "deliverable_zip_bytes")
+            self.assertTrue(zip_bytes and zip_bytes.startswith(b"PK"))
+            self.assertIn("Your report is ready", self._markdown_text(at))
+        finally:
+            os.environ.pop("ESA_HOSTED_MODE", None)
+
     def test_folder_workflow_loads_test_folder(self) -> None:
         from streamlit.testing.v1 import AppTest
 

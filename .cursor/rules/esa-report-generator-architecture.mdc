@@ -44,7 +44,7 @@ Full sheet inventory: [`EXCEL_LAYOUT.txt`](EXCEL_LAYOUT.txt) and [`schemas/repor
 
 **Report profiles (7):** `phase1_alberta`, `phase1_devon`, `phase2_esa`, `groundwater_monitoring`, `reclamation_certificate`, `phase3_remediation`, `template_driven` — see [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md).
 
-**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (**389 tests**, 4 may skip) · regression: `python scripts\health_check.py` (**18 checks**, incl. HTML help pack)
+**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (**392 tests**, 4 may skip) · regression: `python scripts\health_check.py` (**18 checks**, incl. HTML help pack)
 
 **Multiple-choice phrases:** [`schemas/phrase_catalog.json`](schemas/phrase_catalog.json) · Excel `PhraseCatalog` sheet · Streamlit **Standard phrases** panel · see [docs/04-template-authoring.md](docs/04-template-authoring.md)
 
@@ -52,7 +52,7 @@ Full sheet inventory: [`EXCEL_LAYOUT.txt`](EXCEL_LAYOUT.txt) and [`schemas/repor
 
 ## Product objective
 
-Web-based **Environmental Report Generation Engine**: Excel + Word or PDF template (upload or local project folder) → **primary deliverable zip** (rendered `.docx` + appendices/manifest) across **multi-profile** report types (Phase I/II ESA, groundwater, reclamation, Phase III remediation, template-driven).
+Web-based **Environmental Report Generation Engine**: Excel + Word or PDF template (upload or local project folder) → **primary deliverable zip** (rendered `.docx` + appendices/manifest) across **multi-profile** report types (Phase I/II ESA, groundwater, reclamation, Phase III remediation, template-driven). On shared hosts, `ESA_HOSTED_MODE=1` disables the project-folder workflow (details: [esa-streamlit-ui.mdc](esa-streamlit-ui.mdc), [esa-security-uploads.mdc](esa-security-uploads.mdc)); Community Cloud — prefer no `packages.txt`, sample data only — see [docs/14-deployment.md](../../docs/14-deployment.md).
 
 ## Tech stack
 
@@ -89,7 +89,7 @@ Summary: workflow picker → uploads or project folder → **Report** tab (next 
 
 ## Repo inventory
 
-Canonical module index: [AGENTS.md](AGENTS.md) **Key modules**. Deploy package includes `help/index.html` (F1) via `scripts/build_help.py` + `scripts/build_windows_deploy.ps1`. Also: `EXCEL_LAYOUT.txt`, `JINJA2_CHEATSHEET.txt`, `Dockerfile`, [docs/14-deployment.md](docs/14-deployment.md), [docs/15-power-automate-guide.md](docs/15-power-automate-guide.md).
+Canonical module index: [AGENTS.md](AGENTS.md) **Key modules**. Deploy package includes `help/index.html` (F1) via `scripts/build_help.py` + `scripts/build_windows_deploy.ps1`. Also: `EXCEL_LAYOUT.txt`, `JINJA2_CHEATSHEET.txt`, `Dockerfile`, [docs/14-deployment.md](docs/14-deployment.md) (Community Cloud + Hosting lock; AGENTS Run table has Cloud row), [docs/15-power-automate-guide.md](docs/15-power-automate-guide.md).
 
 ## Agent guidance
 

@@ -59,11 +59,30 @@ Deploy using [14-deployment.md](14-deployment.md) (Docker, VM, or Azure Containe
 
 | Step | Action |
 |------|--------|
-| 1 | Deploy internal app to pilot URL (can be same host, restricted group in Entra) |
-| 2 | Select pilot users: one Phase I, one Phase II, one template author, one QA |
+| 1 | Deploy pilot URL — Community Cloud for **sample-data-only** UX, or internal host with Entra for real site files |
+| 2 | Select pilot users: one Phase I, one Phase II (optional), one template author, one QA |
 | 3 | Each pilot runs: **Load Alberta Phase I sample** → Generate → **Download deliverable package (.zip)**; save manifest JSON |
 | 4 | Collect feedback: next-steps card clarity, OneStop checklist, PDF templates, batch mode |
 | 5 | Run `python scripts\health_check.py` on server after any template change |
+
+**Cloud / public URL briefing (copy for Teams):**
+
+```
+ESA Report Generator — pilot (sample data only)
+
+App: [*.streamlit.app URL]
+SharePoint gold templates: [library link] → Templates/Alberta Phase I
+
+Path (under 5 min): Continue with Excel + template → File → Load Alberta Phase I sample
+→ Report tab → pre-flight → Generate → Download deliverable package (.zip)
+
+Rules:
+• Upload ONLY the Alberta sample (or synthetic training data). No client-confidential Excel/PDFs on Cloud.
+• Help: use in-app “Help & documentation” (F1 local help does not work on Cloud).
+• Real client work waits for the internal Docker/Entra host (see docs/14-deployment.md).
+
+Exit: sample → zip <5 min; ≤2 “which download?” questions; template owner signs off gold pair.
+```
 
 **Pilot exit criteria:**
 
@@ -72,8 +91,10 @@ Deploy using [14-deployment.md](14-deployment.md) (Docker, VM, or Azure Containe
 - [ ] First deliverable zip from **Load sample** in under 5 minutes unaided (per pilot)
 - [ ] At most 2 “which download button?” support questions per pilot user
 - [ ] Template owner signed off Alberta Phase I sample pair
+- [ ] Pilots briefed that **Cloud = sample data only** (no client confidential uploads)
 - [ ] No blocking security findings from [07-security-and-deployment.md](07-security-and-deployment.md)
-- [ ] Update runbook tested once on server
+- [ ] Hosting lock agreed: Cloud stays sample-only; production → Docker/Entra ([14-deployment.md](14-deployment.md#hosting-lock-after-pilot))
+- [ ] Update runbook tested once on **internal** server (when production host exists)
 
 ### Full team (~50 users)
 

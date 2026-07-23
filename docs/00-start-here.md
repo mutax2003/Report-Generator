@@ -4,6 +4,8 @@ One-page path for **Ecoventure** staff generating Alberta Phase I or Phase II ES
 
 ## 1. Open the app
 
+**Desktop (local):**
+
 ```powershell
 cd "Report Generator"
 .\run.ps1 streamlit
@@ -18,18 +20,20 @@ streamlit run app.py
 
 Browser: http://localhost:8501
 
+**Streamlit Community Cloud (pilot):** Open the shared `*.streamlit.app` URL. Use **Excel + Word template** only — **sample / synthetic data only** (no client-confidential uploads). Project-folder workflow is unavailable on Cloud. See [14-deployment.md](14-deployment.md).
+
 ## 2. Choose your workflow
 
-On first open, pick one path:
+On first open (desktop), pick one path:
 
 | Choice | When to use |
 |--------|-------------|
-| **Project folder + AI** | You have a local site folder (`project_data.xlsx`, `template.docx`, `source/`, `appendices/`, …). Optional AI drafts go to `ai_drafts/`. |
-| **Excel + Word template** | Upload `.xlsx` + `.docx`/`.pdf` directly — **recommended for first report**. |
+| **Project folder + AI** | Local desktop only — site folder (`project_data.xlsx`, `template.docx`, `source/`, `appendices/`, …). Optional AI drafts go to `ai_drafts/`. |
+| **Excel + Word template** | Upload `.xlsx` + `.docx`/`.pdf` — **recommended for first report** and **required on Cloud**. |
 
-Use **Change** in the blue banner to switch workflows later. A **Welcome** card appears on first use — click **Got it** when you are ready.
+Use **Change** in the blue banner to switch workflows later (desktop). A **Welcome** card appears on first use — click **Got it** when you are ready.
 
-**Menus:** Use the **File / Edit / View / Tools / Help** bar under the header. Press **F1** for HTML help.
+**Menus:** Use the **File / Edit / View / Tools / Help** bar under the header. On desktop, press **F1** for HTML help. On Cloud, **F1** does not open local help — use the Report tab **Help & documentation** expander (or this guide on SharePoint).
 
 **First time?** In the sidebar, open **Sample templates** and click **Load Alberta Phase I sample into session**, then open the **Report** tab.
 

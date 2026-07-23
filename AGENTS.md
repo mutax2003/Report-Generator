@@ -61,8 +61,9 @@ Or: `.\run.ps1 scripts\create_samples.py` (uses venv Python on Windows).
 | SharePoint bundle | `.\scripts\package_team_sharepoint.ps1` |
 | Team Docker host | `docker compose up -d --build` (see [docs/14-deployment.md](docs/14-deployment.md)) |
 | Windows deploy package | `.\scripts\build_windows_deploy.ps1 -BuildExe` → `dist\ESA-Report-Generator\` |
-| Unit tests | `python -m unittest discover -s tests -v` (**389 tests**, 4 may skip; see [docs/08-testing.md](docs/08-testing.md)) |
-| HTML help pack | `python scripts\build_help.py` → `help/index.html` (**F1** / Help → Contents) |
+| Unit tests | `python -m unittest discover -s tests -v` (**392 tests**, 4 may skip; see [docs/08-testing.md](docs/08-testing.md)) |
+| HTML help pack | `python scripts\build_help.py` → `help/index.html` (**F1** / Help → Contents locally; on Cloud use in-app Help — [docs/14-deployment.md](docs/14-deployment.md)) |
+| Streamlit Community Cloud | Python 3.12 + secrets `ESA_HOSTED_MODE=1`; sample data only; F1 `file://` broken — see [docs/14-deployment.md](docs/14-deployment.md) Hosting lock |
 | Streamlit AppTest smoke | `python scripts\streamlit_smoke.py` |
 | Optional browser smoke | `pip install -r requirements-dev.txt` then `python scripts\playwright_smoke.py` |
 | Devon sample pair | `python scripts\create_phase1_devon_pair.py` |

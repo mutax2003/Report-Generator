@@ -47,7 +47,7 @@ docker compose up -d --force-recreate
 | Check | Command / action |
 |-------|------------------|
 | Health script | `python scripts\health_check.py` → **18/18 passed** |
-| Unit tests | `python -m unittest discover -s tests -q` → **389 tests OK** (4 may skip) |
+| Unit tests | `python -m unittest discover -s tests -q` → **392 tests OK** (4 may skip) |
 | UI smoke | Open app URL → upload `samples/sample_data.xlsx` + `samples/sample_template.docx` → pre-flight → generate → download |
 | Version visible | Note git commit in Teams post: `git log -1 --oneline` |
 

@@ -49,7 +49,7 @@ Align with [docs/07-security-and-deployment.md](docs/07-security-and-deployment.
 | `ESA_DISABLE_RATE_LIMIT=1` | **Dev/tests only** — never set in production |
 | `ESA_JSON_LOG=1` | Structured JSON logs (`esa_logging.py`; Docker default) |
 | `ESA_LOG_LEVEL` | Log level (default `INFO`) |
-| `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` | Hide local project-folder workflow on shared hosts |
+| `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` | Hide local project-folder workflow on shared hosts (UI: [esa-streamlit-ui.mdc](esa-streamlit-ui.mdc) menubar + upload-only picker) |
 | `ESA_API_SERVICE_USER` | Server-side audit/actor identity for shared API keys |
 | `ESA_DEFAULT_ROLES` | Server-side roles (comma-separated); client roles ignored |
 | `ESA_REQUIRE_API_KEY` | Require API key even on localhost bind |

@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 # Canonical documented count — update when adding/removing tests.
-DOCUMENTED_TEST_COUNT = 389
+DOCUMENTED_TEST_COUNT = 392
 DOCUMENTED_SKIP_COUNT = 4
 DOCUMENTED_HEALTH_CHECK_COUNT = 18
 

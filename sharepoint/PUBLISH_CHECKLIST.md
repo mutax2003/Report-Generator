@@ -13,6 +13,7 @@ Use this when rolling out the ESA Report Generator to ~50 report authors. IT or 
 | Upload | SharePoint path | Notes |
 |--------|-----------------|-------|
 | `Guides/00-start-here.md` | Guides/ | Pin or link from Teams channel |
+| `PILOT-BRIEFING.txt` | Guides/ (and library root) | Cloud sample-only pilot kickoff |
 | `Guides/EXCEL_LAYOUT.txt` | Guides/ | Column reference |
 | `Guides/JINJA2_CHEATSHEET.txt` | Guides/ | Word tag reference |
 | `Guides/02-user-guide-streamlit.md` | Guides/ | Full UI workflow |
@@ -24,6 +25,15 @@ Use this when rolling out the ESA Report Generator to ~50 report authors. IT or 
 | `Templates/Production/*` | Templates/Phase II/ | Production samples |
 | `Templates/Demo/*` | Templates/Demo/ | Training only |
 
+## Gold Phase I pair (versioned)
+
+After packaging, confirm these files exist under `dist\team-sharepoint\Templates\Alberta_Phase1\`:
+
+- [ ] `phase1_alberta_data_v2.1.xlsx`
+- [ ] `phase1_alberta_template_v2.1.docx`
+
+Upload with those names (or bump `v2.1` → `v2.2` when you change content). Template owners sign off this pair before the pilot exit criteria in [docs/16-team-rollout.md](../docs/16-team-rollout.md).
+
 ## Teams channel post (copy/paste)
 
 ```
@@ -31,8 +41,10 @@ ESA Report Generator — templates and guides are on SharePoint:
 [link to library]
 
 • New authors: open Guides → 00-start-here.md
-• Alberta Phase I: use Templates/Alberta Phase I Excel + Word pair
-• App (generate reports): [internal URL when ready]
+• Alberta Phase I gold pair: Templates/Alberta Phase I → phase1_alberta_data_v2.1.xlsx + phase1_alberta_template_v2.1.docx
+• Pilot app (sample data ONLY): [*.streamlit.app URL] — Load Alberta sample → Generate → deliverable zip
+• Production / client work: wait for internal Docker + Entra host (not Cloud)
+• Help on Cloud: in-app Help & documentation expander (F1 does not open local help)
 • Questions: [template owner contact]
 ```
 

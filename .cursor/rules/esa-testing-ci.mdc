@@ -70,8 +70,14 @@ python scripts\playwright_smoke.py
 
 ## Conventions
 
-- Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates. Current count: verify with `python scripts\count_tests.py` (includes `test_onboarding`, `test_appendix_helpers`, `test_streamlit_smoke`, `test_menubar` UX cases).
+- Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates.
+- **Parity pins** (update with `scripts/count_tests.py` when adding/removing tests): **392 tests**, **4** may skip, **18** health checks. Always re-run `python scripts\count_tests.py` after suite changes.
+- UX AppTest coverage includes `test_onboarding`, `test_appendix_helpers`, `test_streamlit_smoke`, `test_menubar`.
+- **Hosted / Cloud regression:** keep green
+  - `tests/test_streamlit_smoke.py` → `test_hosted_golden_path_generate_deliverable_zip` (`ESA_HOSTED_MODE=1` → upload-only → Alberta sample → Generate → deliverable zip)
+  - `tests/test_menubar.py` → `test_hosted_hides_folder_menu`, `test_open_help_contents_skips_on_hosted`
 - Prefer **real fixtures** in `samples/` over huge inline ZIP bytes; use `unittest.SkipTest` when optional large files are absent.
+- **Artifacts — do not commit:** `.coverage`, `coverage.xml`, `htmlcov/`, `verify_release.log`, `out/`, `dist/`, `samples/*_rendered.docx`, `samples/*_rendered_manifest.json`, `samples/*_package.zip`, `samples/batch_cli.zip` (see root `.gitignore`).
 - **`ESA_VALIDATION_BYPASS=1`**: tests only — never document for production.
 - **`ESA_RUN_HEALTH_CHECK=1`**: enables the slow `test_smoke_integration` health path; CI runs `health_check.py` separately.
 - Help pack: UX / help / menubar changes must keep `scripts/build_help.py` → `help/index.html` green (health_check + windows-smoke).
