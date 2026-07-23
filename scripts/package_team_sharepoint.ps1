@@ -43,32 +43,68 @@ Copy-IfExists (Join-Path $Root "docs\18-groundwater-reports.md") (Join-Path $Out
 Copy-IfExists (Join-Path $Root "docs\19-charts-and-gis-embed.md") (Join-Path $Out "Guides\19-charts-and-gis-embed.md")
 
 # Pilot briefing (Cloud = sample-only)
+$cloudUrl = "https://mutax2003-report-generator-app-ad7xpb.streamlit.app/"
 $pilotBriefing = @"
-ESA Report Generator — 3–5 person pilot briefing
+ESA Report Generator - 3-5 person pilot briefing
 ================================================
 (Full exit criteria: Guides/16-team-rollout-for-admins.md)
 
-App (sample data ONLY): [paste *.streamlit.app URL]
-Settings required: Python 3.12 · secrets ESA_HOSTED_MODE = "1"
+App (sample data ONLY): $cloudUrl
+Settings required: Python 3.12 ; secrets ESA_HOSTED_MODE = "1"
+Pushed commit should include hosted menubar hide (no Open project folder on Cloud).
 
-Roles: Phase I author · Phase II (optional) · template owner · QA
+Roles: Phase I author ; Phase II (optional) ; template owner ; QA
 
 Path (<5 min):
-  1. Open app → Continue with Excel + template
-  2. File → Load Alberta Phase I sample
-  3. Report tab → pre-flight → Generate
+  1. Open app -> Continue with Excel + template
+  2. File -> Load Alberta Phase I sample
+  3. Report tab -> pre-flight -> Generate
   4. Download deliverable package (.zip)
 
 Rules:
-  • Cloud / public URL = sample or synthetic data only — no client-confidential uploads
-  • Help: in-app Help & documentation expander (F1 local help does not work on Cloud)
-  • Gold Excel/Word pair: Templates/Alberta_Phase1/*_v2.1.*
-  • Real client work → Docker / Entra host (docs/14-deployment.md Hosting lock)
+  - Cloud / public URL = sample or synthetic data only - no client-confidential uploads
+  - Help: in-app Help & documentation expander (F1 local help does not work on Cloud)
+  - Gold Excel/Word pair: Templates/Alberta_Phase1/*_v2.1.*
+  - Real client work -> Docker / Entra host (docs/14-deployment.md Hosting lock)
 
-Exit criteria: Guides/16-team-rollout-for-admins.md → Pilot exit criteria
+Exit criteria: Guides/16-team-rollout-for-admins.md -> Pilot exit criteria
 "@
-Set-Content -Path (Join-Path $Out "PILOT-BRIEFING.txt") -Value $pilotBriefing -Encoding UTF8
+Set-Content -Path (Join-Path $Out "PILOT-BRIEFING.txt") -Value $pilotBriefing -Encoding utf8
 Copy-Item -LiteralPath (Join-Path $Out "PILOT-BRIEFING.txt") -Destination (Join-Path $Out "Guides\PILOT-BRIEFING.txt") -Force
+
+$teamsPost = @"
+ESA Report Generator - pilot kickoff
+
+App (sample data ONLY): $cloudUrl
+SharePoint: [paste library link] -> Templates/Alberta Phase I + Guides
+
+Path (<5 min):
+1) Continue with Excel + template
+2) File -> Load Alberta Phase I sample
+3) Report -> pre-flight -> Generate -> Download deliverable package (.zip)
+
+Rules:
+- Upload ONLY the Alberta sample (or synthetic training data). No client-confidential files on Cloud.
+- Help: in-app Help & documentation on the Report tab (F1 does not work on Cloud).
+- Real client work waits for the internal Docker + Entra host.
+
+Questions: [template owner]
+"@
+Set-Content -Path (Join-Path $Out "TEAMS-POST.txt") -Value $teamsPost -Encoding utf8
+
+$opsHandoff = @"
+ESA Report Generator - ops handoff
+==================================
+Cloud: $cloudUrl
+Repo: https://github.com/mutax2003/Report-Generator
+
+1) share.streamlit.io -> Reboot after push; Python 3.12; ESA_HOSTED_MODE=1
+2) Smoke: Load Alberta sample -> Generate -> zip; File menu must NOT show Open project folder
+3) Upload this folder to SharePoint (see sharepoint/PUBLISH_CHECKLIST.md)
+4) Paste TEAMS-POST.txt into Teams
+5) After pilot feedback: Cloud stays sample-only; client work -> Docker/Entra (docs/14)
+"@
+Set-Content -Path (Join-Path $Out "OPS-HANDOFF.txt") -Value $opsHandoff -Encoding utf8
 
 # Versioned template samples (rename with your org version when publishing)
 Copy-IfExists (Join-Path $Root "samples\phase1_alberta_data.xlsx") (Join-Path $Out "Templates\Alberta_Phase1\phase1_alberta_data_v2.1.xlsx")
@@ -98,7 +134,7 @@ Upload this folder to your Microsoft 365 **Templates** or **ESA Reports** librar
 
 ## App URL
 
-- **Pilot (sample data only):** Streamlit Community Cloud ``*.streamlit.app`` URL — Alberta Phase I sample → Generate → zip. No client-confidential uploads.
+- **Pilot (sample data only):** ``https://mutax2003-report-generator-app-ad7xpb.streamlit.app/`` — Alberta Phase I sample → Generate → zip. No client-confidential uploads.
 - **Production:** Internal Docker/Entra host (see ``docs/14-deployment.md`` Hosting lock). Replace placeholder:
   ``https://esa-reports.YOURCOMPANY.internal``
 
