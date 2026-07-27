@@ -44,7 +44,7 @@ Full sheet inventory: [`EXCEL_LAYOUT.txt`](EXCEL_LAYOUT.txt) and [`schemas/repor
 
 **Report profiles (7):** `phase1_alberta`, `phase1_devon`, `phase2_esa`, `groundwater_monitoring`, `reclamation_certificate`, `phase3_remediation`, `template_driven` — see [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md).
 
-**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (**418 tests**, 4 may skip) · regression: `python scripts\health_check.py` (**18 checks**, incl. HTML help pack)
+**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (**420 tests**, 4 may skip) · regression: `python scripts\health_check.py` (**18 checks**, incl. HTML help pack)
 
 **Multiple-choice phrases:** [`schemas/phrase_catalog.json`](schemas/phrase_catalog.json) · Excel `PhraseCatalog` sheet · Streamlit **Standard phrases** panel · see [docs/04-template-authoring.md](docs/04-template-authoring.md)
 

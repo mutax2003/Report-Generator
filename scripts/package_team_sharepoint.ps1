@@ -41,6 +41,9 @@ Copy-IfExists (Join-Path $Root "BEST_PRACTICES.md") (Join-Path $Out "Guides\BEST
 Copy-IfExists (Join-Path $Root "docs\16-team-rollout.md") (Join-Path $Out "Guides\16-team-rollout-for-admins.md")
 Copy-IfExists (Join-Path $Root "docs\18-groundwater-reports.md") (Join-Path $Out "Guides\18-groundwater-reports.md")
 Copy-IfExists (Join-Path $Root "docs\19-charts-and-gis-embed.md") (Join-Path $Out "Guides\19-charts-and-gis-embed.md")
+Copy-IfExists (Join-Path $Root "docs\25-agent-folder-report.md") (Join-Path $Out "Guides\25-agent-folder-report.md")
+Copy-IfExists (Join-Path $Root "docs\26-alberta-prompt-library.md") (Join-Path $Out "Guides\26-alberta-prompt-library.md")
+Copy-IfExists (Join-Path $Root "docs\14-deployment.md") (Join-Path $Out "Guides\14-deployment-hosting.md")
 
 # Pilot briefing (Cloud = sample-only)
 $cloudUrl = "https://mutax2003-report-generator-app-ad7xpb.streamlit.app/"
@@ -105,6 +108,56 @@ Repo: https://github.com/mutax2003/Report-Generator
 5) After pilot feedback: Cloud stays sample-only; client work -> Docker/Entra (docs/14)
 "@
 Set-Content -Path (Join-Path $Out "OPS-HANDOFF.txt") -Value $opsHandoff -Encoding utf8
+
+$hostingLock = @"
+ESA Report Generator - HOSTING LOCK (agreed)
+============================================
+Date: $(Get-Date -Format "yyyy-MM-dd")
+Commit: see GitHub master (pilot close-out)
+
+| Workload | Host | Data |
+|----------|------|------|
+| Sample / synthetic pilot, UX feedback | Streamlit Community Cloud | Sample data ONLY |
+| Real client Phase I/II / confidential PDFs | Docker or Windows VM + Entra/VPN | Client project sites |
+
+Cloud URL (sample only): $cloudUrl
+Secrets: ESA_HOSTED_MODE = "1" ; Python 3.12 ; prefer no packages.txt
+
+DO NOT expand Community Cloud into a production client pipeline.
+See Guides/14-deployment-hosting.md section "Hosting lock (after pilot)".
+"@
+Set-Content -Path (Join-Path $Out "HOSTING-LOCK.txt") -Value $hostingLock -Encoding utf8
+Copy-Item -LiteralPath (Join-Path $Out "HOSTING-LOCK.txt") -Destination (Join-Path $Out "Guides\HOSTING-LOCK.txt") -Force
+
+$pilotExit = @"
+ESA Report Generator - pilot exit checklist (3-5 people)
+=======================================================
+App: $cloudUrl
+Full criteria: Guides/16-team-rollout-for-admins.md
+
+Per pilot user:
+[ ] Continue with Excel + template
+[ ] File -> Load Alberta Phase I sample
+[ ] Report -> pre-flight -> Generate
+[ ] Download deliverable package (.zip); save manifest if shown
+[ ] File menu has NO "Open project folder"
+[ ] Help usable via in-app Help / Help menu (F1 file:// not required)
+[ ] First zip under ~5 minutes unaided
+[ ] At most 2 "which download?" support questions
+
+Roll-up:
+[ ] All pilots completed zip download without IT help
+[ ] Template owner signed gold Phase I pair (Templates/Alberta_Phase1/*_v2.1.*)
+[ ] HOSTING-LOCK.txt acknowledged (Cloud = sample-only; client work = Docker/Entra)
+
+Agent pre-check ($(Get-Date -Format "yyyy-MM-dd")):
+[x] Working tree clean of sample noise
+[x] SharePoint pack regenerated (dist/team-sharepoint)
+[x] Cloud hosted picker + no folder menu verified in prior smoke
+[ ] Human pilots 1-5: fill rows above when complete
+"@
+Set-Content -Path (Join-Path $Out "PILOT-EXIT-CHECKLIST.txt") -Value $pilotExit -Encoding utf8
+Copy-Item -LiteralPath (Join-Path $Out "PILOT-EXIT-CHECKLIST.txt") -Destination (Join-Path $Out "Guides\PILOT-EXIT-CHECKLIST.txt") -Force
 
 # Versioned template samples (rename with your org version when publishing)
 Copy-IfExists (Join-Path $Root "samples\phase1_alberta_data.xlsx") (Join-Path $Out "Templates\Alberta_Phase1\phase1_alberta_data_v2.1.xlsx")

@@ -261,7 +261,11 @@ def run_preflight(
 
     scan: TemplateScan | None = None
     try:
-        scan = scan_template(template_bytes)
+        # Engine ctor already validated the ZIP; skip a second full inspect.
+        if engine is not None:
+            scan = scan_template_trusted(template_bytes)
+        else:
+            scan = scan_template(template_bytes)
         result.template_var_count = len(scan.root_vars)
         result.block_tag_count = len(scan.block_tags)
         result.split_tag_issues = scan.split_issues
@@ -276,7 +280,8 @@ def run_preflight(
 
     excel_meta: tuple[list[str], dict[str, str]] | None = None
     try:
-        excel_meta = read_excel_meta(excel_bytes)
+        digest = engine.excel_sha256() if engine is not None else None
+        excel_meta = read_excel_meta(excel_bytes, digest=digest)
         result.sheet_names = excel_meta[0]
     except Exception as e:
         result.errors.append(f"Could not read Excel: {e}")

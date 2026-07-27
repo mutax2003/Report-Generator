@@ -50,18 +50,8 @@ _PHRASE_SHEET_ORDER: list[str] = []
 _PHRASE_SHEET_MAX = 16
 
 
-def _parse_phrase_catalog_rows(excel_bytes: bytes) -> tuple[tuple[str, str, str], ...]:
-    if not excel_bytes or len(excel_bytes) < 100:
-        return ()
-    bio = io.BytesIO(excel_bytes)
-    try:
-        xl = pd.ExcelFile(bio, engine="openpyxl")
-    except Exception:
-        return ()
-    with xl:
-        if PHRASE_CATALOG_SHEET not in xl.sheet_names:
-            return ()
-        df = xl.parse(PHRASE_CATALOG_SHEET, header=0)
+def phrase_rows_from_dataframe(df: pd.DataFrame) -> tuple[tuple[str, str, str], ...]:
+    """Parse PhraseCatalog columns phrase_key, option_id, text from an open sheet."""
     if df.empty or len(df.columns) < 3:
         return ()
     rows: list[tuple[str, str, str]] = []
@@ -74,22 +64,53 @@ def _parse_phrase_catalog_rows(excel_bytes: bytes) -> tuple[tuple[str, str, str]
     return tuple(rows)
 
 
-def read_phrase_catalog_sheet(excel_bytes: bytes) -> dict[tuple[str, str], str]:
-    """
-    Load PhraseCatalog sheet: columns phrase_key, option_id, text.
-    Returns {(phrase_key, option_id): text}.
-    """
-    digest = hashlib.sha256(excel_bytes).hexdigest() if excel_bytes else ""
+def _parse_phrase_catalog_rows(excel_bytes: bytes) -> tuple[tuple[str, str, str], ...]:
+    if not excel_bytes or len(excel_bytes) < 100:
+        return ()
+    bio = io.BytesIO(excel_bytes)
+    try:
+        xl = pd.ExcelFile(bio, engine="openpyxl")
+    except Exception:
+        return ()
+    with xl:
+        if PHRASE_CATALOG_SHEET not in xl.sheet_names:
+            return ()
+        df = xl.parse(PHRASE_CATALOG_SHEET, header=0)
+    return phrase_rows_from_dataframe(df)
+
+
+def seed_phrase_sheet_cache(
+    digest: str, rows: tuple[tuple[str, str, str], ...]
+) -> None:
+    """Seed PhraseCatalog row cache when the workbook was already opened elsewhere."""
     if not digest:
-        return {}
-    rows = _PHRASE_SHEET_CACHE.get(digest)
-    if rows is None:
-        rows = _parse_phrase_catalog_rows(excel_bytes)
-        _PHRASE_SHEET_CACHE[digest] = rows
+        return
+    if digest not in _PHRASE_SHEET_CACHE:
         _PHRASE_SHEET_ORDER.append(digest)
         while len(_PHRASE_SHEET_ORDER) > _PHRASE_SHEET_MAX:
             old = _PHRASE_SHEET_ORDER.pop(0)
             _PHRASE_SHEET_CACHE.pop(old, None)
+    _PHRASE_SHEET_CACHE[digest] = rows
+
+
+def read_phrase_catalog_sheet(
+    excel_bytes: bytes, *, digest: str | None = None
+) -> dict[tuple[str, str], str]:
+    """
+    Load PhraseCatalog sheet: columns phrase_key, option_id, text.
+    Returns {(phrase_key, option_id): text}.
+
+    Pass ``digest`` (e.g. ReportEngine.excel_sha256()) to skip re-hashing large workbooks.
+    """
+    if not excel_bytes:
+        return {}
+    key = digest or hashlib.sha256(excel_bytes).hexdigest()
+    if not key:
+        return {}
+    rows = _PHRASE_SHEET_CACHE.get(key)
+    if rows is None:
+        rows = _parse_phrase_catalog_rows(excel_bytes)
+        seed_phrase_sheet_cache(key, rows)
     return {(k, o): t for k, o, t in rows}
 
 

@@ -72,7 +72,7 @@ python scripts\playwright_smoke.py
 ## Conventions
 
 - Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates.
-- **Parity pins** (update with `scripts/count_tests.py` when adding/removing tests): **418 tests**, **4** may skip, **18** health checks. Always re-run `python scripts\count_tests.py` after suite changes.
+- **Parity pins** (update with `scripts/count_tests.py` when adding/removing tests): **420 tests**, **4** may skip, **18** health checks. Always re-run `python scripts\count_tests.py` after suite changes.
 - UX AppTest coverage includes `test_onboarding`, `test_appendix_helpers`, `test_streamlit_smoke`, `test_menubar`.
 - **Hosted / Cloud regression:** keep green
   - `tests/test_streamlit_smoke.py` → `test_hosted_golden_path_generate_deliverable_zip` (`ESA_HOSTED_MODE=1` → upload-only → Alberta sample → Generate → deliverable zip)

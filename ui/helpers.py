@@ -299,7 +299,9 @@ def get_cached_report_engine(excel_bytes: bytes, template_bytes: bytes) -> Repor
     cache = st.session_state.setdefault("_report_engine_cache", {})
     if cache.get("key") != key:
         cache["key"] = key
-        cache["engine"] = ReportEngine(excel_bytes, template_bytes)
+        cache["engine"] = ReportEngine(
+            excel_bytes, template_bytes, inputs_validated=True
+        )
     return cache["engine"]
 
 

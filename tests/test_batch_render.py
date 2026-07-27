@@ -151,6 +151,32 @@ class TestBatchRender(unittest.TestCase):
             engine.project_row_count({"report_phase": "Phase 1"}), 1
         )
 
+    def test_indexed_filter_matches_linear(self) -> None:
+        from engine import (
+            _filter_records_for_project,
+            _filter_records_for_project_indexed,
+            _index_records_by_link_columns,
+        )
+
+        records = [
+            {"site_name": "Site Alpha", "analyte": "Benzene"},
+            {"site_name": "Site Beta", "analyte": "Toluene"},
+            {"site_name": "Site Alpha", "analyte": "Ethylbenzene"},
+        ]
+        project = {"site_name": "Site Alpha"}
+        indexes = _index_records_by_link_columns(records)
+        linear = _filter_records_for_project(records, project)
+        indexed = _filter_records_for_project_indexed(records, project, indexes)
+        self.assertEqual(linear, indexed)
+        self.assertEqual(len(indexed), 2)
+        self.assertEqual({r["analyte"] for r in indexed}, {"Benzene", "Ethylbenzene"})
+
+    def test_inputs_validated_skips_revalidate(self) -> None:
+        xlsx = (ROOT / "samples" / "sample_data.xlsx").read_bytes()
+        tpl = (ROOT / "samples" / "sample_template.docx").read_bytes()
+        engine = ReportEngine(xlsx, tpl, inputs_validated=True)
+        self.assertEqual(engine.project_row_count({"report_phase": "Phase 2"}), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

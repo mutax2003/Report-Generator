@@ -201,16 +201,32 @@ def clear_excel_meta_cache() -> None:
     _excel_meta_cache.clear()
 
 
-def read_excel_meta(excel_bytes: bytes) -> tuple[list[str], dict[str, str]]:
-    """One openpyxl pass: sheet names and optional ReportConfig key/value rows."""
-    digest = hashlib.sha256(excel_bytes).hexdigest()
-    hit = _excel_meta_cache.get(digest)
+def seed_excel_meta_cache(
+    digest: str, result: tuple[list[str], dict[str, str]]
+) -> None:
+    """Seed meta cache when the workbook was already opened elsewhere."""
+    if not digest:
+        return
+    if len(_excel_meta_cache) >= _EXCEL_META_CACHE_MAX and digest not in _excel_meta_cache:
+        _excel_meta_cache.pop(next(iter(_excel_meta_cache)))
+    _excel_meta_cache[digest] = result
+
+
+def read_excel_meta(
+    excel_bytes: bytes, *, digest: str | None = None
+) -> tuple[list[str], dict[str, str]]:
+    """One openpyxl pass: sheet names and optional ReportConfig key/value rows.
+
+    Pass ``digest`` (e.g. ReportEngine.excel_sha256()) to skip re-hashing large workbooks.
+    """
+    key = digest or hashlib.sha256(excel_bytes).hexdigest()
+    hit = _excel_meta_cache.get(key)
     if hit is not None:
         return hit
     result = _read_excel_meta_uncached(excel_bytes)
     if len(_excel_meta_cache) >= _EXCEL_META_CACHE_MAX:
         _excel_meta_cache.pop(next(iter(_excel_meta_cache)))
-    _excel_meta_cache[digest] = result
+    _excel_meta_cache[key] = result
     return result
 
 

@@ -462,7 +462,9 @@ def _stamp_generation_record(
 ) -> None:
     if output_filename:
         record.output_filename = output_filename
-    record.output_sha256 = sha256_hex(docx_bytes)
+    # build_generation_record already hashed output_bytes when present.
+    if not record.output_sha256:
+        record.output_sha256 = sha256_hex(docx_bytes)
     record.template_source_format = prepared_tpl.source_format if prepared_tpl else ""
     if folder_path:
         record.project_folder = folder_path

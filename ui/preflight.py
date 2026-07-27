@@ -343,13 +343,14 @@ def _render_report_ai_cues(
     from ai.config import ai_available
     from ai.consistency import check_consistency
     from ai.exceedance_notes import notes_for_lab_rows
-    from engine import ReportEngine
 
     st.markdown("**Data QA cues**")
     ctx = st.session_state.get("last_context")
     if not ctx and template_bytes:
         try:
-            ctx = ReportEngine(excel_bytes, template_bytes).build_context(meta)
+            ctx = get_cached_report_engine(excel_bytes, template_bytes).build_context(
+                meta
+            )
         except Exception:
             ctx = None
     if not ctx:

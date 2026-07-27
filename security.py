@@ -333,15 +333,19 @@ def validate_rendered_output(data: bytes) -> None:
     except zipfile.BadZipFile as e:
         raise SecurityError("Generated report is corrupt or invalid.") from e
     with zf:
-        names = zf.namelist()
-        if len(names) > MAX_ZIP_MEMBERS:
+        infos = zf.infolist()
+        if len(infos) > MAX_ZIP_MEMBERS:
             raise SecurityError(
-                f"Generated report has too many entries ({len(names)}; max {MAX_ZIP_MEMBERS})."
+                f"Generated report has too many entries ({len(infos)}; max {MAX_ZIP_MEMBERS})."
             )
-        if not any(n.lower() == _DOCX_REQUIRED_PART for n in names):
-            raise SecurityError(
-                "Generated report is not a Word document (.docx): missing word/document.xml."
-            )
+        try:
+            zf.getinfo(_DOCX_REQUIRED_PART)
+        except KeyError:
+            if not any(i.filename.lower() == _DOCX_REQUIRED_PART for i in infos):
+                raise SecurityError(
+                    "Generated report is not a Word document (.docx): "
+                    "missing word/document.xml."
+                ) from None
 
 
 @contextmanager

@@ -183,7 +183,7 @@ GEMINI_API_KEY = "..."
 5. Deploy. Share the `*.streamlit.app` URL with testers.
 6. Tester path: **Excel + Word template** workflow → Load Alberta Phase I sample → Generate → download zip.
 
-**Live smoke (2026-07-21):** App URL pattern `https://mutax2003-report-generator-app-ad7xpb.streamlit.app/` responds with hosted-mode picker (“This server uses the Excel + Word template workflow”). Confirm Advanced settings stay on Python **3.12** and secrets `ESA_HOSTED_MODE = "1"`. Treat PDF templates / multi-row batch as “may OOM on free Cloud” until proven. Note any **Manage app** reboot errors in the Streamlit dashboard.
+**Live smoke (2026-07-27):** App URL `https://mutax2003-report-generator-app-ad7xpb.streamlit.app/` — hosted-mode picker (“This server uses the Excel + Word template workflow”); File menu has **Load Alberta Phase I sample** and does **not** show Open project folder; sample → Generate → deliverable download path verified. Confirm Advanced settings stay on Python **3.12** and secrets `ESA_HOSTED_MODE = "1"` (prefer env). Treat PDF templates / multi-row batch as “may OOM on free Cloud” until proven. Note any **Manage app** reboot errors in the Streamlit dashboard. After sleep, wake the app before pilot sessions.
 
 **Help on Cloud:** **F1** / **Help → Contents** opens a `file://` path on the *server* container — it does **not** work for testers in the browser. Use the in-app **Help & documentation** expander on the Report tab (or SharePoint Guides). Folder menu items (**Open project folder…**) are hidden when `ESA_HOSTED_MODE=1`.
 

@@ -14,6 +14,12 @@ Use this when rolling out the ESA Report Generator to ~50 report authors. IT or 
 |--------|-----------------|-------|
 | `Guides/00-start-here.md` | Guides/ | Pin or link from Teams channel |
 | `PILOT-BRIEFING.txt` | Guides/ (and library root) | Cloud sample-only pilot kickoff |
+| `PILOT-EXIT-CHECKLIST.txt` | Guides/ (and library root) | 3–5 person exit criteria tracker |
+| `HOSTING-LOCK.txt` | Guides/ (and library root) | Cloud = sample-only; client = Docker/Entra |
+| `OPS-HANDOFF.txt` / `TEAMS-POST.txt` | library root | Ops reboot + Teams paste |
+| `Guides/25-agent-folder-report.md` | Guides/ | Desktop agent folder path (not Cloud) |
+| `Guides/26-alberta-prompt-library.md` | Guides/ | Alberta prompt library (advisory AI) |
+| `Guides/14-deployment-hosting.md` | Guides/ | Hosting lock detail |
 | `Guides/EXCEL_LAYOUT.txt` | Guides/ | Column reference |
 | `Guides/JINJA2_CHEATSHEET.txt` | Guides/ | Word tag reference |
 | `Guides/02-user-guide-streamlit.md` | Guides/ | Full UI workflow |

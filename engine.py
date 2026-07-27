@@ -184,15 +184,36 @@ def _project_rows_from_df(df: pd.DataFrame) -> list[dict[str, Any]]:
 
     Excel layout: row 1 = column headers (``header=0`` for pandas);
     row 2 onward = one report per non-blank row.
+
+    Single pass over cells: blank skip, duplicate-header skip, and dict build
+    share one ``itertuples`` walk with precomputed column keys.
     """
     rows: list[dict[str, Any]] = []
-    for i in range(len(df)):
-        row = df.iloc[i]
-        if _project_row_is_blank(row):
+    if df.empty:
+        return rows
+    columns = list(df.columns)
+    col_keys = [_norm_key(c) for c in columns]
+    header_norms = [_norm_key(str(c)) for c in columns]
+    for i, row_vals in enumerate(df.itertuples(index=False, name=None)):
+        filled = 0
+        match_count = 0
+        any_filled = False
+        rec: dict[str, Any] = {}
+        for j, raw in enumerate(row_vals):
+            cell = _cell_str(raw)
+            key = col_keys[j]
+            if key:
+                rec[key] = cell
+            if not cell:
+                continue
+            any_filled = True
+            filled += 1
+            if _norm_key(cell) == header_norms[j]:
+                match_count += 1
+        if not any_filled:
             continue
-        if _project_row_is_duplicate_header(row, df.columns):
+        if filled > 0 and match_count >= max(2, int(filled * 0.5)):
             continue
-        rec = _project_row_to_dict_at(df, i)
         rec["_excel_row_number"] = _excel_row_number(i)
         rows.append(rec)
     return rows
@@ -216,6 +237,47 @@ def _filter_records_for_project(
         if col not in records[0]:
             continue
         matched = [r for r in records if _s(r.get(col)) == project_val]
+        if matched:
+            return matched
+    return records
+
+
+def _index_records_by_link_columns(
+    records: list[dict[str, Any]],
+) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    """Build link_col -> value -> rows indexes for batch filtering (O(M) once)."""
+    if not records:
+        return {}
+    first = records[0]
+    indexes: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for col in _TABLE_LINK_COLUMNS:
+        if col not in first:
+            continue
+        by_val: dict[str, list[dict[str, Any]]] = {}
+        for rec in records:
+            val = _s(rec.get(col))
+            if val:
+                by_val.setdefault(val, []).append(rec)
+        indexes[col] = by_val
+    return indexes
+
+
+def _filter_records_for_project_indexed(
+    records: list[dict[str, Any]],
+    project: dict[str, Any],
+    indexes: dict[str, dict[str, list[dict[str, Any]]]],
+) -> list[dict[str, Any]]:
+    """Same semantics as ``_filter_records_for_project`` using prebuilt indexes."""
+    if not records:
+        return []
+    for col in _TABLE_LINK_COLUMNS:
+        project_val = _s(project.get(col))
+        if not project_val:
+            continue
+        by_val = indexes.get(col)
+        if not by_val:
+            continue
+        matched = by_val.get(project_val)
         if matched:
             return matched
     return records
@@ -337,8 +399,15 @@ def _labels_from_project_rows(project_rows: list[dict[str, Any]]) -> list[str]:
 class ReportEngine:
     """Load Excel + template bytes, build context, render docx."""
 
-    def __init__(self, excel_bytes: bytes, template_bytes: bytes) -> None:
-        if not validation_bypass_enabled():
+    def __init__(
+        self,
+        excel_bytes: bytes,
+        template_bytes: bytes,
+        *,
+        inputs_validated: bool = False,
+    ) -> None:
+        # UI/cache paths may pass inputs_validated=True after upload prepare gates.
+        if not validation_bypass_enabled() and not inputs_validated:
             validate_excel_upload(excel_bytes)
             validate_template_upload(template_bytes)
         self.excel_bytes = excel_bytes
@@ -350,6 +419,7 @@ class ReportEngine:
         self._excel_cache_key: tuple[Any, ...] | None = None
         self._excel_cache: tuple[list[dict[str, Any]], dict[str, list]] | None = None
         self._excel_meta_cache: tuple[list[str], dict[str, str]] | None = None
+        self._phrase_lookup: dict[tuple[str, str], str] | None = None
         self._config_cache: dict[tuple[tuple[str, str], ...], ReportRuntimeConfig] = {}
 
     def excel_sha256(self) -> str:
@@ -386,8 +456,20 @@ class ReportEngine:
         if self._excel_meta_cache is None:
             from report_profile import read_excel_meta
 
-            self._excel_meta_cache = read_excel_meta(self.excel_bytes)
+            self._excel_meta_cache = read_excel_meta(
+                self.excel_bytes, digest=self.excel_sha256()
+            )
         return self._excel_meta_cache
+
+    def _phrase_lookup_or_load(self) -> dict[tuple[str, str], str]:
+        if self._phrase_lookup is not None:
+            return self._phrase_lookup
+        from phrase_resolver import read_phrase_catalog_sheet
+
+        self._phrase_lookup = read_phrase_catalog_sheet(
+            self.excel_bytes, digest=self.excel_sha256()
+        )
+        return self._phrase_lookup
 
     def seed_template_scan(
         self, root_vars: set[str], template_loops: set[str] | None = None
@@ -520,6 +602,31 @@ class ReportEngine:
                     _lab_frame_to_records(xl.parse(LAB_SHEET, header=0)),
                 )
 
+            # Same openpyxl pass: PhraseCatalog + ReportConfig (avoids re-open).
+            from phrase_resolver import (
+                PHRASE_CATALOG_SHEET,
+                phrase_rows_from_dataframe,
+                seed_phrase_sheet_cache,
+            )
+            from report_profile import (
+                _read_report_config_sheet,
+                load_profiles_catalog,
+                seed_excel_meta_cache,
+            )
+
+            if self._phrase_lookup is None and PHRASE_CATALOG_SHEET in names:
+                phrase_df = xl.parse(PHRASE_CATALOG_SHEET, header=0)
+                phrase_rows = phrase_rows_from_dataframe(phrase_df)
+                seed_phrase_sheet_cache(self.excel_sha256(), phrase_rows)
+                self._phrase_lookup = {(k, o): t for k, o, t in phrase_rows}
+            if self._excel_meta_cache is None:
+                config_sheet = load_profiles_catalog().get("config_sheet", "ReportConfig")
+                config: dict[str, str] = {}
+                if config_sheet in names:
+                    config = _read_report_config_sheet(xl.parse(config_sheet, header=0))
+                self._excel_meta_cache = (list(names), config)
+                seed_excel_meta_cache(self.excel_sha256(), self._excel_meta_cache)
+
         return project_rows, lists
 
     def project_row_count(self, meta: dict[str, str] | None = None) -> int:
@@ -565,7 +672,11 @@ class ReportEngine:
         from phrase_resolver import apply_phrase_resolution
 
         phrase_warnings = apply_phrase_resolution(
-            ctx, project, self.excel_bytes, meta=meta
+            ctx,
+            project,
+            self.excel_bytes,
+            meta=meta,
+            excel_lookup=self._phrase_lookup_or_load(),
         )
         if phrase_warnings:
             ctx["_phrase_warnings"] = phrase_warnings
@@ -829,9 +940,16 @@ class ReportEngine:
                 f"{MAX_BATCH_REPORTS} reports per run."
             )
         labels = _labels_from_project_rows(project_rows)
+        # Index table sheets once (O(M)), then filter each site in O(1) per link col.
+        loop_indexes = {
+            loop_var: _index_records_by_link_columns(rows)
+            for loop_var, rows in list_data.items()
+        }
         filtered_per_row = [
             {
-                loop_var: _filter_records_for_project(rows, project_rows[i])
+                loop_var: _filter_records_for_project_indexed(
+                    rows, project_rows[i], loop_indexes[loop_var]
+                )
                 for loop_var, rows in list_data.items()
             }
             for i in range(n)
