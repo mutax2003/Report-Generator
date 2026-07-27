@@ -101,6 +101,7 @@ Requires local/desktop Streamlit (not multi-tenant hosted).
 
 ## Related docs
 
+- [25-agent-folder-report.md](25-agent-folder-report.md) — **Cursor / Codex / Claude Cowork** agent folder report (separate from Gemini AI tab)
 - [23-excel-calculation-workbook-integration.md](23-excel-calculation-workbook-integration.md) — optional `ecoventure_workbook.xlsx` hybrid ingest
 - [00-start-here.md](00-start-here.md) — consultant Streamlit path
 - [09-ai-assistant.md](09-ai-assistant.md) — AI tab features

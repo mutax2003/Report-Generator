@@ -105,6 +105,45 @@ class ApplyDraftsTests(unittest.TestCase):
         self.assertIn(PROJECT_SHEET, xl.sheet_names)
         self.assertIn(MONITORING_WELLS_SHEET, xl.sheet_names)
 
+    def test_excel_builder_neutralizes_formula_injection(self) -> None:
+        out = well_rows_to_xlsx_bytes(
+            [{"Well ID": "=cmd", "Screen Top": "1", "Screen Bottom": "2"}]
+        )
+        df = pd.read_excel(io.BytesIO(out), sheet_name=MONITORING_WELLS_SHEET)
+        self.assertEqual(str(df.iloc[0]["Well ID"]), "'=cmd")
+
+    def test_patch_neutralizes_formula_injection(self) -> None:
+        excel = _xlsx_with_project(notes="")
+        new_bytes, applied, _ = patch_project_data_fields(
+            excel, {"notes": "=1+1"}, overwrite_filled=True
+        )
+        self.assertIn("notes", applied)
+        df = pd.read_excel(io.BytesIO(new_bytes), sheet_name=PROJECT_SHEET)
+        self.assertEqual(str(df.iloc[0]["notes"]), "'=1+1")
+
+    def test_load_rejects_non_object_and_too_many_fields(self) -> None:
+        with self.assertRaises(ValueError):
+            load_narratives_payload([{"section": "executive_summary", "text": "x"}])
+        with self.assertRaises(ValueError):
+            from security import MAX_PROJECT_COLUMNS
+
+            patch_project_data_fields(
+                _xlsx_with_project(site_name="A"),
+                {f"field_{i}": "v" for i in range(MAX_PROJECT_COLUMNS + 1)},
+            )
+
+    def test_load_field_suggestions_size_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "excel_field_suggestions.json"
+            path.write_text('{"fields": {"a": "b"}}', encoding="utf-8")
+            self.assertEqual(load_field_suggestions(path)["a"], "b")
+            from ai.apply_drafts import MAX_DRAFT_JSON_BYTES
+
+            huge = Path(tmp) / "huge.json"
+            huge.write_bytes(b"{" + b"x" * (MAX_DRAFT_JSON_BYTES + 10))
+            with self.assertRaises(ValueError):
+                load_field_suggestions(huge)
+
 
 class AppendixManifestLoadTests(unittest.TestCase):
     def test_load_manual_prefers_manifest(self) -> None:

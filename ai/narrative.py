@@ -32,6 +32,12 @@ GW_SECTIONS = [
 
 
 def sections_for_phase(report_phase: str, report_type: str = "") -> list[str]:
+    if report_type:
+        from ai.prompts import sections_for_report_type
+
+        from_lib = sections_for_report_type(report_type)
+        if from_lib:
+            return from_lib
     if report_type == "groundwater_monitoring":
         return list(GW_SECTIONS)
     if str(report_phase).strip() == "Phase 1":
@@ -169,16 +175,17 @@ def draft_narratives(
 
     for section in sections:
         if use_llm:
+            from ai.prompts import section_instruction, system_prompt_for
+
+            report_type = str(context.get("_report_type") or "")
             llm_text = complete_text(
-                system=(
-                    "You draft professional ESA report prose for Ecoventure Inc. (Alberta oil and gas). "
-                    "Use only facts from the JSON context and reference snippets. "
-                    "Do not invent regulatory citations or sample results. "
-                    "Mark uncertainty. 2-4 short paragraphs max."
-                ),
+                system=system_prompt_for(report_type),
                 user=json.dumps(
                     {
                         "section": section,
+                        "section_instruction": section_instruction(
+                            report_type, section
+                        ),
                         "context": _context_for_narrative_prompt(context),
                         "table_row_counts": {
                             "lab_results": len(context.get("lab_results") or []),

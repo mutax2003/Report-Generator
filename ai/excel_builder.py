@@ -8,7 +8,33 @@ from typing import Any
 import pandas as pd
 
 from ai.models import LabExtractRow
-from engine import GROUNDWATER_LAB_SHEET, LAB_SHEET, MONITORING_WELLS_SHEET, PROJECT_SHEET
+from engine import (
+    GROUNDWATER_LAB_SHEET,
+    LAB_SHEET,
+    MONITORING_WELLS_SHEET,
+    PROJECT_SHEET,
+    _cell_str,
+)
+
+
+def _neutralize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply Excel formula-injection neutralization to string-like cells."""
+    if df.empty:
+        return df
+    out = df.copy()
+    for col in out.columns:
+        out[col] = out[col].map(
+            lambda v: _cell_str(v) if v is not None and not (isinstance(v, float) and pd.isna(v)) else v
+        )
+    return out
+
+
+def _project_frame(project_row: dict[str, Any] | None) -> pd.DataFrame:
+    row = project_row or {}
+    if not row:
+        return pd.DataFrame([{}])
+    cleaned = {str(k): _cell_str(v) for k, v in row.items()}
+    return pd.DataFrame([cleaned])
 
 
 def lab_rows_to_xlsx_bytes(
@@ -17,20 +43,20 @@ def lab_rows_to_xlsx_bytes(
     project_row: dict[str, Any] | None = None,
     existing_excel: bytes | None = None,
 ) -> bytes:
-    lab_df = pd.DataFrame([r.to_excel_dict() for r in rows])
+    lab_df = _neutralize_dataframe(pd.DataFrame([r.to_excel_dict() for r in rows]))
 
     if existing_excel:
         bio = io.BytesIO(existing_excel)
         with pd.ExcelFile(bio, engine="openpyxl") as xl:
             sheets = {name: xl.parse(name) for name in xl.sheet_names}
         if PROJECT_SHEET not in sheets:
-            sheets[PROJECT_SHEET] = pd.DataFrame([project_row or {}])
+            sheets[PROJECT_SHEET] = _project_frame(project_row)
         elif project_row:
-            sheets[PROJECT_SHEET] = pd.DataFrame([project_row])
+            sheets[PROJECT_SHEET] = _project_frame(project_row)
         sheets[LAB_SHEET] = lab_df
     else:
         sheets = {
-            PROJECT_SHEET: pd.DataFrame([project_row or {}]),
+            PROJECT_SHEET: _project_frame(project_row),
             LAB_SHEET: lab_df,
         }
 
@@ -49,25 +75,25 @@ def lab_rows_to_groundwater_xlsx_bytes(
     well_rows: list[dict[str, str]] | None = None,
 ) -> bytes:
     """Merge lab rows into GroundwaterLab sheet (and optional MonitoringWells)."""
-    lab_df = pd.DataFrame([r.to_excel_dict() for r in rows])
+    lab_df = _neutralize_dataframe(pd.DataFrame([r.to_excel_dict() for r in rows]))
     if existing_excel:
         bio = io.BytesIO(existing_excel)
         with pd.ExcelFile(bio, engine="openpyxl") as xl:
             sheets = {name: xl.parse(name) for name in xl.sheet_names}
         if PROJECT_SHEET not in sheets:
-            sheets[PROJECT_SHEET] = pd.DataFrame([project_row or {}])
+            sheets[PROJECT_SHEET] = _project_frame(project_row)
         elif project_row:
-            sheets[PROJECT_SHEET] = pd.DataFrame([project_row])
+            sheets[PROJECT_SHEET] = _project_frame(project_row)
         sheets[GROUNDWATER_LAB_SHEET] = lab_df
         if well_rows:
-            sheets[MONITORING_WELLS_SHEET] = pd.DataFrame(well_rows)
+            sheets[MONITORING_WELLS_SHEET] = _neutralize_dataframe(pd.DataFrame(well_rows))
     else:
         sheets = {
-            PROJECT_SHEET: pd.DataFrame([project_row or {}]),
+            PROJECT_SHEET: _project_frame(project_row),
             GROUNDWATER_LAB_SHEET: lab_df,
         }
         if well_rows:
-            sheets[MONITORING_WELLS_SHEET] = pd.DataFrame(well_rows)
+            sheets[MONITORING_WELLS_SHEET] = _neutralize_dataframe(pd.DataFrame(well_rows))
 
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine="openpyxl") as w:
@@ -83,19 +109,19 @@ def well_rows_to_xlsx_bytes(
     existing_excel: bytes | None = None,
 ) -> bytes:
     """Merge MonitoringWells rows into a workbook (replace sheet)."""
-    wells_df = pd.DataFrame(well_rows)
+    wells_df = _neutralize_dataframe(pd.DataFrame(well_rows))
     if existing_excel:
         bio = io.BytesIO(existing_excel)
         with pd.ExcelFile(bio, engine="openpyxl") as xl:
             sheets = {name: xl.parse(name) for name in xl.sheet_names}
         if PROJECT_SHEET not in sheets:
-            sheets[PROJECT_SHEET] = pd.DataFrame([project_row or {}])
+            sheets[PROJECT_SHEET] = _project_frame(project_row)
         elif project_row:
-            sheets[PROJECT_SHEET] = pd.DataFrame([project_row])
+            sheets[PROJECT_SHEET] = _project_frame(project_row)
         sheets[MONITORING_WELLS_SHEET] = wells_df
     else:
         sheets = {
-            PROJECT_SHEET: pd.DataFrame([project_row or {}]),
+            PROJECT_SHEET: _project_frame(project_row),
             MONITORING_WELLS_SHEET: wells_df,
         }
 
@@ -116,15 +142,15 @@ def apec_rows_to_xlsx_bytes(
     """Write Apecs sheet. mode=replace replaces sheet; mode=append concatenates rows."""
     from engine import APECS_SHEET
 
-    new_df = pd.DataFrame(rows)
+    new_df = _neutralize_dataframe(pd.DataFrame(rows))
     if existing_excel:
         bio = io.BytesIO(existing_excel)
         with pd.ExcelFile(bio, engine="openpyxl") as xl:
             sheets = {name: xl.parse(name) for name in xl.sheet_names}
         if PROJECT_SHEET not in sheets:
-            sheets[PROJECT_SHEET] = pd.DataFrame([project_row or {}])
+            sheets[PROJECT_SHEET] = _project_frame(project_row)
         elif project_row:
-            sheets[PROJECT_SHEET] = pd.DataFrame([project_row])
+            sheets[PROJECT_SHEET] = _project_frame(project_row)
         if mode == "append" and APECS_SHEET in sheets and not sheets[APECS_SHEET].empty:
             combined = pd.concat([sheets[APECS_SHEET], new_df], ignore_index=True)
             if "apec_id" in combined.columns:
@@ -134,7 +160,7 @@ def apec_rows_to_xlsx_bytes(
             sheets[APECS_SHEET] = new_df
     else:
         sheets = {
-            PROJECT_SHEET: pd.DataFrame([project_row or {}]),
+            PROJECT_SHEET: _project_frame(project_row),
             APECS_SHEET: new_df,
         }
 

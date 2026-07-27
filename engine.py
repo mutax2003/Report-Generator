@@ -48,6 +48,9 @@ WATER_LEVELS_SHEET = "WaterLevels"
 APECS_SHEET = "Apecs"
 DRILLING_WASTE_SHEET = "DrillingWaste"
 STORAGE_TANKS_SHEET = "StorageTanks"
+
+# Shared Jinja sandbox for main-report merge (appendices use a lenient env).
+_JINJA_ENV = SandboxedEnvironment(undefined=StrictUndefined, autoescape=False)
 DWDA_CHECKLIST_SHEET = "DwdaChecklist"
 DWDA_CALCULATIONS_SHEET = "DwdaCalculations"
 
@@ -340,6 +343,8 @@ class ReportEngine:
             validate_template_upload(template_bytes)
         self.excel_bytes = excel_bytes
         self.template_bytes = template_bytes
+        self._excel_sha256: str | None = None
+        self._template_sha256: str | None = None
         self._root_vars_cache: set[str] | None = None
         self._template_loops_cache: set[str] | None = None
         self._excel_cache_key: tuple[Any, ...] | None = None
@@ -347,14 +352,28 @@ class ReportEngine:
         self._excel_meta_cache: tuple[list[str], dict[str, str]] | None = None
         self._config_cache: dict[tuple[tuple[str, str], ...], ReportRuntimeConfig] = {}
 
+    def excel_sha256(self) -> str:
+        if self._excel_sha256 is None:
+            from provenance import sha256_hex
+
+            self._excel_sha256 = sha256_hex(self.excel_bytes)
+        return self._excel_sha256
+
+    def template_sha256(self) -> str:
+        if self._template_sha256 is None:
+            from provenance import sha256_hex
+
+            self._template_sha256 = sha256_hex(self.template_bytes)
+        return self._template_sha256
+
     def _ensure_template_scan(self) -> None:
         """One ZIP pass for root vars and table loop names."""
         if self._root_vars_cache is not None and self._template_loops_cache is not None:
             return
         from report_profile import loops_from_block_tags
-        from template_tools import scan_template
+        from template_tools import scan_template_trusted
 
-        scan = scan_template(self.template_bytes)
+        scan = scan_template_trusted(self.template_bytes)
         self._root_vars_cache = scan.root_vars
         self._template_loops_cache = loops_from_block_tags(scan.block_tags)
 
@@ -520,6 +539,7 @@ class ReportEngine:
         project_row_index: int = 0,
         parsed_excel: tuple[list[dict[str, Any]], dict[str, list]] | None = None,
         appendix_labels_present: set[str] | None = None,
+        tables_prefiltered: bool = False,
     ) -> dict[str, Any]:
         meta = sanitize_meta(meta)
         runtime = self.resolve_config(meta)
@@ -550,7 +570,10 @@ class ReportEngine:
         if phrase_warnings:
             ctx["_phrase_warnings"] = phrase_warnings
         for loop_var, rows in list_data.items():
-            ctx[loop_var] = _filter_records_for_project(rows, project)
+            if tables_prefiltered:
+                ctx[loop_var] = rows
+            else:
+                ctx[loop_var] = _filter_records_for_project(rows, project)
         for loop_var in runtime.template_loops:
             ctx.setdefault(loop_var, [])
         for legacy in (
@@ -695,6 +718,8 @@ class ReportEngine:
             dry_run=True,
             template_source_format=str((meta or {}).get("template_source_format", "")),
             context=context,
+            excel_sha256=self.excel_sha256(),
+            template_sha256=self.template_sha256(),
         )
         from security import strip_internal_context_keys
 
@@ -709,6 +734,7 @@ class ReportEngine:
         parsed_excel: tuple[list[dict[str, Any]], dict[str, list]] | None = None,
         include_coverage: bool = True,
         appendix_labels_present: set[str] | None = None,
+        tables_prefiltered: bool = False,
     ) -> tuple[bytes, list[str], dict[str, Any], "GenerationRecord"]:
         """
         Returns (docx_bytes, warnings, context).
@@ -720,6 +746,7 @@ class ReportEngine:
             project_row_index=project_row_index,
             parsed_excel=parsed_excel,
             appendix_labels_present=appendix_labels_present,
+            tables_prefiltered=tables_prefiltered,
         )
         auto_exec = context.pop("_executive_summary_auto_generated", False)
         phrase_warnings = context.pop("_phrase_warnings", [])
@@ -747,9 +774,8 @@ class ReportEngine:
 
         tpl_bio = io.BytesIO(self.template_bytes)
         doc = DocxTemplate(tpl_bio)
-        env = SandboxedEnvironment(undefined=StrictUndefined, autoescape=False)
         try:
-            doc.render(render_ctx, jinja_env=env)
+            doc.render(render_ctx, jinja_env=_JINJA_ENV)
         except TemplateError as e:
             raise ValueError(
                 "Template rendering failed. Check Jinja2 tags and table loops "
@@ -780,6 +806,8 @@ class ReportEngine:
             dry_run=False,
             template_source_format=str((meta or {}).get("template_source_format", "")),
             context=context,
+            excel_sha256=self.excel_sha256(),
+            template_sha256=self.template_sha256(),
         )
         return docx_bytes, warnings, context, record
 
@@ -821,6 +849,7 @@ class ReportEngine:
                 parsed_excel=(project_rows, filtered_per_row[i]),
                 include_coverage=(i == n - 1),
                 appendix_labels_present=appendix_labels_present,
+                tables_prefiltered=True,
             )
             filename = suggested_download_name(
                 context, meta or {}, project_row_index=i, batch_size=n

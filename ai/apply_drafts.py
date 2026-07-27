@@ -13,7 +13,8 @@ from typing import Any
 
 import pandas as pd
 
-from engine import PROJECT_SHEET, _norm_key
+from engine import PROJECT_SHEET, _cell_str, _norm_key
+from security import MAX_CONTEXT_STRING_LEN, MAX_PROJECT_COLUMNS
 
 # Narrative draft section → ProjectData field key
 NARRATIVE_SECTION_TO_FIELD: dict[str, str] = {
@@ -23,16 +24,65 @@ NARRATIVE_SECTION_TO_FIELD: dict[str, str] = {
     "conclusions_recommendations": "conclusions_recommendations",
 }
 
+MAX_DRAFT_JSON_BYTES = 1_048_576
+MAX_FIELD_KEY_LEN = 128
+
+
+def _load_json_object(path_or_data: Path | dict[str, Any] | str) -> dict[str, Any]:
+    """Parse draft JSON; require object root and size/type bounds."""
+    if isinstance(path_or_data, Path):
+        if path_or_data.is_symlink():
+            raise ValueError("Draft JSON must not be a symlink")
+        try:
+            size = path_or_data.stat().st_size
+        except OSError as e:
+            raise ValueError(f"Cannot read draft JSON: {e}") from e
+        if size > MAX_DRAFT_JSON_BYTES:
+            raise ValueError(
+                f"Draft JSON too large ({size} bytes; max {MAX_DRAFT_JSON_BYTES})"
+            )
+        try:
+            data = json.loads(path_or_data.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError, UnicodeError) as e:
+            raise ValueError(f"Invalid draft JSON: {e}") from e
+    elif isinstance(path_or_data, str):
+        if len(path_or_data.encode("utf-8", errors="replace")) > MAX_DRAFT_JSON_BYTES:
+            raise ValueError(f"Draft JSON too large (max {MAX_DRAFT_JSON_BYTES} bytes)")
+        try:
+            data = json.loads(path_or_data)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid draft JSON: {e}") from e
+    else:
+        data = path_or_data
+    if not isinstance(data, dict):
+        raise ValueError("Draft JSON must be a JSON object")
+    return data
+
+
+def _sanitize_field_map(fields: dict[str, Any]) -> dict[str, str]:
+    """Cap field count/key/value length; neutralize Excel formula injection."""
+    if len(fields) > MAX_PROJECT_COLUMNS:
+        raise ValueError(f"Too many draft fields (max {MAX_PROJECT_COLUMNS})")
+    out: dict[str, str] = {}
+    for key, value in fields.items():
+        nk = _norm_key(str(key))
+        if not nk or len(nk) > MAX_FIELD_KEY_LEN:
+            continue
+        val = _cell_str(value)
+        if not val:
+            continue
+        if len(val) > MAX_CONTEXT_STRING_LEN:
+            val = val[:MAX_CONTEXT_STRING_LEN]
+        out[nk] = val
+        if len(out) > MAX_PROJECT_COLUMNS:
+            raise ValueError(f"Too many draft fields (max {MAX_PROJECT_COLUMNS})")
+    return out
+
 
 def load_narratives_payload(path_or_data: Path | dict[str, Any] | str) -> dict[str, str]:
     """Map narrative section → text from narratives.json or in-memory payload."""
-    if isinstance(path_or_data, Path):
-        data = json.loads(path_or_data.read_text(encoding="utf-8"))
-    elif isinstance(path_or_data, str):
-        data = json.loads(path_or_data)
-    else:
-        data = path_or_data
-    out: dict[str, str] = {}
+    data = _load_json_object(path_or_data)
+    raw: dict[str, str] = {}
     for item in data.get("sections") or []:
         if not isinstance(item, dict):
             continue
@@ -40,31 +90,28 @@ def load_narratives_payload(path_or_data: Path | dict[str, Any] | str) -> dict[s
         text = str(item.get("text", "")).strip()
         field = NARRATIVE_SECTION_TO_FIELD.get(section, section)
         if field and text:
-            out[field] = text
-    return out
+            raw[field] = text
+    return _sanitize_field_map(raw)
 
 
 def load_field_suggestions(path_or_data: Path | dict[str, Any] | str) -> dict[str, str]:
     """Load excel_field_suggestions.json ``fields`` map."""
-    if isinstance(path_or_data, Path):
-        data = json.loads(path_or_data.read_text(encoding="utf-8"))
-    elif isinstance(path_or_data, str):
-        data = json.loads(path_or_data)
-    else:
-        data = path_or_data
+    data = _load_json_object(path_or_data)
     fields = data.get("fields") or {}
     if not isinstance(fields, dict):
         return {}
-    return {
-        str(k).strip(): str(v).strip()
-        for k, v in fields.items()
-        if str(k).strip() and str(v).strip()
-    }
+    return _sanitize_field_map(
+        {
+            str(k).strip(): str(v).strip()
+            for k, v in fields.items()
+            if str(k).strip() and str(v).strip()
+        }
+    )
 
 
 def narratives_from_session_drafts(drafts: list[Any]) -> dict[str, str]:
     """Convert NarrativeDraft objects (or dicts) to field → text."""
-    out: dict[str, str] = {}
+    raw: dict[str, str] = {}
     for d in drafts or []:
         if isinstance(d, dict):
             section = str(d.get("section", "")).strip()
@@ -74,8 +121,8 @@ def narratives_from_session_drafts(drafts: list[Any]) -> dict[str, str]:
             text = str(getattr(d, "text", "")).strip()
         field = NARRATIVE_SECTION_TO_FIELD.get(section, section)
         if field and text:
-            out[field] = text
-    return out
+            raw[field] = text
+    return _sanitize_field_map(raw)
 
 
 def preview_project_data_patch(
@@ -86,6 +133,7 @@ def preview_project_data_patch(
     row_index: int = 0,
 ) -> tuple[list[str], list[str], list[str]]:
     """Return (will_apply, will_skip_filled, will_add_columns) without writing."""
+    fields = _sanitize_field_map(fields) if fields else {}
     if not fields:
         return [], [], []
     bio = io.BytesIO(excel_bytes)
@@ -134,7 +182,9 @@ def patch_project_data_fields(
     """Patch ProjectData row with field values.
 
     Returns (new_excel_bytes, applied_keys, skipped_keys).
+    Values are formula-injection neutralized via ``_cell_str``.
     """
+    fields = _sanitize_field_map(fields) if fields else {}
     if not fields:
         return excel_bytes, [], []
 
@@ -158,7 +208,7 @@ def patch_project_data_fields(
 
     for key, value in fields.items():
         nk = _norm_key(key)
-        val = str(value).strip()
+        val = _cell_str(value)
         if not nk or not val:
             continue
         if nk not in col_by_key:
@@ -186,11 +236,15 @@ def patch_project_data_fields(
 def load_appendix_manifest_labels(drafts_dir: Path) -> dict[str, str]:
     """filename → label from ai_drafts/appendix_manifest.json."""
     path = drafts_dir / "appendix_manifest.json"
-    if not path.is_file():
+    if not path.is_file() or path.is_symlink():
         return {}
     try:
+        if path.stat().st_size > MAX_DRAFT_JSON_BYTES:
+            return {}
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(data, dict):
         return {}
     items = data.get("items") or []
     out: dict[str, str] = {}

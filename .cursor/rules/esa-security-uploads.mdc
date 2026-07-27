@@ -1,6 +1,6 @@
 ---
-description: Upload validation, limits, and safe errors (security.py)
-globs: security.py,app.py,ui/helpers.py,project_folder.py,automate/http_server.py,automate/multipart.py,esa_auth.py,esa_rate_limit.py,esa_tenant.py,esa_observability.py,esa_logging.py,audit_trail.py,job_queue.py,qp_signature.py,records_retention.py
+description: Upload validation, folder workflow, draft apply, and safe errors (security.py)
+globs: security.py,app.py,ui/helpers.py,ui/ai_panel.py,project_folder.py,ai/apply_drafts.py,ai/excel_builder.py,scripts/agent_folder_report.py,automate/http_server.py,automate/multipart.py,esa_auth.py,esa_rate_limit.py,esa_tenant.py,esa_observability.py,esa_logging.py,audit_trail.py,job_queue.py,qp_signature.py,records_retention.py
 alwaysApply: false
 ---
 
@@ -49,7 +49,7 @@ Align with [docs/07-security-and-deployment.md](docs/07-security-and-deployment.
 | `ESA_DISABLE_RATE_LIMIT=1` | **Dev/tests only** — never set in production |
 | `ESA_JSON_LOG=1` | Structured JSON logs (`esa_logging.py`; Docker default) |
 | `ESA_LOG_LEVEL` | Log level (default `INFO`) |
-| `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` | Hide local project-folder workflow on shared hosts (UI: [esa-streamlit-ui.mdc](esa-streamlit-ui.mdc) menubar + upload-only picker) |
+| `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` | Disable local project-folder workflow via `folder_workflow_disabled()` (env). UI also reads Streamlit secrets via `hosted_mode_enabled()` — set **env** on Cloud so resolve/CLI stay blocked ([esa-streamlit-ui.mdc](esa-streamlit-ui.mdc)) |
 | `ESA_API_SERVICE_USER` | Server-side audit/actor identity for shared API keys |
 | `ESA_DEFAULT_ROLES` | Server-side roles (comma-separated); client roles ignored |
 | `ESA_REQUIRE_API_KEY` | Require API key even on localhost bind |
@@ -63,7 +63,12 @@ Jinja in `.docx` is **trusted** (authors with template access). Untrusted input 
 
 ## Local project folder (not uploads)
 
-**Project folder** reads Excel/template/PDFs from disk via `project_folder.py` (`resolve_project_folder`, `_cached_file_bytes`). Paths must resolve under a validated folder layout; appendix/source PDFs still pass size and zip guards where applicable. Do not treat arbitrary local paths as trusted content — only expected filenames under `source/`, `appendices/`, etc.
+**Project folder** reads Excel/template/PDFs from disk via `project_folder.py` (`resolve_project_folder`, `ensure_under_project_root`, `atomic_write_bytes` / `atomic_write_text`, `_cached_file_bytes`). Paths must resolve under the project root; **symlinks are refused**. Appendix/source listing skips symlink escape. Hosted gate: `security.folder_workflow_disabled()` (env) blocks `resolve_project_folder` and agent CLI (UI also checks secrets). AI draft apply (`ai/apply_drafts.py`) caps JSON size/field count, neutralizes Excel formula injection (`_cell_str`), and re-validates patched Excel before session/disk write. `ai/excel_builder.py` also runs `_cell_str` on AI-built Lab/APEC/well/`ProjectData` cells.
+
+## Rendered output vs uploads
+
+- **Uploads / templates:** full `inspect_zip_archive` (members, encryption, ratio, OOXML markers).
+- **Engine-generated `.docx`:** light `validate_rendered_output` (size + magic + `word/document.xml` presence) — not a second full upload inspect. Template scan after engine ctor may use `scan_template_trusted` / `open_docx_zip(skip_validation=True)`.
 
 ## Upload byte cache (`ui/helpers.py`)
 

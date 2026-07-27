@@ -14,8 +14,9 @@ from ui.onboarding import is_simple_mode
 
 
 _PREFLIGHT_CACHE_MAX = 16
-# Meta fields that affect preflight/SED/DWDA — exclude phrases & long free-text to avoid
-# cache busts on every keystroke.
+# Profile + QP identity fields that affect SED/DWDA preflight. Exclude phrases & long
+# free-text so panel edits do not thrash the cache; Prepared-by / date stay keyed for
+# SED checklist accuracy.
 _PREFLIGHT_META_KEYS = (
     "report_type",
     "report_phase",

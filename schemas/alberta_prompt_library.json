@@ -1,0 +1,138 @@
+{
+  "version": "1.0.0",
+  "description": "Standard LLM / agent prompts for Alberta O&G environmental reports (Ecoventure). Advisory only — never auto-inject into ReportEngine.",
+  "jurisdiction": "Alberta",
+  "consultant_default": "Ecoventure Inc.",
+  "tone": "Professional QP-ready ESA prose; AER/Alberta Tier guidance; mark uncertainty; do not invent citations or lab results.",
+  "global_system": "You assist Ecoventure Inc. with Alberta oil and gas environmental assessment reporting. Use only facts supplied in the user JSON and reference snippets. Do not invent sample results, regulatory citations, UWIs, or certificate numbers. Mark gaps as [confirm]. Prefer short paragraphs (2–4). QP review is required before client delivery.",
+  "profiles": {
+    "phase1_alberta": {
+      "label": "Alberta Phase I ESA",
+      "report_types": ["phase1_alberta", "phase1_devon"],
+      "report_phase": "Phase 1",
+      "sections": [
+        "executive_summary",
+        "drilling_waste",
+        "site_reconnaissance",
+        "conclusions_recommendations"
+      ],
+      "system_addon": "Focus on Phase I ESA / AER SED 002 style: records review, APECs, drilling waste / DWDA, site reconnaissance, Phase II recommendation. Align with Alberta O&G lease language (UWI, well name, LSD).",
+      "section_instructions": {
+        "executive_summary": "Draft an executive summary covering purpose, site identity (well/UWI), key findings (APECs, DWDA), and whether Phase II is recommended. No new facts beyond context.",
+        "drilling_waste": "Summarize drilling waste management and DWDA compliance option from context fields (aer_waste_compliance_option, drilling_waste_summary, waste tables). Do not invent Option 1/2/3.",
+        "site_reconnaissance": "Describe site visit status and observations from site_visit_completed and infrastructure_summary. If visit not completed, say so clearly.",
+        "conclusions_recommendations": "State Phase II / further work recommendation consistent with phase2_recommended or similar flags. Include standard limitations language for QP review."
+      },
+      "agent_brief": "Alberta Phase I ESA for Ecoventure. Folder has project_data.xlsx + template.docx + source/. Inventory, enrich drafts, apply only with user confirm, then render. Use AER SED 002 / DWDA tone. Do not invent APECs or lab data."
+    },
+    "phase2_esa": {
+      "label": "Phase II ESA",
+      "report_types": ["phase2_esa"],
+      "report_phase": "Phase 2",
+      "sections": [
+        "executive_summary",
+        "site_description",
+        "conclusions_limitations"
+      ],
+      "system_addon": "Focus on Phase II investigation: soil/groundwater sampling, lab exceedances vs Alberta Tier 1/2, delineation, and recommendations for remediation or further delineation.",
+      "section_instructions": {
+        "executive_summary": "Summarize investigation purpose, media sampled, exceedance count from lab_summary, and next steps. Do not invent analytes.",
+        "site_description": "Brief site setting from address/well fields; investigation scope from context only.",
+        "conclusions_limitations": "Conclusions tied to lab exceedances and sampling coverage. Note data gaps and QP limitations."
+      },
+      "agent_brief": "Phase II ESA. Emphasize LabResults exceedances and Alberta Tier screening. No invented concentrations."
+    },
+    "groundwater_monitoring": {
+      "label": "Groundwater monitoring",
+      "report_types": ["groundwater_monitoring"],
+      "report_phase": "Groundwater",
+      "sections": [
+        "executive_summary",
+        "hydrogeologic_setting",
+        "conclusions_recommendations"
+      ],
+      "system_addon": "Focus on groundwater monitoring programs: well network, water levels, GroundwaterLab results, trends, and compliance vs Alberta guidance.",
+      "section_instructions": {
+        "executive_summary": "Summarize monitoring period, well count, and any exceedances. Prefer groundwater narrative fields if present.",
+        "hydrogeologic_setting": "Describe hydrostratigraphy and flow using only provided well/geology fields; mark gaps.",
+        "conclusions_recommendations": "State whether concentrations are stable/increasing and recommended actions (continued monitoring, investigation)."
+      },
+      "agent_brief": "Groundwater monitoring report. Use MonitoringWells / WaterLevels / GroundwaterLab sheets. No invented trends."
+    },
+    "reclamation_certificate": {
+      "label": "Reclamation certificate",
+      "report_types": ["reclamation_certificate"],
+      "report_phase": "Phase 1",
+      "sections": [
+        "executive_summary",
+        "drilling_waste",
+        "site_reconnaissance",
+        "conclusions_recommendations"
+      ],
+      "system_addon": "Focus on reclamation certification readiness: reclamation tasks, soil placement, vegetation, residual DWDA/APEC issues, and certification recommendation.",
+      "section_instructions": {
+        "executive_summary": "Summarize reclamation status, outstanding issues, and whether the site appears ready for certification application (from context only).",
+        "drilling_waste": "Note residual drilling waste / DWDA considerations if present in context.",
+        "site_reconnaissance": "Site conditions relevant to reclamation (vegetation, soil placement) from context.",
+        "conclusions_recommendations": "Recommendation regarding reclamation certificate application and any outstanding Phase II/remediation."
+      },
+      "agent_brief": "Reclamation certificate support report. Use ReclamationTasks / SoilPlacement / Vegetation when present."
+    },
+    "phase3_remediation": {
+      "label": "Phase III remediation",
+      "report_types": ["phase3_remediation"],
+      "report_phase": "Phase 3",
+      "sections": [
+        "executive_summary",
+        "site_description",
+        "conclusions_limitations"
+      ],
+      "system_addon": "Focus on remediation: objectives, treatment events, confirmatory sampling, waste manifests, and closure vs Alberta Tier criteria.",
+      "section_instructions": {
+        "executive_summary": "Summarize remediation objectives, work completed, confirmatory results (from context), and residual risk.",
+        "site_description": "Brief site and remediation footprint from context.",
+        "conclusions_limitations": "Closure recommendation and limitations; no invented confirmatory concentrations."
+      },
+      "agent_brief": "Phase III remediation report. Use RemediationObjectives / TreatmentEvents / ConfirmatorySampling / WasteManifests when present."
+    },
+    "template_driven": {
+      "label": "Template-driven / generic",
+      "report_types": ["template_driven"],
+      "report_phase": "",
+      "sections": [
+        "executive_summary",
+        "site_description",
+        "conclusions_limitations"
+      ],
+      "system_addon": "Generic Alberta environmental report prose matching the supplied profile fields only.",
+      "section_instructions": {
+        "executive_summary": "Draft a concise summary from available ProjectData fields only.",
+        "site_description": "Describe the site from address and identity fields.",
+        "conclusions_limitations": "Generic conclusions and limitations for QP review."
+      },
+      "agent_brief": "Template-driven report. Follow Excel columns and Word tags; do not invent profile-specific sheets."
+    }
+  },
+  "agent_tasks": {
+    "folder_inventory": {
+      "label": "Project folder inventory",
+      "prompt": "Scan the project folder. List Excel, template, source PDFs, appendices. Note missing ProjectData fields for the active report profile. Write inventory notes under ai_drafts/. Do not modify engine.py."
+    },
+    "apec_extract": {
+      "label": "APEC extract from source PDFs",
+      "prompt": "From source/ PDFs, extract candidate APECs (location, concern, media). Write JSON under ai_drafts/. Do not invent APECs not supported by text. User must Apply before Excel merge."
+    },
+    "lab_coa": {
+      "label": "Lab COA extract",
+      "prompt": "Extract lab results tables from the designated COA PDF into draft LabResults rows. Flag exceedances only when guidelines appear in context. Do not invent analytes."
+    },
+    "sed002_copilot": {
+      "label": "SED 002 gap explanation",
+      "prompt": "Explain Phase I SED 002 preflight gaps in plain language for an Ecoventure author. Suggest which Excel columns or appendices to complete. Do not claim regulatory approval."
+    },
+    "render_gate": {
+      "label": "Render readiness check",
+      "prompt": "Confirm project_data.xlsx and template.docx exist, preflight has no blocking errors, and drafts were applied only if the user confirmed. Then run scripts/agent_folder_report.py --mode render --package."
+    }
+  }
+}

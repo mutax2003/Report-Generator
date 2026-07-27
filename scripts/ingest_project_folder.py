@@ -105,7 +105,7 @@ def main() -> int:
 
     try:
         resolved = resolve_project_folder(args.folder, create_subdirs=args.init_dirs)
-    except (FileNotFoundError, ValueError) as e:
+    except (FileNotFoundError, ValueError, PermissionError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
 

@@ -36,7 +36,7 @@ kbd {
     <nav>
       <h1>ESA Report Generator</h1>
       <p style="font-size:0.85rem;color:#9aa3ad;">Ecoventure Inc. Help</p>
-      <a href="#start">Start here</a><a href="#user-guide">User guide</a><a href="#excel">Excel data guide</a><a href="#templates">Template authoring</a><a href="#phase1">Alberta Phase I ESA</a><a href="#folder">Project folder workflow</a><a href="#ai">AI assistant</a><a href="#shortcuts">Keyboard shortcuts</a>
+      <a href="#start">Start here</a><a href="#user-guide">User guide</a><a href="#excel">Excel data guide</a><a href="#templates">Template authoring</a><a href="#phase1">Alberta Phase I ESA</a><a href="#folder">Project folder workflow</a><a href="#agent-folder">Agent folder report</a><a href="#prompts">Alberta prompt library</a><a href="#ai">AI assistant</a><a href="#shortcuts">Keyboard shortcuts</a>
     </nav>
     <main>
       <section id="start"><h2>Start here</h2>
@@ -558,10 +558,134 @@ python scripts\ingest_project_folder.py --folder C:\Projects\260109R --render --
 </ul>
 <h2>Related docs</h2>
 <ul>
+<li><a href="25-agent-folder-report.md">25-agent-folder-report.md</a> — **Cursor / Codex / Claude Cowork** agent folder report (separate from Gemini AI tab)</li>
 <li><a href="23-excel-calculation-workbook-integration.md">23-excel-calculation-workbook-integration.md</a> — optional `ecoventure_workbook.xlsx` hybrid ingest</li>
 <li><a href="00-start-here.md">00-start-here.md</a> — consultant Streamlit path</li>
 <li><a href="09-ai-assistant.md">09-ai-assistant.md</a> — AI tab features</li>
 <li><a href="15-power-automate-guide.md">15-power-automate-guide.md</a> — SharePoint (future same layout)</li>
+</ul>
+</section><section id="agent-folder"><h2>Agent folder report</h2>
+<h1>25 — Agent folder report (Cursor / Codex / Claude Cowork)</h1>
+<p>Generate an ESA report from a **selected local project folder** of reference files using an **external agent** (Cursor, Codex CLI, or Claude Cowork). This is a **separate feature** from the Streamlit **AI tools** / Gemini side-car.</p>
+<p>**Never** inject LLM output into `ReportEngine`. Render always uses deterministic merge (`render_service` / `project_folder.render_project_folder`).</p>
+<h2>Folder layout</h2>
+<p>Same as <a href="22-project-folder-workflow.md">22-project-folder-workflow.md</a>:</p>
+<pre><code>
+C:\Projects\260109R\
+
+  project_data.xlsx
+
+  template.docx
+
+  source\          # reference PDFs
+
+  appendices\
+
+  ai_drafts\
+
+  delivered\
+
+</code></pre>
+<p>Local desktop only — not available on Streamlit Community Cloud (`ESA_HOSTED_MODE`).</p>
+<h2>CLI (shared by all runtimes)</h2>
+<pre><code>
+cd &quot;Report Generator&quot;
+
+.\.venv\Scripts\Activate.ps1
+
+
+
+.\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode inventory
+
+.\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode enrich --no-llm
+
+.\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode apply-drafts
+
+.\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode render --package
+
+</code></pre>
+<p>Equivalent lower-level: `scripts/ingest_project_folder.py --ai …` / `--render --package`.</p>
+<h2>Cursor</h2>
+<p>1. Open this repo in Cursor. 2. Ask the agent to follow skill **`esa-agent-folder-report`** (`.cursor/skills/esa-agent-folder-report/SKILL.md`) with your folder path. 3. Or paste the CLI commands above.</p>
+<h2>Codex</h2>
+<p>From the repo root, attach this doc and run the same `agent_folder_report.py` commands. Prefer `--no-llm` when Codex itself edits Excel or `ai_drafts/`.</p>
+<h2>Claude Cowork</h2>
+<p>Copy this task brief into Cowork (replace the folder path):</p>
+<pre><code>
+Repo: Report Generator (ESA)
+
+Goal: Produce Phase I deliverable zip from local project folder.
+
+
+
+Folder: C:\Projects\YOUR_SITE
+
+Layout: docs/22-project-folder-workflow.md
+
+
+
+Steps:
+
+1) python scripts/agent_folder_report.py --folder &lt;Folder&gt; --mode inventory
+
+2) Review ai_drafts/; optionally enrich with --mode enrich --no-llm
+
+3) Only if I confirm: --mode apply-drafts
+
+4) --mode render --package
+
+5) Show paths under delivered/ — QP review required; do not email client without sign-off.
+
+
+
+Do not modify engine.py to call an LLM. Do not skip Apply confirmation.
+
+</code></pre>
+<h2>Streamlit</h2>
+<p>On desktop **Project folder + AI**, you can still Load folder → Analyze → Generate. For agent-driven runs, use this CLI/skill path. See the caption on the folder step linking here.</p>
+<h2>Related</h2>
+<ul>
+<li><a href="22-project-folder-workflow.md">22-project-folder-workflow.md</a> — folder layout + ingest CLI</li>
+<li><a href="09-ai-assistant.md">09-ai-assistant.md</a> — in-app Gemini / AI tab</li>
+<li><a href="26-alberta-prompt-library.md">26-alberta-prompt-library.md</a> — standard Alberta prompts / agent briefs by profile</li>
+<li><a href="00-start-here.md">00-start-here.md</a> — consultant Streamlit path</li>
+<li>Skill: `.cursor/skills/esa-agent-folder-report/SKILL.md`</li>
+</ul>
+</section><section id="prompts"><h2>Alberta prompt library</h2>
+<h1>26 — Alberta prompt library</h1>
+<p>Canonical LLM / agent prompts for Ecoventure Alberta environmental reports.</p>
+<p>**Hard boundary:** prompts are advisory. Apply drafts via UI / `--apply-drafts`. Never auto-inject into `ReportEngine`.</p>
+<h2>Hardening</h2>
+<ul>
+<li>Library load validates JSON shape, profile keys, and size (`MAX_LIBRARY_BYTES`); corrupt/missing file soft-falls back to empty + built-in system text (strict mode raises `PromptLibraryError`).</li>
+<li>Report type / section / task ids are sanitized (safe identifier pattern).</li>
+<li>Agent folder CLI: rejects hosted mode, validates path/dir/Excel/template, security-checks Excel, atomic Excel write with backup on apply, traps enrich/render failures with non-zero exit.</li>
+</ul>
+<h2>Profiles covered</h2>
+<p>Each profile has: `system_addon`, `sections`, `section_instructions`, `agent_brief`.</p>
+<h2>Agent tasks (folder workflow)</h2>
+<p>Under `agent_tasks` in the JSON: `folder_inventory`, `apec_extract`, `lab_coa`, `sed002_copilot`, `render_gate`.</p>
+<pre><code>
+from ai.prompts import agent_brief, agent_task_prompt, system_prompt_for
+
+
+
+print(agent_brief(&quot;phase1_alberta&quot;))
+
+print(agent_task_prompt(&quot;folder_inventory&quot;))
+
+print(system_prompt_for(&quot;groundwater_monitoring&quot;))
+
+</code></pre>
+<h2>Cursor / Codex / Claude Cowork</h2>
+<p>1. Set report type / profile from `project.json` or Excel `ReportConfig`. 2. Paste `agent_brief(&lt;report_type&gt;)` into the agent task. 3. For folder runs, follow <a href="25-agent-folder-report.md">25-agent-folder-report.md</a> and skill `esa-agent-folder-report`. 4. Use `agent_task_prompt(...)` for inventory / APEC / lab / SED / render-gate steps.</p>
+<h2>Contrast with phrase catalog</h2>
+<h2>Related</h2>
+<ul>
+<li><a href="09-ai-assistant.md">09-ai-assistant.md</a> — in-app AI tab</li>
+<li><a href="25-agent-folder-report.md">25-agent-folder-report.md</a> — external agent folder path</li>
+<li><a href="13-flexible-report-profiles.md">13-flexible-report-profiles.md</a> — report profiles</li>
+<li><a href="04-template-authoring.md">04-template-authoring.md</a> — phrases / Word tags</li>
 </ul>
 </section><section id="ai"><h2>AI assistant</h2>
 <h1>09 — AI assistant</h1>
@@ -721,6 +845,8 @@ ui/ai_panel.py
 <ul>
 <li><a href="04-template-authoring.md">04-template-authoring.md</a> — Manual tagging</li>
 <li><a href="22-project-folder-workflow.md">22-project-folder-workflow.md</a> — Folder enrich + Apply</li>
+<li><a href="25-agent-folder-report.md">25-agent-folder-report.md</a> — **Agent folder report** (Cursor / Codex / Claude Cowork) — separate from this in-app Gemini path</li>
+<li><a href="26-alberta-prompt-library.md">26-alberta-prompt-library.md</a> — Standard Alberta LLM/agent prompts by profile</li>
 <li><a href="../AI_FEATURES.md">../AI_FEATURES.md</a> — Short summary</li>
 </ul>
 </section><section id="shortcuts">

@@ -33,6 +33,8 @@ Complete documentation for the Environmental Site Assessment (ESA) report genera
 | [22-project-folder-workflow.md](22-project-folder-workflow.md) | **Project folder** — local CLI + AI enrich + render |
 | [23-excel-calculation-workbook-integration.md](23-excel-calculation-workbook-integration.md) | **Excel calc workbooks** — hybrid ingest, cell contract, parity testing |
 | [24-remediation-reports.md](24-remediation-reports.md) | **Phase II, remediation, reclamation** sample pairs and checklists |
+| [25-agent-folder-report.md](25-agent-folder-report.md) | **Agent folder report** — Cursor / Codex / Claude Cowork CLI path |
+| [26-alberta-prompt-library.md](26-alberta-prompt-library.md) | **Alberta prompt library** — LLM/agent prompts by report profile |
 
 ## Quick start
 

@@ -39,7 +39,7 @@ Map personas to Cursor tools (there are no separate PM/Architect agent types):
 ## 4. QA / Code Reviewer
 
 - After implementation: **bugbot** on `branch changes`.
-- If security/auth/upload/tenant/rate-limit/audit/QP/retention/job queue/observability/logging/multipart/deploy touched: **security-review**.
+- If security/auth/upload/tenant/rate-limit/audit/QP/retention/job queue/observability/logging/multipart/deploy/`project_folder`/`ai/apply_drafts`/`agent_folder_report` touched: **security-review**.
 - Reject with concrete change requests; re-run Dev after fixes.
 
 ## 5. DevOps / Test Runner

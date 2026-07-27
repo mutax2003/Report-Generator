@@ -77,9 +77,18 @@ def hero_lake_data_uri() -> str:
     raw = st.session_state.get("hero_lake_bytes")
     if not raw:
         return ""
+    cached = st.session_state.get("_hero_lake_data_uri")
+    if (
+        isinstance(cached, tuple)
+        and cached[0] is raw
+        and isinstance(cached[1], str)
+    ):
+        return cached[1]
     encoded = base64.b64encode(raw).decode("ascii")
     mime = "image/jpeg" if HERO_IMAGE.lower().endswith(".jpg") else "image/png"
-    return f"data:{mime};base64,{encoded}"
+    uri = f"data:{mime};base64,{encoded}"
+    st.session_state["_hero_lake_data_uri"] = (raw, uri)
+    return uri
 
 
 def _index_for_today(count: int) -> int:

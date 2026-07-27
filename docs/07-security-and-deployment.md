@@ -61,7 +61,13 @@ Rendered `.docx` re-validated as ZIP with `word/document.xml` before download.
 
 ### Formula injection
 
-Cell strings starting with `=+-@\t\r` get leading `'` in `_cell_str`.
+Cell strings starting with `=+-@\t\r` get leading `'` in `_cell_str` (engine merge and AI draft apply into ProjectData).
+
+### Project folder / AI drafts
+
+- `ensure_under_project_root` keeps Excel, template, PDF, and draft paths under the folder root; **symlinks are refused**.
+- `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` blocks `resolve_project_folder` as well as UI/CLI entry points.
+- Draft JSON (`ai/apply_drafts.py`) is size-capped, must be a JSON object, field count capped at `MAX_PROJECT_COLUMNS`, and patched Excel is re-validated before write.
 
 ## Environment variables
 
@@ -69,7 +75,7 @@ Cell strings starting with `=+-@\t\r` get leading `'` in `_cell_str`.
 |----------|--------|
 | `ESA_VALIDATION_BYPASS=1` | Skip upload validation (tests only) |
 | `ESA_SKIP_VALIDATION=1` | Alias of `ESA_VALIDATION_BYPASS` (tests only) |
-| `ESA_HOSTED_MODE=1` / `ESA_DISABLE_FOLDER_WORKFLOW=1` | Disable local project-folder workflow on shared hosts |
+| `ESA_HOSTED_MODE=1` / `ESA_DISABLE_FOLDER_WORKFLOW=1` | Disable local project-folder workflow on shared hosts (set as **env** so `resolve_project_folder` / agent CLI block; UI also reads Streamlit secrets) |
 | `ESA_AUDIT_ENABLED=1` | Enable append-only audit trail |
 | `ESA_AUDIT_LOG` | Audit JSONL path (default `.esa_audit/audit.jsonl`) |
 | `ESA_API_KEY` | Required for non-localhost HTTP bind; validates `X-ESA-API-Key` |

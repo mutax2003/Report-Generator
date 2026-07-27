@@ -85,7 +85,7 @@ Use `.\.venv\Scripts\python.exe` on Windows.
 1. `verify_tier.py` for playbook tier.
 2. Optional: `pip install pre-commit` + `scripts/install_pre_commit.ps1` (UX tier on staged `ui/`).
 3. **bugbot** on branch changes.
-4. **security-review** if upload/auth/tenant/rate-limit/audit/QP/retention/job queue/observability/logging/multipart/deploy touched.
+4. **security-review** if upload/auth/tenant/rate-limit/audit/QP/retention/job queue/observability/logging/multipart/deploy/`project_folder`/`ai/apply_drafts`/`agent_folder_report` touched.
 
 ## Example orchestration prompts
 
@@ -96,4 +96,4 @@ Use `.\.venv\Scripts\python.exe` on Windows.
 > Run `python scripts/verify_tier.py --tier profile --playbook b` and report failures only.
 
 **Pre-PR:**
-> Run `verify_tier.py --tier release`. Then bugbot on branch changes. Security-review if security / auth / tenant / rate-limit / audit / QP / retention / job queue / observability / multipart / deploy in diff.
+> Run `verify_tier.py --tier release`. Then bugbot on branch changes. Security-review if security / auth / tenant / rate-limit / audit / QP / retention / job queue / observability / multipart / deploy / project_folder / apply_drafts / agent_folder_report in diff.

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-import os
-
 import streamlit as st
 
 from ui.project_folder import clear_folder_session
@@ -23,9 +21,11 @@ _LABELS = {
 
 def hosted_mode_enabled() -> bool:
     """True on shared/docker/Streamlit Cloud hosts where local folder paths are unavailable."""
+    from security import folder_workflow_disabled
+
+    if folder_workflow_disabled():
+        return True
     for key in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW"):
-        if os.environ.get(key, "").strip().lower() in ("1", "true", "yes"):
-            return True
         try:
             if key in st.secrets and str(st.secrets[key]).strip().lower() in (
                 "1",

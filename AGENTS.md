@@ -9,13 +9,14 @@ Start here when working in this repo with Cursor or other coding agents.
 | [`.cursor/rules/esa-report-generator-architecture.mdc`](.cursor/rules/esa-report-generator-architecture.mdc) | Always-on architecture, sheets, venv, UI checklist |
 | [`.cursor/rules/esa-testing-ci.mdc`](.cursor/rules/esa-testing-ci.mdc) | unittest, E2E scripts, CI parity (`tests/`, `scripts/`, workflows) |
 | [`.cursor/rules/esa-streamlit-ui.mdc`](.cursor/rules/esa-streamlit-ui.mdc) | `app.py` + `ui/` — Streamlit boundaries and module roles |
-| [`.cursor/rules/esa-security-uploads.mdc`](.cursor/rules/esa-security-uploads.mdc) | Upload limits, safe errors, `ESA_VALIDATION_BYPASS` |
+| [`.cursor/rules/esa-security-uploads.mdc`](.cursor/rules/esa-security-uploads.mdc) | Uploads, folder workflow, draft apply, `ESA_VALIDATION_BYPASS` |
 | [`.cursor/rules/esa-schemas-and-templates.mdc`](.cursor/rules/esa-schemas-and-templates.mdc) | `schemas/*.json`, profiles, Word/Excel authoring |
 | [`.cursor/rules/esa-dwda-compliance.mdc`](.cursor/rules/esa-dwda-compliance.mdc) | DWDA/Directive 050, Ecoventure calc ingest, appendices A/D/G |
 | [`.cursor/rules/esa-dev-orchestration.mdc`](.cursor/rules/esa-dev-orchestration.mdc) | Cursor multi-agent playbooks, verify tiers, pre-PR |
 | [`.cursor/rules/esa-agent-roles.mdc`](.cursor/rules/esa-agent-roles.mdc) | PM → Architect → Dev → QA → DevOps role pipeline |
 | [`.cursor/skills/esa-dev-orchestration/SKILL.md`](.cursor/skills/esa-dev-orchestration/SKILL.md) | Condensed orchestration skill for parent agent |
-| [`docs/README.md`](docs/README.md) | Full documentation map (01–24) |
+| [`.cursor/skills/esa-agent-folder-report/SKILL.md`](.cursor/skills/esa-agent-folder-report/SKILL.md) | Agent folder report (Cursor / Codex / Claude Cowork) |
+| [`docs/README.md`](docs/README.md) | Full documentation map (01–26) |
 | [`docs/20-aer-sed002-phase1-esa.md`](docs/20-aer-sed002-phase1-esa.md) | AER SED 002 §10 checklist, OneStop export |
 | [`docs/21-dwda-directive-050-compliance.md`](docs/21-dwda-directive-050-compliance.md) | Directive 050 / ADWDA Option 1–2, DwdaChecklist, appendices D/G |
 | [`docs/00-start-here.md`](docs/00-start-here.md) | Consultants — upload, profile, pre-flight, generate, deliverable zip (includes appendices) |
@@ -31,6 +32,9 @@ Start here when working in this repo with Cursor or other coding agents.
 | [`schemas/sed002_phase1_checklist.json`](schemas/sed002_phase1_checklist.json) | SED 002 §10 preflight checklist |
 | [`schemas/field_contract.json`](schemas/field_contract.json) | Legacy reference + AI tagger |
 | [`docs/22-project-folder-workflow.md`](docs/22-project-folder-workflow.md) | Project folder — local CLI + AI enrich + render |
+| [`docs/25-agent-folder-report.md`](docs/25-agent-folder-report.md) | Agent folder report — Cursor / Codex / Claude Cowork |
+| [`docs/26-alberta-prompt-library.md`](docs/26-alberta-prompt-library.md) | Alberta prompt library — Phase I/II/GW/rem/recl |
+| [`schemas/alberta_prompt_library.json`](schemas/alberta_prompt_library.json) | Canonical prompts for `ai/prompts.py` + agents |
 | [`docs/23-excel-calculation-workbook-integration.md`](docs/23-excel-calculation-workbook-integration.md) | Excel calc workbooks — hybrid ingest, cell contract, parity |
 
 ## Setup
@@ -48,6 +52,7 @@ Or: `.\run.ps1 scripts\create_samples.py` (uses venv Python on Windows).
 | Task | Command |
 |------|---------|
 | Project folder (CLI + AI) | `python scripts\ingest_project_folder.py --folder <path> --ai enrich` · [docs/22-project-folder-workflow.md](docs/22-project-folder-workflow.md) |
+| Agent folder report (Cursor / Codex / Cowork) | `python scripts\agent_folder_report.py --folder <path> --mode inventory` · [docs/25-agent-folder-report.md](docs/25-agent-folder-report.md) · skill `esa-agent-folder-report` |
 | Web UI | `.\run.ps1 streamlit` or `streamlit run app.py` (templates: `.docx` or `.pdf`) |
 | Quick merge test | `python scripts\test_with_your_documents.py` |
 | Phase 1 PDF → markup + site Excel | `python scripts\phase1_pdf_to_markup.py` · `python scripts\create_phase1_site_samples.py` |
@@ -61,7 +66,7 @@ Or: `.\run.ps1 scripts\create_samples.py` (uses venv Python on Windows).
 | SharePoint bundle | `.\scripts\package_team_sharepoint.ps1` |
 | Team Docker host | `docker compose up -d --build` (see [docs/14-deployment.md](docs/14-deployment.md)) |
 | Windows deploy package | `.\scripts\build_windows_deploy.ps1 -BuildExe` → `dist\ESA-Report-Generator\` |
-| Unit tests | `python -m unittest discover -s tests -v` (**392 tests**, 4 may skip; see [docs/08-testing.md](docs/08-testing.md)) |
+| Unit tests | `python -m unittest discover -s tests -v` (**418 tests**, 4 may skip; see [docs/08-testing.md](docs/08-testing.md)) |
 | HTML help pack | `python scripts\build_help.py` → `help/index.html` (**F1** / Help → Contents locally; on Cloud use in-app Help — [docs/14-deployment.md](docs/14-deployment.md)) |
 | Streamlit Community Cloud | Python 3.12 + secrets `ESA_HOSTED_MODE=1`; sample data only; F1 `file://` broken — see [docs/14-deployment.md](docs/14-deployment.md) Hosting lock |
 | Streamlit AppTest smoke | `python scripts\streamlit_smoke.py` |
@@ -133,7 +138,7 @@ python scripts\verify_tier.py --tier release
 After implementation + verification tier:
 
 1. Launch **bugbot** on `branch changes`.
-2. If upload/auth/tenant/rate-limit/audit/QP/retention/job queue/observability/logging/multipart/deploy touched, launch **security-review**.
+2. If upload/auth/tenant/rate-limit/audit/QP/retention/job queue/observability/logging/multipart/deploy/`project_folder`/`ai/apply_drafts`/`agent_folder_report` touched, launch **security-review**.
 3. Use PR checklist in [docs/05-developer-guide.md](docs/05-developer-guide.md#cursor-multi-agent-orchestration).
 
 ### Anti-patterns
@@ -146,6 +151,6 @@ After implementation + verification tier:
 
 ## Key modules
 
-`app.py` · `render_service.py` · `engine.py` (`ReportEngine`, `render_batch`) · `project_folder.py` · `appendix_generator.py` (A/D/G for `phase1_alberta`, `phase1_devon`, `reclamation_certificate`) · `compliance_helpers.py` · `phase2_triggers.py` · `phrase_resolver.py` · `groundwater_narrative.py` · `phase1_narrative.py` · `phase1_decision.py` · `sed002_compliance.py` · `dwda_compliance.py` · `dwda_calculations.py` · `ecoventure_workbook.py` · `report_profile.py` (`read_excel_meta`) · `template_attachments.py` · `template_size.py` · `deliverable_pack.py` (OneStop export, deliverable zip, `qp_templates/`) · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` · `security.py` · `provenance.py` · `esa_launcher.py` · `esa_auth.py` · `esa_logging.py` · `esa_observability.py` · `esa_rate_limit.py` · `esa_tenant.py` · `audit_trail.py` · `job_queue.py` · `qp_signature.py` · `records_retention.py` · `ui/` (`workflow_mode`, `onboarding`, `menubar`, `project_folder`, `layout`, `sidebar`, `phrase_panel`, `preflight`, `appendix_panel`, `results`, `helpers`, `branding`, `preview`, `ai_panel`, `alberta_imagery`, `folder_picker`) · `help/` (`index.html` from `scripts/build_help.py`; **F1**) · `ai/appendix_classifier.py` · `schemas/phrase_catalog.json` · `schemas/sed002_phase1_checklist.json` · `schemas/ecoventure_dwda_cell_contract.json` · `scripts/` (`ingest_project_folder.py`, `ingest_ecoventure_workbook.py`, `create_appendix_templates.py`, `build_help.py`, `build_windows_deploy.ps1`) · `automate/` (incl. `multipart.py`)
+`app.py` · `render_service.py` · `engine.py` (`ReportEngine`, `render_batch`) · `project_folder.py` (`ensure_under_project_root`, `atomic_write_*`) · `appendix_generator.py` (A/D/G for `phase1_alberta`, `phase1_devon`, `reclamation_certificate`) · `compliance_helpers.py` · `phase2_triggers.py` · `phrase_resolver.py` · `groundwater_narrative.py` · `phase1_narrative.py` · `phase1_decision.py` · `sed002_compliance.py` · `dwda_compliance.py` · `dwda_calculations.py` · `ecoventure_workbook.py` · `report_profile.py` (`read_excel_meta`) · `template_attachments.py` · `template_size.py` · `deliverable_pack.py` (OneStop export, deliverable zip, `qp_templates/`) · `phase1_markup.py` · `phase1_pdf_text.py` · `template_tools.py` (`scan_template_trusted`) · `security.py` (`folder_workflow_disabled`) · `provenance.py` · `esa_launcher.py` · `esa_auth.py` · `esa_logging.py` · `esa_observability.py` · `esa_rate_limit.py` · `esa_tenant.py` · `audit_trail.py` · `job_queue.py` · `qp_signature.py` · `records_retention.py` · `ui/` (`workflow_mode`, `onboarding`, `menubar`, `project_folder`, `layout`, `sidebar`, `phrase_panel`, `preflight`, `appendix_panel`, `results`, `helpers`, `branding`, `preview`, `ai_panel`, `alberta_imagery`, `folder_picker`) · `help/` (`index.html` from `scripts/build_help.py`; **F1**) · `ai/apply_drafts.py` · `ai/prompts.py` · `ai/excel_builder.py` · `ai/appendix_classifier.py` · `schemas/phrase_catalog.json` · `schemas/alberta_prompt_library.json` · `schemas/sed002_phase1_checklist.json` · `schemas/ecoventure_dwda_cell_contract.json` · `scripts/` (`agent_folder_report.py`, `ingest_project_folder.py`, `ingest_ecoventure_workbook.py`, `create_appendix_templates.py`, `build_help.py`, `build_windows_deploy.ps1`) · `automate/` (incl. `multipart.py`)
 
 Do not put Streamlit imports in `engine.py`. Extend **`schemas/report_profiles.json`** `recommended_fields` when adding production fields; update `field_contract.json` if the AI tagger or legacy docs need the same names. For phrase fields, update **`schemas/phrase_catalog.json`** and [docs/04-template-authoring.md](docs/04-template-authoring.md). For multi-site Excel, use **`ProjectData` rows 3+** and batch mode or `render_cli.py --all-rows`.

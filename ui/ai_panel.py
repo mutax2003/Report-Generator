@@ -47,6 +47,9 @@ def _merge_audit(audit: AiAudit) -> None:
 
 def _set_session_excel_bytes(data: bytes, *, name: str | None = None) -> None:
     """Replace loaded Excel in session (upload or folder workflow) and clear caches."""
+    from security import validate_excel_upload
+
+    validate_excel_upload(data, filename=name or "project_data.xlsx")
     st.session_state.session_excel_bytes = data
     if name:
         st.session_state.session_excel_name = name
@@ -91,19 +94,25 @@ def _apply_fields_ui(
     c1, c2 = st.columns(2)
     with c1:
         if st.button(label, key=f"{key_prefix}_apply_excel", width="stretch"):
-            new_bytes, applied, skipped = patch_project_data_fields(
-                excel_bytes, fields, overwrite_filled=overwrite
-            )
-            _set_session_excel_bytes(new_bytes)
-            _merge_audit(
-                AiAudit(features=["apply_drafts_excel"], used_llm=False)
-            )
-            st.success(
-                f"Applied {len(applied)} field(s)"
-                + (f"; skipped {len(skipped)}" if skipped else "")
-                + ". Re-run pre-flight on the Report tab."
-            )
-            st.rerun()
+            try:
+                new_bytes, applied, skipped = patch_project_data_fields(
+                    excel_bytes, fields, overwrite_filled=overwrite
+                )
+                from security import SecurityError, validate_excel_upload
+
+                validate_excel_upload(new_bytes, filename="project_data.xlsx")
+                _set_session_excel_bytes(new_bytes)
+                _merge_audit(
+                    AiAudit(features=["apply_drafts_excel"], used_llm=False)
+                )
+                st.success(
+                    f"Applied {len(applied)} field(s)"
+                    + (f"; skipped {len(skipped)}" if skipped else "")
+                    + ". Re-run pre-flight on the Report tab."
+                )
+                st.rerun()
+            except (SecurityError, ValueError, OSError) as e:
+                st.error(user_safe_error(e))
     with c2:
         exec_text = fields.get("executive_summary", "").strip()
         if exec_text and st.button(
@@ -331,13 +340,13 @@ def _tab_folder_drafts() -> None:
     if narr_path.is_file():
         try:
             fields.update(load_narratives_payload(narr_path))
-        except (json.JSONDecodeError, OSError) as e:
+        except (json.JSONDecodeError, OSError, ValueError) as e:
             st.warning(user_safe_error(e))
     sugg_path = drafts_dir / "excel_field_suggestions.json"
     if sugg_path.is_file():
         try:
             fields.update(load_field_suggestions(sugg_path))
-        except (json.JSONDecodeError, OSError) as e:
+        except (json.JSONDecodeError, OSError, ValueError) as e:
             st.warning(user_safe_error(e))
     if fields:
         st.markdown("**Apply drafts into ProjectData**")
@@ -366,25 +375,35 @@ def _tab_folder_drafts() -> None:
                 key="folder_apec_mark_phase2",
             )
             if st.button("Apply APECs to Excel", key="folder_apec_apply", width="stretch"):
-                xlsx = apec_rows_to_xlsx_bytes(
-                    rows, existing_excel=excel_bytes, mode=mode
-                )
-                _set_session_excel_bytes(xlsx)
-                _merge_audit(AiAudit(features=["apec_apply_folder"], used_llm=False))
-                if st.session_state.get("folder_apec_mark_phase2") and any(
-                    str(r.get("phase2_recommended", "")).upper().startswith("Y")
-                    for r in rows
-                ):
-                    from ai.apply_drafts import patch_project_data_fields
-
-                    xlsx2, _, _ = patch_project_data_fields(
-                        xlsx,
-                        {"phase2_recommended": "Yes", "phase2_esa_required": "Yes"},
-                        overwrite_filled=True,
+                try:
+                    xlsx = apec_rows_to_xlsx_bytes(
+                        rows, existing_excel=excel_bytes, mode=mode
                     )
-                    _set_session_excel_bytes(xlsx2)
-                st.success(f"Applied {len(rows)} APEC row(s) ({mode}). Re-run pre-flight.")
-                st.rerun()
+                    _set_session_excel_bytes(xlsx)
+                    _merge_audit(AiAudit(features=["apec_apply_folder"], used_llm=False))
+                    if st.session_state.get("folder_apec_mark_phase2") and any(
+                        str(r.get("phase2_recommended", "")).upper().startswith("Y")
+                        for r in rows
+                    ):
+                        from ai.apply_drafts import patch_project_data_fields
+
+                        xlsx2, _, _ = patch_project_data_fields(
+                            xlsx,
+                            {"phase2_recommended": "Yes", "phase2_esa_required": "Yes"},
+                            overwrite_filled=True,
+                        )
+                        _set_session_excel_bytes(xlsx2)
+                    st.success(
+                        f"Applied {len(rows)} APEC row(s) ({mode}). Re-run pre-flight."
+                    )
+                    st.rerun()
+                except Exception as e:
+                    from security import SecurityError
+
+                    if isinstance(e, (SecurityError, ValueError, OSError)):
+                        st.error(user_safe_error(e))
+                    else:
+                        raise
 
 
 def _tab_apec_extract(excel_bytes: bytes | None, *, folder_mode: bool = False) -> None:
@@ -478,21 +497,29 @@ def _tab_apec_extract(excel_bytes: bytes | None, *, folder_mode: bool = False) -
         key="ai_apec_merge_session",
         width="stretch",
     ):
-        _set_session_excel_bytes(xlsx, name="apecs_import.xlsx")
-        _merge_audit(AiAudit(features=["apec_merge_session"], used_llm=False))
-        if st.session_state.get("ai_apec_mark_phase2") and any(
-            r.phase2_recommended == "Y" for r in result.rows
-        ):
-            from ai.apply_drafts import patch_project_data_fields
+        try:
+            _set_session_excel_bytes(xlsx, name="apecs_import.xlsx")
+            _merge_audit(AiAudit(features=["apec_merge_session"], used_llm=False))
+            if st.session_state.get("ai_apec_mark_phase2") and any(
+                r.phase2_recommended == "Y" for r in result.rows
+            ):
+                from ai.apply_drafts import patch_project_data_fields
 
-            xlsx2, _, _ = patch_project_data_fields(
-                xlsx,
-                {"phase2_recommended": "Yes", "phase2_esa_required": "Yes"},
-                overwrite_filled=True,
-            )
-            _set_session_excel_bytes(xlsx2)
-        st.success("Apecs sheet merged — re-run pre-flight on the Report tab.")
-        st.rerun()
+                xlsx2, _, _ = patch_project_data_fields(
+                    xlsx,
+                    {"phase2_recommended": "Yes", "phase2_esa_required": "Yes"},
+                    overwrite_filled=True,
+                )
+                _set_session_excel_bytes(xlsx2)
+            st.success("Apecs sheet merged — re-run pre-flight on the Report tab.")
+            st.rerun()
+        except Exception as e:
+            from security import SecurityError
+
+            if isinstance(e, (SecurityError, ValueError, OSError)):
+                st.error(user_safe_error(e))
+            else:
+                raise
     with st.expander("Text preview"):
         st.text(result.raw_text_preview or "(empty)")
 
@@ -640,10 +667,18 @@ def _tab_lab_pdf(
             key="ai_lab_merge_session",
             width="stretch",
         ):
-            _set_session_excel_bytes(xlsx, name=dl_name)
-            _merge_audit(AiAudit(features=["lab_pdf_merge_session"], used_llm=False))
-            st.success("Lab sheet merged into session Excel — re-run pre-flight.")
-            st.rerun()
+            try:
+                _set_session_excel_bytes(xlsx, name=dl_name)
+                _merge_audit(AiAudit(features=["lab_pdf_merge_session"], used_llm=False))
+                st.success("Lab sheet merged into session Excel — re-run pre-flight.")
+                st.rerun()
+            except Exception as e:
+                from security import SecurityError
+
+                if isinstance(e, (SecurityError, ValueError, OSError)):
+                    st.error(user_safe_error(e))
+                else:
+                    raise
     with st.expander("PDF text preview"):
         st.text(result.raw_text_preview or "(empty)")
 
@@ -691,10 +726,18 @@ def _tab_well_log_pdf(excel_bytes: bytes | None, *, folder_mode: bool = False) -
         key="ai_well_merge_session",
         width="stretch",
     ):
-        _set_session_excel_bytes(xlsx, name="monitoring_wells_import.xlsx")
-        _merge_audit(AiAudit(features=["well_log_merge_session"], used_llm=False))
-        st.success("MonitoringWells merged into session Excel — re-run pre-flight.")
-        st.rerun()
+        try:
+            _set_session_excel_bytes(xlsx, name="monitoring_wells_import.xlsx")
+            _merge_audit(AiAudit(features=["well_log_merge_session"], used_llm=False))
+            st.success("MonitoringWells merged into session Excel — re-run pre-flight.")
+            st.rerun()
+        except Exception as e:
+            from security import SecurityError
+
+            if isinstance(e, (SecurityError, ValueError, OSError)):
+                st.error(user_safe_error(e))
+            else:
+                raise
 
 
 def _tab_gw_trends(

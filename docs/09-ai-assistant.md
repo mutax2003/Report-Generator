@@ -217,4 +217,6 @@ Tab names: folder workflow = **AI drafts & tools**; Excel + template upload = **
 
 - [04-template-authoring.md](04-template-authoring.md) — Manual tagging
 - [22-project-folder-workflow.md](22-project-folder-workflow.md) — Folder enrich + Apply
+- [25-agent-folder-report.md](25-agent-folder-report.md) — **Agent folder report** (Cursor / Codex / Claude Cowork) — separate from this in-app Gemini path
+- [26-alberta-prompt-library.md](26-alberta-prompt-library.md) — Standard Alberta LLM/agent prompts by profile
 - [../AI_FEATURES.md](../AI_FEATURES.md) — Short summary

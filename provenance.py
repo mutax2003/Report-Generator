@@ -78,6 +78,9 @@ def build_generation_record(
     template_source_format: str = "",
     appendix_files: list[dict[str, str]] | None = None,
     context: dict[str, Any] | None = None,
+    excel_sha256: str | None = None,
+    template_sha256: str | None = None,
+    output_sha256: str | None = None,
 ) -> GenerationRecord:
     meta = meta or {}
     ctx = context or {}
@@ -90,9 +93,13 @@ def build_generation_record(
         template_version=str(meta.get("template_version", "")),
         template_source_format=template_source_format or "",
         appendix_files=list(appendix_files or []),
-        excel_sha256=sha256_hex(excel_bytes),
-        template_sha256=sha256_hex(template_bytes),
-        output_sha256=sha256_hex(output_bytes) if output_bytes else None,
+        excel_sha256=excel_sha256 or sha256_hex(excel_bytes),
+        template_sha256=template_sha256 or sha256_hex(template_bytes),
+        output_sha256=(
+            output_sha256
+            if output_sha256 is not None
+            else (sha256_hex(output_bytes) if output_bytes else None)
+        ),
         excel_filename=excel_filename,
         template_filename=template_filename,
         output_filename=output_filename,

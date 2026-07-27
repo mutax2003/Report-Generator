@@ -187,15 +187,19 @@ def render_upload_step() -> tuple[Any, Any, Any, list[str]]:
                 )
                 if eco_file is not None:
                     from security import SecurityError, user_safe_error, validate_excel_upload
+                    from ui.helpers import cached_upload_bytes
 
-                    eco_bytes = eco_file.getvalue()
-                    try:
-                        validate_excel_upload(eco_bytes, eco_file.name or "")
-                    except SecurityError as exc:
-                        st.error(user_safe_error(exc))
+                    eco_bytes = cached_upload_bytes(eco_file, slot="ecoventure")
+                    if eco_bytes is None:
                         st.session_state.pop("ecoventure_workbook_bytes", None)
                     else:
-                        st.session_state["ecoventure_workbook_bytes"] = eco_bytes
+                        try:
+                            validate_excel_upload(eco_bytes, eco_file.name or "")
+                        except SecurityError as exc:
+                            st.error(user_safe_error(exc))
+                            st.session_state.pop("ecoventure_workbook_bytes", None)
+                        else:
+                            st.session_state["ecoventure_workbook_bytes"] = eco_bytes
 
     with col2:
         with st.container(border=True):

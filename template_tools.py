@@ -93,21 +93,39 @@ def scan_template(template_bytes: bytes, *, max_split_issues: int = 15) -> Templ
     hit = _scan_cache.get(key)
     if hit is not None:
         return hit
-    result = _scan_template_impl(template_bytes, max_split_issues)
+    result = _scan_template_impl(template_bytes, max_split_issues, skip_validation=False)
     if len(_scan_cache) >= _SCAN_CACHE_MAX:
         _scan_cache.pop(next(iter(_scan_cache)))
     _scan_cache[key] = result
     return result
 
 
-def _scan_template_impl(template_bytes: bytes, max_split_issues: int) -> TemplateScan:
+def scan_template_trusted(
+    template_bytes: bytes, *, max_split_issues: int = 15
+) -> TemplateScan:
+    """Like ``scan_template`` but skip ZIP re-validation (caller already validated)."""
+    digest = hashlib.sha256(template_bytes).hexdigest()
+    key = (digest, max_split_issues)
+    hit = _scan_cache.get(key)
+    if hit is not None:
+        return hit
+    result = _scan_template_impl(template_bytes, max_split_issues, skip_validation=True)
+    if len(_scan_cache) >= _SCAN_CACHE_MAX:
+        _scan_cache.pop(next(iter(_scan_cache)))
+    _scan_cache[key] = result
+    return result
+
+
+def _scan_template_impl(
+    template_bytes: bytes, max_split_issues: int, *, skip_validation: bool
+) -> TemplateScan:
     """Uncached template ZIP scan."""
     roots: set[str] = set()
     mustache: set[str] = set()
     blocks: set[str] = set()
     split_issues: list[str] = []
 
-    with open_docx_zip(template_bytes) as zf:
+    with open_docx_zip(template_bytes, skip_validation=skip_validation) as zf:
         budget = ZipReadBudget()
         for name in zf.namelist():
             if not name.startswith("word/") or not name.endswith(".xml"):

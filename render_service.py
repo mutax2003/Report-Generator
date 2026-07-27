@@ -180,7 +180,8 @@ def finalize_deliverable_package(
     """Build deliverable zip on an existing RenderResult (no second Word merge)."""
     record = result.record
     record.output_filename = report_filename
-    record.output_sha256 = sha256_hex(result.docx_bytes)
+    if not record.output_sha256:
+        record.output_sha256 = sha256_hex(result.docx_bytes)
     rec_dict = enrich_manifest_dict(
         record.to_dict(),
         template_source_format=template_source_format,

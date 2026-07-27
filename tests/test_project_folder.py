@@ -260,6 +260,42 @@ class ProjectFolderTests(unittest.TestCase):
         self.assertTrue(payload["items"])
         self.assertEqual(payload["items"][0]["label"], "F")
 
+    def test_resolve_blocked_when_hosted(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        from project_folder import resolve_project_folder
+
+        folder = self._make_folder()
+        with patch.dict(os.environ, {"ESA_HOSTED_MODE": "1"}, clear=False):
+            with self.assertRaises(PermissionError):
+                resolve_project_folder(folder)
+
+    def test_symlink_pdf_not_listed(self) -> None:
+        from project_folder import resolve_project_folder
+
+        folder = self._make_folder()
+        source = folder / "source"
+        source.mkdir(exist_ok=True)
+        real = source / "real.pdf"
+        real.write_bytes(b"%PDF-1.4")
+        link = source / "escape.pdf"
+        try:
+            link.symlink_to(real)
+        except OSError:
+            self.skipTest("Symlinks not available on this host")
+        resolved = resolve_project_folder(folder, create_subdirs=True)
+        names = {p.name for p in resolved.inventory.source_pdfs}
+        self.assertIn("real.pdf", names)
+        self.assertNotIn("escape.pdf", names)
+
+    def test_path_escape_rejected(self) -> None:
+        from project_folder import ensure_under_project_root
+
+        folder = self._make_folder()
+        with self.assertRaises(FileNotFoundError):
+            ensure_under_project_root(folder, folder / ".." / "outside.txt", allow_missing=True)
+
 
 if __name__ == "__main__":
     unittest.main()

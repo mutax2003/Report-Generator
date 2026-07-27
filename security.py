@@ -314,19 +314,47 @@ def validate_template_upload(data: bytes, filename: str = "") -> None:
 
 
 def validate_rendered_output(data: bytes) -> None:
+    """Size + structure check for engine-generated .docx (not untrusted uploads).
+
+    Full ``inspect_zip_archive`` is reserved for upload boundaries; self-generated
+    output only needs magic bytes, member-count cap, and ``word/document.xml``.
+    """
     limit = MAX_RENDERED_DOCX_BYTES
     if _large_template_mode():
         limit = max(limit, 160 * 1024 * 1024)
+    if not data:
+        raise SecurityError("Generated report is empty.")
     if len(data) > limit:
         raise SecurityError("Generated report exceeds maximum allowed size.")
-    # Re-validate structure and zip budget on generated output
-    inspect_zip_archive(data, purpose="docx")
+    if len(data) < 4 or not data.startswith(_ZIP_MAGIC):
+        raise SecurityError("Generated report is not a valid Word document.")
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(data), "r")
+    except zipfile.BadZipFile as e:
+        raise SecurityError("Generated report is corrupt or invalid.") from e
+    with zf:
+        names = zf.namelist()
+        if len(names) > MAX_ZIP_MEMBERS:
+            raise SecurityError(
+                f"Generated report has too many entries ({len(names)}; max {MAX_ZIP_MEMBERS})."
+            )
+        if not any(n.lower() == _DOCX_REQUIRED_PART for n in names):
+            raise SecurityError(
+                "Generated report is not a Word document (.docx): missing word/document.xml."
+            )
 
 
 @contextmanager
-def open_docx_zip(data: bytes) -> Iterator[zipfile.ZipFile]:
-    """Open a validated .docx as ZIP for read-only scanning."""
-    validate_template_upload(data)
+def open_docx_zip(
+    data: bytes, *, skip_validation: bool = False
+) -> Iterator[zipfile.ZipFile]:
+    """Open a .docx as ZIP for read-only scanning.
+
+    Pass ``skip_validation=True`` when the same bytes were already validated
+    (e.g. ReportEngine constructor) to avoid a second full ZIP inspect.
+    """
+    if not skip_validation:
+        validate_template_upload(data)
     zf = zipfile.ZipFile(io.BytesIO(data), "r")
     try:
         yield zf
@@ -340,6 +368,19 @@ def read_docx_xml_member(zf: zipfile.ZipFile, name: str, budget: ZipReadBudget) 
     return raw.decode("utf-8", errors="ignore")
 
 
+def folder_workflow_disabled() -> bool:
+    """True when local project-folder paths must not be used (shared/hosted hosts).
+
+    Checks environment only. Streamlit UI also consults ``st.secrets`` via
+    ``ui.workflow_mode.hosted_mode_enabled`` — set the same keys in secrets **and**
+    env on Cloud for defense-in-depth at ``resolve_project_folder``.
+    """
+    for key in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW"):
+        if os.environ.get(key, "").strip().lower() in ("1", "true", "yes"):
+            return True
+    return False
+
+
 def validation_bypass_enabled() -> bool:
     """Only for local tests: set ESA_SKIP_VALIDATION=1 or ESA_VALIDATION_BYPASS=1.
 
@@ -347,9 +388,8 @@ def validation_bypass_enabled() -> bool:
     """
     if os.environ.get("ESA_API_KEY", "").strip():
         return False
-    for hosted in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW"):
-        if os.environ.get(hosted, "").strip().lower() in ("1", "true", "yes"):
-            return False
+    if folder_workflow_disabled():
+        return False
     for name in ("ESA_SKIP_VALIDATION", "ESA_VALIDATION_BYPASS"):
         if os.environ.get(name, "").strip().lower() in ("1", "true", "yes"):
             return True

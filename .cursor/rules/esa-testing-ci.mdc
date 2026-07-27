@@ -24,6 +24,7 @@ python scripts\phase2_alberta_e2e.py
 python scripts\groundwater_e2e.py
 python scripts\create_phase2_project_folder.py
 python scripts\ingest_project_folder.py --folder user_test\phase2_alberta --render --no-llm
+python scripts\agent_folder_report.py --folder user_test\phase2_alberta --mode inventory
 python scripts\test_with_your_documents.py
 python scripts\create_ecoventure_dwda_fixture.py
 python scripts\dwda_workflow_e2e.py
@@ -71,7 +72,7 @@ python scripts\playwright_smoke.py
 ## Conventions
 
 - Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates.
-- **Parity pins** (update with `scripts/count_tests.py` when adding/removing tests): **392 tests**, **4** may skip, **18** health checks. Always re-run `python scripts\count_tests.py` after suite changes.
+- **Parity pins** (update with `scripts/count_tests.py` when adding/removing tests): **418 tests**, **4** may skip, **18** health checks. Always re-run `python scripts\count_tests.py` after suite changes.
 - UX AppTest coverage includes `test_onboarding`, `test_appendix_helpers`, `test_streamlit_smoke`, `test_menubar`.
 - **Hosted / Cloud regression:** keep green
   - `tests/test_streamlit_smoke.py` → `test_hosted_golden_path_generate_deliverable_zip` (`ESA_HOSTED_MODE=1` → upload-only → Alberta sample → Generate → deliverable zip)

@@ -116,6 +116,7 @@ def resolve_phrase_text(
     option_id: str,
     *,
     excel_lookup: dict[tuple[str, str], str] | None = None,
+    defs: dict[str, dict[str, Any]] | None = None,
 ) -> str | None:
     """Resolve option_id to full text using Excel catalog then JSON catalog."""
     pk = _norm_key(phrase_key)
@@ -124,8 +125,8 @@ def resolve_phrase_text(
         return None
     if excel_lookup and (pk, oid) in excel_lookup:
         return excel_lookup[(pk, oid)]
-    defs = list_phrase_definitions()
-    spec = defs.get(pk)
+    catalog = defs if defs is not None else list_phrase_definitions()
+    spec = catalog.get(pk)
     if not spec:
         return None
     for opt in spec.get("options", []):
@@ -153,7 +154,9 @@ def apply_phrase_resolution(
     defs = list_phrase_definitions()
 
     for phrase_key, option_id in selections.items():
-        text = resolve_phrase_text(phrase_key, option_id, excel_lookup=excel_lookup)
+        text = resolve_phrase_text(
+            phrase_key, option_id, excel_lookup=excel_lookup, defs=defs
+        )
         if text:
             context[phrase_key] = text
             context[f"{phrase_key}_option_id"] = option_id

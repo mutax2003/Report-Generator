@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+from functools import lru_cache
 from pathlib import Path
 
 import streamlit as st
@@ -288,13 +290,21 @@ def render_status_badge(kind: str, label: str) -> None:
     st.markdown(status_badge_html(kind, label), unsafe_allow_html=True)
 
 
+@lru_cache(maxsize=2)
+def _logo_data_uri_cached(path: str, mtime_ns: int) -> str:
+    encoded = base64.b64encode(Path(path).read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
 def _logo_data_uri() -> str:
     if not LOGO_WHITE.is_file():
         return ""
-    import base64
-
-    encoded = base64.b64encode(LOGO_WHITE.read_bytes()).decode("ascii")
-    return f"data:image/png;base64,{encoded}"
+    try:
+        st_mtime = LOGO_WHITE.stat().st_mtime_ns
+        resolved = str(LOGO_WHITE.resolve())
+    except OSError:
+        return ""
+    return _logo_data_uri_cached(resolved, st_mtime)
 
 
 def render_sidebar_branding() -> None:

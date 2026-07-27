@@ -17,6 +17,8 @@ HELP_PAGES: list[tuple[str, str, str]] = [
     ("templates", "Template authoring", "docs/04-template-authoring.md"),
     ("phase1", "Alberta Phase I ESA", "docs/11-alberta-phase1-esa.md"),
     ("folder", "Project folder workflow", "docs/22-project-folder-workflow.md"),
+    ("agent-folder", "Agent folder report", "docs/25-agent-folder-report.md"),
+    ("prompts", "Alberta prompt library", "docs/26-alberta-prompt-library.md"),
     ("ai", "AI assistant", "docs/09-ai-assistant.md"),
     ("shortcuts", "Keyboard shortcuts", ""),  # generated
 ]

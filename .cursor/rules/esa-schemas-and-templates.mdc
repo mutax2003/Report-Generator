@@ -1,6 +1,6 @@
 ---
 description: Report profiles, field contracts, Excel/Word authoring conventions
-globs: schemas/**/*.json,report_profile.py,field_validation.py,EXCEL_LAYOUT.txt,JINJA2_CHEATSHEET.txt
+globs: schemas/**/*.json,report_profile.py,field_validation.py,ai/prompts.py,EXCEL_LAYOUT.txt,JINJA2_CHEATSHEET.txt
 alwaysApply: false
 ---
 
@@ -23,6 +23,7 @@ alwaysApply: false
 | `dwda_salt_additives.json` | Salt additive factors for calc engine |
 | `project_folder.json` | `project.json` layout (`ecoventure_workbook_filename`) |
 | `phrase_catalog.json` | Standard phrase options (UI + Excel `PhraseCatalog`) |
+| `alberta_prompt_library.json` | LLM/agent prompts by profile (`ai/prompts.py`); advisory only — not ReportEngine |
 | `records_retention_policy.json` | Retention classes / purge policy for audit and deliverable artifacts — keep in sync with `records_retention.py` |
 | `phase2_esa_checklist.json`, `groundwater_checklist.json`, `reclamation_checklist.json` | Vertical profile preflight |
 

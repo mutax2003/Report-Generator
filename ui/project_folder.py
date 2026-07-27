@@ -215,7 +215,8 @@ def _render_folder_controls() -> FolderLoadResult | None:
 
     st.caption(
         "**Browse…** loads the folder immediately. Or paste a path and click **Load folder**. "
-        "On servers without a desktop, paste the path only."
+        "On servers without a desktop, paste the path only. "
+        "External agents (Cursor / Codex / Claude Cowork): see docs/25-agent-folder-report.md."
     )
 
     col1, col2, col3 = st.columns(3)

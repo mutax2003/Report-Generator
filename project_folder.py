@@ -7,7 +7,9 @@ See docs/22-project-folder-workflow.md and schemas/project_folder.json.
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import tempfile
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -132,6 +134,8 @@ def _read_project_json(folder: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
     try:
+        if path.is_symlink():
+            raise ValueError(f"{PROJECT_JSON} must not be a symlink")
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
         raise ValueError(f"Invalid {PROJECT_JSON}: {e}") from e
@@ -140,16 +144,71 @@ def _read_project_json(folder: Path) -> dict[str, str]:
     return {str(k): str(v) for k, v in raw.items() if v is not None and str(v).strip()}
 
 
+def ensure_under_project_root(
+    root: Path, path: Path, *, allow_missing: bool = False
+) -> Path:
+    """Resolve path and require it stays under project root (blocks symlink escape)."""
+    root = root.resolve()
+    try:
+        resolved = path.resolve()
+    except OSError as e:
+        raise FileNotFoundError(f"Cannot resolve path: {path}") from e
+    if not resolved.is_relative_to(root):
+        raise FileNotFoundError(f"Path escapes project folder: {path}")
+    if path.is_symlink():
+        raise FileNotFoundError(f"Symlinks are not allowed in project folder: {path}")
+    if not allow_missing and not resolved.exists():
+        raise FileNotFoundError(f"Path not found: {path}")
+    return resolved
+
+
+# Back-compat alias for internal callers
+_ensure_under_root = ensure_under_project_root
+
+
+def atomic_write_bytes(path: Path, data: bytes, *, root: Path | None = None) -> None:
+    """Write bytes via temp file + os.replace (crash-safe)."""
+    from security import MAX_EXCEL_BYTES, MAX_RENDERED_DOCX_BYTES, MAX_TEMPLATE_BYTES
+
+    cap = max(MAX_EXCEL_BYTES, MAX_TEMPLATE_BYTES, MAX_RENDERED_DOCX_BYTES)
+    if len(data) > cap:
+        raise ValueError(f"Write rejected: payload too large ({len(data)} > {cap} bytes)")
+    if root is not None:
+        path = ensure_under_project_root(root, path, allow_missing=True)
+        ensure_under_project_root(root, path.parent, allow_missing=False)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.stem}_",
+        suffix=path.suffix + ".tmp",
+        dir=str(path.parent),
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
+def atomic_write_text(path: Path, text: str, *, root: Path | None = None) -> None:
+    atomic_write_bytes(path, text.encode("utf-8"), root=root)
+
+
 def _find_file(folder: Path, names: tuple[str, ...], override: str = "") -> Path | None:
     root = folder.resolve()
 
     def _contained(candidate: Path) -> Path | None:
         try:
-            resolved = candidate.resolve()
-        except OSError:
+            resolved = _ensure_under_root(root, candidate, allow_missing=True)
+        except FileNotFoundError:
             return None
-        if not resolved.is_relative_to(root):
-            raise FileNotFoundError(f"Path escapes project folder: {candidate}")
         return resolved if resolved.is_file() else None
 
     if override:
@@ -164,23 +223,53 @@ def _find_file(folder: Path, names: tuple[str, ...], override: str = "") -> Path
     return None
 
 
-def _list_pdfs(directory: Path) -> list[Path]:
+def _list_contained_files(
+    directory: Path,
+    *,
+    root: Path | None = None,
+    suffixes: set[str] | None = None,
+    glob_pattern: str | None = None,
+) -> list[Path]:
     if not directory.is_dir():
         return []
-    return sorted(p for p in directory.iterdir() if p.is_file() and p.suffix.lower() == ".pdf")
-
-
-def _list_figures(directory: Path) -> list[Path]:
-    if not directory.is_dir():
+    if directory.is_symlink():
         return []
-    exts = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
-    return sorted(p for p in directory.iterdir() if p.suffix.lower() in exts)
-
-
-def _list_rag(directory: Path) -> list[Path]:
-    if not directory.is_dir():
+    base = root or directory.parent.resolve()
+    try:
+        dir_res = _ensure_under_root(base, directory)
+    except FileNotFoundError:
         return []
-    return sorted(p for p in directory.glob("*.txt") if p.is_file())
+    out: list[Path] = []
+    iterator = dir_res.glob(glob_pattern) if glob_pattern else dir_res.iterdir()
+    for p in iterator:
+        try:
+            if p.is_symlink():
+                continue
+            resolved = _ensure_under_root(base, p)
+        except FileNotFoundError:
+            continue
+        if not resolved.is_file():
+            continue
+        if suffixes is not None and resolved.suffix.lower() not in suffixes:
+            continue
+        out.append(resolved)
+    return sorted(out)
+
+
+def _list_pdfs(directory: Path, *, root: Path | None = None) -> list[Path]:
+    return _list_contained_files(directory, root=root, suffixes={".pdf"})
+
+
+def _list_figures(directory: Path, *, root: Path | None = None) -> list[Path]:
+    return _list_contained_files(
+        directory,
+        root=root,
+        suffixes={".png", ".jpg", ".jpeg", ".gif", ".webp"},
+    )
+
+
+def _list_rag(directory: Path, *, root: Path | None = None) -> list[Path]:
+    return _list_contained_files(directory, root=root, glob_pattern="*.txt")
 
 
 def build_meta(project_json: dict[str, str]) -> dict[str, str]:
@@ -226,8 +315,19 @@ def clear_project_folder_file_cache() -> None:
     clear_project_folder_pdf_cache()
 
 
+def _hosted_folder_blocked() -> bool:
+    from security import folder_workflow_disabled
+
+    return folder_workflow_disabled()
+
+
 def resolve_project_folder(folder: Path, *, create_subdirs: bool = False) -> ResolvedProjectFolder:
     """Validate folder layout and resolve Excel + template paths."""
+    if _hosted_folder_blocked():
+        raise PermissionError(
+            "Project folder workflow is disabled when ESA_HOSTED_MODE / "
+            "ESA_DISABLE_FOLDER_WORKFLOW is set."
+        )
     root = folder.expanduser().resolve()
     if not root.is_dir():
         raise FileNotFoundError(f"Project folder not found: {root}")
@@ -255,10 +355,13 @@ def resolve_project_folder(folder: Path, *, create_subdirs: bool = False) -> Res
     missing_subdirs: list[str] = []
     for name in SUBDIRS:
         sub = root / name
+        if sub.exists() or sub.is_symlink():
+            _ensure_under_root(root, sub, allow_missing=False)
         if not sub.is_dir():
             missing_subdirs.append(name)
             if create_subdirs:
                 sub.mkdir(parents=True, exist_ok=True)
+                _ensure_under_root(root, sub)
 
     meta = build_meta(project_json)
     warnings: list[str] = []
@@ -269,16 +372,16 @@ def resolve_project_folder(folder: Path, *, create_subdirs: bool = False) -> Res
             + " (run with --init-dirs to create)"
         )
 
-    source_pdfs = _list_pdfs(root / "source")
-    appendix_pdfs = _list_pdfs(root / "appendices")
+    source_pdfs = _list_pdfs(root / "source", root=root)
+    appendix_pdfs = _list_pdfs(root / "appendices", root=root)
     inventory = ProjectFolderInventory(
         excel_path=excel,
         template_path=template,
         meta=meta,
         source_pdfs=source_pdfs,
         appendix_pdfs=appendix_pdfs,
-        figure_files=_list_figures(root / "figures"),
-        rag_files=_list_rag(root / "rag"),
+        figure_files=_list_figures(root / "figures", root=root),
+        rag_files=_list_rag(root / "rag", root=root),
         missing_subdirs=missing_subdirs,
         warnings=warnings,
         project_json=project_json,
@@ -365,7 +468,7 @@ def write_preflight_artifacts(
     written: list[Path] = []
 
     inv_path = resolved.ai_drafts_dir / "inventory.md"
-    inv_path.write_text(inventory_markdown(resolved), encoding="utf-8")
+    atomic_write_text(inv_path, inventory_markdown(resolved), root=resolved.root)
     written.append(inv_path)
 
     pre_path = resolved.ai_drafts_dir / "preflight_report.md"
@@ -392,17 +495,18 @@ def write_preflight_artifacts(
             f"\nSource PDFs in folder: **{src_count}** — run source-ingest or "
             "`--ai enrich` to populate `source_summaries.json`."
         )
-    pre_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    atomic_write_text(pre_path, "\n".join(lines) + "\n", root=resolved.root)
     written.append(pre_path)
 
     if preflight.coverage and preflight.coverage.missing_in_data:
         miss_path = resolved.ai_drafts_dir / "missing_excel_columns.txt"
-        miss_path.write_text(
+        atomic_write_text(
+            miss_path,
             missing_fields_checklist(
                 preflight.coverage,
                 report_type=resolved.meta.get("report_type", "phase1_alberta"),
             ),
-            encoding="utf-8",
+            root=resolved.root,
         )
         written.append(miss_path)
 
@@ -423,7 +527,9 @@ def write_preflight_artifacts(
         copilot_lines.append("\n## Excel columns to add")
         for col in advice.excel_columns_to_add:
             copilot_lines.append(f"- `{col}`")
-    copilot_path.write_text("\n".join(copilot_lines) + "\n", encoding="utf-8")
+    atomic_write_text(
+        copilot_path, "\n".join(copilot_lines) + "\n", root=resolved.root
+    )
     written.append(copilot_path)
 
     return written
@@ -504,7 +610,9 @@ def draft_narratives_for_folder(
             "model": audit.model,
         },
     }
-    out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_text(
+        out_path, json.dumps(payload, indent=2), root=resolved.root
+    )
     return out_path
 
 
@@ -772,15 +880,16 @@ def render_project_folder(
     manifest_bytes = record.to_json_bytes()
 
     docx_path = resolved.delivered_dir / out_name
-    docx_path.write_bytes(docx_bytes)
+    atomic_write_bytes(docx_path, docx_bytes, root=resolved.root)
     manifest_path = resolved.delivered_dir / (docx_path.stem + "_manifest.json")
-    manifest_path.write_bytes(manifest_bytes)
+    atomic_write_bytes(manifest_path, manifest_bytes, root=resolved.root)
 
     outputs: dict[str, Path] = {"docx": docx_path, "manifest": manifest_path}
 
     if package:
         zip_path = resolved.delivered_dir / (docx_path.stem + "_package.zip")
-        zip_path.write_bytes(
+        atomic_write_bytes(
+            zip_path,
             build_deliverable_zip_bytes(
                 docx_bytes,
                 out_name,
@@ -788,13 +897,16 @@ def render_project_folder(
                 meta,
                 manifest_bytes,
                 appendices,
-            )
+            ),
+            root=resolved.root,
         )
         outputs["package"] = zip_path
 
     warn_path = resolved.delivered_dir / "render_warnings.txt"
     if warnings:
-        warn_path.write_text("\n".join(warnings) + "\n", encoding="utf-8")
+        atomic_write_text(
+            warn_path, "\n".join(warnings) + "\n", root=resolved.root
+        )
         outputs["warnings"] = warn_path
 
     return outputs
