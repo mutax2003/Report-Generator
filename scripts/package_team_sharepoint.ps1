@@ -109,11 +109,17 @@ Repo: https://github.com/mutax2003/Report-Generator
 "@
 Set-Content -Path (Join-Path $Out "OPS-HANDOFF.txt") -Value $opsHandoff -Encoding utf8
 
+$gitShort = "master"
+try {
+    $parsed = (& git -C $Root rev-parse --short HEAD 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $parsed) { $gitShort = [string]$parsed.Trim() }
+} catch { }
+
 $hostingLock = @"
 ESA Report Generator - HOSTING LOCK (agreed)
 ============================================
 Date: $(Get-Date -Format "yyyy-MM-dd")
-Commit: see GitHub master (pilot close-out)
+Commit: $gitShort
 
 | Workload | Host | Data |
 |----------|------|------|
