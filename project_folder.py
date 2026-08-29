@@ -51,6 +51,13 @@ SAMPLE_PROFILES: dict[str, dict[str, str]] = {
         "report_phase": "Phase 2",
         "template_version": "1.0.0",
     },
+    "groundwater_monitoring": {
+        "excel": "groundwater_monitoring_data.xlsx",
+        "template": "groundwater_monitoring_template.docx",
+        "report_type": "groundwater_monitoring",
+        "report_phase": "Groundwater",
+        "template_version": "2.1",
+    },
 }
 
 
@@ -845,9 +852,11 @@ def render_project_folder(
 ) -> dict[str, Path]:
     """Render report (+ optional package) into delivered/."""
     from deliverable_pack import build_deliverable_zip_bytes
-    from engine import suggested_download_name
+    from engine import ReportEngine, suggested_download_name
     from provenance import sha256_hex
     from render_service import RenderRequest, render_report
+    from security import validate_excel_upload
+    from template_attachments import prepare_template_upload_cached
 
     resolved.delivered_dir.mkdir(parents=True, exist_ok=True)
     excel_bytes, template_bytes = resolved.read_core_files()
@@ -856,15 +865,20 @@ def render_project_folder(
 
     uploaded = load_manual_appendices(resolved) if include_appendices else []
 
+    validate_excel_upload(excel_bytes)
+    prepared = prepare_template_upload_cached(template_bytes, resolved.template_path.name)
+    meta.setdefault("template_source_format", prepared.source_format)
+    engine = ReportEngine(excel_bytes, prepared.docx_bytes, inputs_validated=True)
     result = render_report(
         RenderRequest(
             excel_bytes=excel_bytes,
-            template_bytes=template_bytes,
+            template_bytes=prepared.docx_bytes,
             meta=meta,
             excel_filename=resolved.excel_path.name,
             template_filename=resolved.template_path.name,
             include_appendices=include_appendices,
             uploaded_appendices=uploaded,
+            engine=engine,
         )
     )
     docx_bytes = result.docx_bytes
@@ -984,6 +998,18 @@ def _seed_sample_folder_extras(dest: Path, *, profile: str) -> None:
                 f"{dest} --render\n",
                 encoding="utf-8",
             )
+        elif profile == "groundwater_monitoring":
+            readme.write_text(
+                "Alberta groundwater monitoring — project folder\n"
+                "===============================================\n\n"
+                "  project_data.xlsx  — ProjectData + MonitoringWells + WaterLevels + GroundwaterLab\n"
+                "  template.docx      — Groundwater Jinja template\n"
+                "  source/            — COAs, field sheets, prior reports (PDF)\n"
+                "  figures/           — Hydrograph / site map PNG for path columns\n\n"
+                "Well IDs must match across MonitoringWells, WaterLevels, and GroundwaterLab.\n"
+                "See docs/18-groundwater-reports.md\n",
+                encoding="utf-8",
+            )
         else:
             readme.write_text(
                 "Alberta Phase I ESA — test project folder\n"
@@ -991,11 +1017,12 @@ def _seed_sample_folder_extras(dest: Path, *, profile: str) -> None:
                 encoding="utf-8",
             )
 
-    rag_src = (
-        ROOT
-        / "rag_corpus"
-        / ("phase2_intro.txt" if profile == "phase2_esa" else "phase1_alberta_aer.txt")
-    )
+    if profile == "phase2_esa":
+        rag_src = ROOT / "rag_corpus" / "phase2_intro.txt"
+    elif profile == "groundwater_monitoring":
+        rag_src = ROOT / "rag_corpus" / "groundwater_program_intro.txt"
+    else:
+        rag_src = ROOT / "rag_corpus" / "phase1_alberta_aer.txt"
     rag_dest = dest / "rag" / rag_src.name
     if rag_src.is_file() and not rag_dest.is_file():
         shutil.copy2(rag_src, rag_dest)
@@ -1011,5 +1038,13 @@ def _seed_sample_folder_extras(dest: Path, *, profile: str) -> None:
             src_readme.write_text(
                 "Add lab certificate-of-analysis PDFs here for source-ingest / AI.\n"
                 "Filename hints: lab_coa, certificate, analytical\n",
+                encoding="utf-8",
+            )
+    elif profile == "groundwater_monitoring":
+        src_readme = dest / "source" / "README.txt"
+        if not src_readme.is_file():
+            src_readme.write_text(
+                "Add groundwater COA PDFs and field data exports here.\n"
+                "Filename hints: coa, groundwater, water_level, monitoring\n",
                 encoding="utf-8",
             )

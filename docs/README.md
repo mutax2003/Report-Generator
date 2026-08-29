@@ -35,6 +35,7 @@ Complete documentation for the Environmental Site Assessment (ESA) report genera
 | [24-remediation-reports.md](24-remediation-reports.md) | **Phase II, remediation, reclamation** sample pairs and checklists |
 | [25-agent-folder-report.md](25-agent-folder-report.md) | **Agent folder report** — Cursor / Codex / Claude Cowork CLI path |
 | [26-alberta-prompt-library.md](26-alberta-prompt-library.md) | **Alberta prompt library** — LLM/agent prompts by report profile |
+| [27-cursor-claude-alberta-playbook.md](27-cursor-claude-alberta-playbook.md) | **Cursor Pro + Claude Max** — folder workflow playbook (Phase I / II / GW) |
 
 ## Quick start
 

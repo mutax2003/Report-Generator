@@ -33,6 +33,7 @@ from security import (
     clamp_context,
     sanitize_download_filename,
     sanitize_meta,
+    strip_internal_context_keys,
     validate_excel_upload,
     validate_rendered_output,
     validate_template_upload,
@@ -328,9 +329,7 @@ def _lab_frame_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
         )
         exc_col = get_at(row, "exceedance", "exceeds", "flag")
 
-        exceed = _truthy_exceedance(exc_col) or _numeric_compare_exceeds(
-            result, criteria
-        )
+        exceed = _truthy_exceedance(exc_col) or _numeric_compare_exceeds(result, criteria)
         rec: dict[str, Any] = {}
         for i, c in enumerate(df.columns):
             k = _norm_key(c)
@@ -389,9 +388,7 @@ def _labels_from_project_rows(project_rows: list[dict[str, Any]]) -> list[str]:
         proj = _s(row.get("project_number"))
         parts = [p for p in (site, client, proj) if p]
         labels.append(
-            f"Excel row {excel_row}: {' — '.join(parts)}"
-            if parts
-            else f"Excel row {excel_row}"
+            f"Excel row {excel_row}: {' — '.join(parts)}" if parts else f"Excel row {excel_row}"
         )
     return labels
 
@@ -456,9 +453,7 @@ class ReportEngine:
         if self._excel_meta_cache is None:
             from report_profile import read_excel_meta
 
-            self._excel_meta_cache = read_excel_meta(
-                self.excel_bytes, digest=self.excel_sha256()
-            )
+            self._excel_meta_cache = read_excel_meta(self.excel_bytes, digest=self.excel_sha256())
         return self._excel_meta_cache
 
     def _phrase_lookup_or_load(self) -> dict[tuple[str, str], str]:
@@ -552,22 +547,18 @@ class ReportEngine:
                 )
             primary = runtime.primary_sheet
             if primary not in names:
-                raise ValueError(
-                    f"Missing primary sheet '{primary}'. Found: {names}"
-                )
+                raise ValueError(f"Missing primary sheet '{primary}'. Found: {names}")
             project_df = xl.parse(primary, header=0)
             if project_df.empty:
                 raise ValueError(
-                    f"Sheet '{primary}' has no data rows "
-                    "(row 1 = headers, row 2+ = values)."
+                    f"Sheet '{primary}' has no data rows (row 1 = headers, row 2+ = values)."
                 )
             if len(project_df.columns) > MAX_PROJECT_COLUMNS:
                 project_df = project_df.iloc[:, :MAX_PROJECT_COLUMNS]
             project_rows = _project_rows_from_df(project_df)
             if not project_rows:
                 raise ValueError(
-                    f"Sheet '{primary}' has no data rows "
-                    "(row 1 = headers, row 2+ = values)."
+                    f"Sheet '{primary}' has no data rows (row 1 = headers, row 2+ = values)."
                 )
             if len(project_rows) > MAX_PROJECT_ROWS:
                 project_rows = project_rows[:MAX_PROJECT_ROWS]
@@ -578,17 +569,12 @@ class ReportEngine:
                 if sheet_name == primary or sheet_name not in names:
                     continue
                 df = xl.parse(sheet_name, header=0)
-                if (
-                    loop_var
-                    in (
-                        lab_var,
-                        "lab_results",
-                        "groundwater_results",
-                        "confirmatory_sampling",
-                    )
-                    or sheet_name
-                    in (LAB_SHEET, GROUNDWATER_LAB_SHEET, "ConfirmatorySampling")
-                ):
+                if loop_var in (
+                    lab_var,
+                    "lab_results",
+                    "groundwater_results",
+                    "confirmatory_sampling",
+                ) or sheet_name in (LAB_SHEET, GROUNDWATER_LAB_SHEET, "ConfirmatorySampling"):
                     lists[loop_var] = _lab_frame_to_records(df)
                 else:
                     lists[loop_var] = _dataframe_to_records(df)
@@ -741,10 +727,7 @@ class ReportEngine:
             if not _s(ctx.get("executive_summary")):
                 ctx["executive_summary"] = build_remediation_executive_summary(ctx)
                 ctx["_executive_summary_auto_generated"] = True
-        elif (
-            runtime.narrative_profile == "phase1_alberta"
-            and phase == "Phase 1"
-        ):
+        elif runtime.narrative_profile == "phase1_alberta" and phase == "Phase 1":
             from phase1_decision import enrich_phase1_alberta_context
 
             ctx = enrich_phase1_alberta_context(
@@ -758,15 +741,9 @@ class ReportEngine:
                 ctx["_executive_summary_auto_generated"] = True
         return ctx
 
-    def missing_template_vars(
-        self, context: dict[str, Any]
-    ) -> list[str]:
+    def missing_template_vars(self, context: dict[str, Any]) -> list[str]:
         needed = self.template_root_vars()
-        missing: list[str] = []
-        for name in sorted(needed):
-            if name not in context:
-                missing.append(name)
-        return missing
+        return sorted(needed - context.keys())
 
     def dry_run(
         self,
@@ -802,9 +779,7 @@ class ReportEngine:
             )
         missing = self.missing_template_vars(context)
         for m in missing:
-            warnings.append(
-                f"Template uses '{{{{ {m} }}}}' but no Excel/sidebar value yet."
-            )
+            warnings.append(f"Template uses '{{{{ {m} }}}}' but no Excel/sidebar value yet.")
         warnings.extend(
             contract_warnings(
                 context,
@@ -837,7 +812,8 @@ class ReportEngine:
         return strip_internal_context_keys(context), warnings, record
 
     def render(
-        self, meta: dict[str, str] | None = None,
+        self,
+        meta: dict[str, str] | None = None,
         *,
         excel_filename: str = "",
         template_filename: str = "",
@@ -864,7 +840,7 @@ class ReportEngine:
         context.pop("_project_row_count", None)
         context.pop("_project_row_index", None)
         context.pop("_excel_row_number", None)
-        context, clamp_warnings = clamp_context(context)
+        context, clamp_warnings = clamp_context(context, skip_table_cell_clamp=True)
         warnings: list[str] = list(clamp_warnings) + list(phrase_warnings)
         if auto_exec:
             warnings.append(
@@ -879,9 +855,7 @@ class ReportEngine:
             )
             context[m] = ""
 
-        render_ctx = {
-            k: v for k, v in context.items() if not str(k).startswith("_")
-        }
+        render_ctx = strip_internal_context_keys(context)
 
         tpl_bio = io.BytesIO(self.template_bytes)
         doc = DocxTemplate(tpl_bio)
@@ -895,6 +869,7 @@ class ReportEngine:
         out = io.BytesIO()
         doc.save(out)
         docx_bytes = out.getvalue()
+        # Full ZIP structure check once per main report; appendices use a lighter path.
         validate_rendered_output(docx_bytes)
         from provenance import build_generation_record
 
@@ -942,8 +917,7 @@ class ReportEngine:
         labels = _labels_from_project_rows(project_rows)
         # Index table sheets once (O(M)), then filter each site in O(1) per link col.
         loop_indexes = {
-            loop_var: _index_records_by_link_columns(rows)
-            for loop_var, rows in list_data.items()
+            loop_var: _index_records_by_link_columns(rows) for loop_var, rows in list_data.items()
         }
         filtered_per_row = [
             {
@@ -956,9 +930,7 @@ class ReportEngine:
         ]
         results: list[BatchReportResult] = []
         for i in range(n):
-            excel_row = int(
-                project_rows[i].get("_excel_row_number", _excel_row_number(i))
-            )
+            excel_row = int(project_rows[i].get("_excel_row_number", _excel_row_number(i)))
             docx_bytes, warnings, context, record = self.render(
                 meta,
                 excel_filename=excel_filename,
@@ -996,10 +968,7 @@ def suggested_download_name(
     batch_size: int = 1,
 ) -> str:
     """Build a safe .docx filename from site/phase/date (unique per batch row)."""
-    site = (
-        str(context.get("site_name") or context.get("client_name") or "")
-        .strip()
-    )
+    site = str(context.get("site_name") or context.get("client_name") or "").strip()
     proj = str(context.get("project_number") or "").strip()
     phase = str(meta.get("report_phase") or "ESA").strip().replace(" ", "_")
     date = str(meta.get("date_of_issue") or context.get("report_month_year") or "")[:10]
@@ -1060,8 +1029,8 @@ def generate_sample_excel(path: str) -> None:
 
 def generate_production_excel(path: str) -> None:
     """
-    Workbook aligned with typical Phase 2 ESA fields and bracket placeholders
-  found in the production merge template (map to {{ jinja }} in Word).
+      Workbook aligned with typical Phase 2 ESA fields and bracket placeholders
+    found in the production merge template (map to {{ jinja }} in Word).
     """
     project = pd.DataFrame(
         [
@@ -1288,9 +1257,7 @@ def generate_phase1_alberta_excel(path: str) -> None:
             "The 2015 historical air photo shows the well centre and a possible disturbance area "
             "southeast of well centre for the containment berm and tanks"
         ),
-        "investigations_recommended": (
-            "well centre and the production areas be investigated"
-        ),
+        "investigations_recommended": ("well centre and the production areas be investigated"),
         "infrastructure_summary": (
             "Access road, teardrop, wellhead, containment berm for production tanks"
         ),
@@ -1484,8 +1451,12 @@ def generate_phase1_alberta_template_docx(path: str) -> None:
     doc.add_paragraph("Prior reclamation certificate: {{ prior_reclamation_cert_number }}")
     doc.add_heading("10.2 Drilling information", level=2)
     doc.add_paragraph("Well: {{ well_name }} | UWI: {{ uwi }}")
-    doc.add_paragraph("Spud: {{ spud_date }} | Cased: {{ cased_date }} | Final drill: {{ final_drill_date }}")
-    doc.add_paragraph("TD: {{ well_depth_m }} m | Status: {{ well_status }} | Re-entry: {{ reentry }}")
+    doc.add_paragraph(
+        "Spud: {{ spud_date }} | Cased: {{ cased_date }} | Final drill: {{ final_drill_date }}"
+    )
+    doc.add_paragraph(
+        "TD: {{ well_depth_m }} m | Status: {{ well_status }} | Re-entry: {{ reentry }}"
+    )
     doc.add_paragraph("{{ reentry_detail }}")
     doc.add_paragraph("Production fluid: {{ production_fluid }}")
     doc.add_heading("10.4 Drilling waste disposal", level=2)
@@ -1535,7 +1506,9 @@ def generate_phase1_alberta_template_docx(path: str) -> None:
     )
     doc.add_heading("10.6 Site visit", level=2)
     doc.add_paragraph("{{ site_recon_intro }}")
-    doc.add_paragraph("Site visit completed: {{ site_visit_completed }} | Date: {{ site_visit_date }}")
+    doc.add_paragraph(
+        "Site visit completed: {{ site_visit_completed }} | Date: {{ site_visit_date }}"
+    )
     doc.add_paragraph("{{ site_visit_photo_notes }}")
     doc.add_heading("10.7 Records review", level=2)
     doc.add_paragraph("{{ records_review_summary }}")

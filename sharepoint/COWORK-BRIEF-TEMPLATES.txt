@@ -1,0 +1,66 @@
+ESA Report Generator — Claude Cowork brief templates (Alberta)
+==============================================================
+Copy one block per site. Replace C:\Projects\<id> with your folder path.
+Full playbook: Guides/27-cursor-claude-alberta-playbook.md
+Prompt library: schemas/alberta_prompt_library.json (also Guides/26-alberta-prompt-library.md)
+
+--- SHARED RULES (prepend to every Cowork task) ---
+
+Repo: ESA Report Generator (Ecoventure Inc.)
+Allowed outputs: ai_drafts/*.json ONLY — do not edit project_data.xlsx directly
+Field names: match schemas/report_profiles.json recommended_fields for the profile below
+Tone: Alberta O&G QP-ready prose; cite source PDF filenames in each section; mark gaps [confirm]
+NEVER invent lab concentrations, exceedances, UWIs, or certificate numbers
+Do not modify engine.py or skip Apply confirmation
+After you write drafts, the user will run Cursor apply-drafts and render — QP review required
+
+--- PHASE I ALBERTA (phase1_alberta) ---
+
+Profile: phase1_alberta
+Folder: C:\Projects\<id>
+Attach: project.json, source/ PDFs
+
+Draft to ai_drafts/:
+  narratives.json — sections: executive_summary, drilling_waste, site_reconnaissance, conclusions_recommendations
+  apecs_candidates.json — APEC inventory rows from source PDFs (if found)
+  excel_field_suggestions.json — scalar ProjectData fields only
+
+Alberta library agent_brief: AER SED 002 / DWDA tone; no invented APECs or lab data.
+Prompt keys: phase1_alberta → sections above; agent_tasks: folder_inventory, apec_extract, sed002_copilot
+
+--- PHASE II ESA (phase2_esa) ---
+
+Profile: phase2_esa
+Folder: C:\Projects\<id>
+Attach: project.json, source/ COA PDFs
+
+IMPORTANT: User or Cursor must populate LabResults in project_data.xlsx BEFORE you draft conclusions.
+
+Draft to ai_drafts/:
+  narratives.json — sections: executive_summary, site_description, conclusions_limitations
+
+Alberta library agent_brief: Phase II exceedances and Alberta Tier screening; no invented concentrations.
+Prompt keys: phase2_esa; agent_tasks: folder_inventory, lab_coa, render_gate
+
+--- GROUNDWATER MONITORING (groundwater_monitoring) ---
+
+Profile: groundwater_monitoring
+Folder: C:\Projects\<id>
+Attach: project.json, source/ COAs and field exports
+
+Draft to ai_drafts/:
+  narratives.json — sections: executive_summary, hydrogeologic_setting, conclusions_recommendations
+
+Well IDs must match across MonitoringWells, WaterLevels, and GroundwaterLab sheets.
+Alberta library agent_brief: monitoring wells, water levels, lab results; no invented trends.
+Prompt keys: groundwater_monitoring; agent_tasks: folder_inventory, render_gate
+
+--- CURSOR CLI (user runs after Cowork drafts) ---
+
+cd "Report Generator"
+.\.venv\Scripts\Activate.ps1
+python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode inventory
+python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode apply-drafts
+python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode render --package
+
+Deliverable: delivered\*.zip — QP must review before client issue.

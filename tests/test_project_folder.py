@@ -55,6 +55,25 @@ class ProjectFolderTests(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_init_groundwater_sample_folder(self) -> None:
+        import shutil
+        import tempfile
+
+        from project_folder import init_sample_project_folder, resolve_project_folder
+
+        tmp = Path(tempfile.mkdtemp(prefix="esa_gw_"))
+        try:
+            init_sample_project_folder(
+                tmp, source_user_test=False, profile="groundwater_monitoring"
+            )
+            resolved = resolve_project_folder(tmp)
+            self.assertEqual(resolved.meta.get("report_type"), "groundwater_monitoring")
+            self.assertTrue((tmp / "project_data.xlsx").is_file())
+            self.assertTrue((tmp / "template.docx").is_file())
+            self.assertTrue((tmp / "rag" / "groundwater_program_intro.txt").is_file())
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_inventory_and_preflight(self) -> None:
         from project_folder import enrich_project_folder, resolve_project_folder
 

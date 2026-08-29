@@ -17,9 +17,7 @@ from provenance import sha256_hex
 
 from compliance_helpers import resolved_appendix_labels
 
-_PHASE1_QP_PROFILES = frozenset(
-    {"phase1_alberta", "phase1_devon", "reclamation_certificate"}
-)
+_PHASE1_QP_PROFILES = frozenset({"phase1_alberta", "phase1_devon", "reclamation_certificate"})
 
 
 @dataclass
@@ -121,15 +119,11 @@ def build_onestop_phase1_summary(
         "consultant_name": str(context.get("consultant_name", "")),
         "qp_names": str(context.get("qp_names", "")),
         "prepared_by": str(meta.get("prepared_by", context.get("prepared_by", ""))),
-        "report_date": str(
-            meta.get("date_of_issue", context.get("date_of_issue", ""))
-        ),
+        "report_date": str(meta.get("date_of_issue", context.get("date_of_issue", ""))),
         "phase1_esa_date": str(context.get("report_month_year", "")),
         "site_visit_completed": str(context.get("site_visit_completed", "")),
         "site_visit_date": str(context.get("site_visit_date", "")),
-        "aer_waste_compliance_option": str(
-            context.get("aer_waste_compliance_option", "")
-        ),
+        "aer_waste_compliance_option": str(context.get("aer_waste_compliance_option", "")),
         "dwda_compliance_option": str(context.get("dwda_compliance_option", "")),
         "dwda_checklist_scope": str(context.get("dwda_checklist_scope", "")),
         "dwda_checklist_complete": str(context.get("dwda_checklist_complete", "")),
@@ -138,15 +132,11 @@ def build_onestop_phase1_summary(
         "dwda_calc_summary": str(context.get("dwda_calc_summary", ""))[:500],
         "dwda_metal_pass": str(context.get("dwda_metal_pass", "")),
         "dwda_salt_pass": str(context.get("dwda_salt_pass", "")),
-        "cuttings_volume_on_lease_m3": str(
-            context.get("cuttings_volume_on_lease_m3", "")
-        ),
+        "cuttings_volume_on_lease_m3": str(context.get("cuttings_volume_on_lease_m3", "")),
         "phase2_esa_required": str(context.get("phase2_esa_required", "")),
         "phase2_recommended": phase2,
         "contamination_likelihood": "likely" if likely else "unlikely",
-        "executive_summary_excerpt": str(context.get("executive_summary", ""))[
-            :2000
-        ],
+        "executive_summary_excerpt": str(context.get("executive_summary", ""))[:2000],
         "project_number": str(context.get("project_number", "")),
     }
 
@@ -293,9 +283,7 @@ def _write_qp_checklists(
     if sed is None:
         from sed002_compliance import evaluate_sed002_compliance
 
-        labels = resolved_appendix_labels(
-            ctx, (a.label for a in (package.appendices or []))
-        )
+        labels = resolved_appendix_labels(ctx, (a.label for a in (package.appendices or [])))
         sed = evaluate_sed002_compliance(
             ctx, meta, report_type=rt, appendix_labels_present=set(labels)
         )
@@ -313,23 +301,26 @@ def _write_qp_checklists(
 
         zf.writestr(
             _zip_path(path_prefix, "qp_checklists/dwda_directive050_qp_checklist.md"),
-            build_dwda_qp_checklist_markdown(
-                dwda, calc_result=ctx.get("_dwda_calc_result")
-            ).encode("utf-8"),
+            build_dwda_qp_checklist_markdown(dwda, calc_result=ctx.get("_dwda_calc_result")).encode(
+                "utf-8"
+            ),
         )
 
 
 def _write_qp_templates(zf: zipfile.ZipFile, *, path_prefix: str = "") -> None:
-    """Include Ecoventure QP Word/Excel templates in deliverable zip."""
+    """Include Ecoventure QP Word/Excel templates in deliverable zip.
+
+    Store OOXML/xlsx without re-deflating (they are already ZIP containers).
+    """
     try:
         from ecoventure_workbook import list_qp_template_files, read_qp_template_bytes
     except ImportError:
         return
     for zip_name, path in list_qp_template_files():
-        zf.writestr(
-            _zip_path(path_prefix, f"qp_templates/{zip_name}"),
-            read_qp_template_bytes(str(path)),
-        )
+        data = read_qp_template_bytes(str(path))
+        info = zipfile.ZipInfo(_zip_path(path_prefix, f"qp_templates/{zip_name}"))
+        info.compress_type = zipfile.ZIP_STORED
+        zf.writestr(info, data)
 
 
 def build_deliverable_zip(package: DeliverablePackage) -> bytes:

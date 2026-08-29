@@ -19,6 +19,10 @@ Use this when rolling out the ESA Report Generator to ~50 report authors. IT or 
 | `OPS-HANDOFF.txt` / `TEAMS-POST.txt` | library root | Ops reboot + Teams paste |
 | `Guides/25-agent-folder-report.md` | Guides/ | Desktop agent folder path (not Cloud) |
 | `Guides/26-alberta-prompt-library.md` | Guides/ | Alberta prompt library (advisory AI) |
+| `Guides/27-cursor-claude-alberta-playbook.md` | Guides/ | Cursor Pro + Claude Max folder playbook |
+| `Guides/COWORK-BRIEF-TEMPLATES.txt` | Guides/ | Cowork paste-in briefs by profile |
+| `Guides/QP-REVIEW-CHECKLIST.txt` | Guides/ | QP sign-off before client issue |
+| `ProjectFolders/*` | ProjectFolders/ | Gold desktop folders (Phase1, Phase2, GW) |
 | `Guides/14-deployment-hosting.md` | Guides/ | Hosting lock detail |
 | `Guides/EXCEL_LAYOUT.txt` | Guides/ | Column reference |
 | `Guides/JINJA2_CHEATSHEET.txt` | Guides/ | Word tag reference |

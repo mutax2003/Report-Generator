@@ -1,0 +1,36 @@
+ESA Report Generator — agent folder trial log (Cursor Pro workflow)
+=====================================================================
+Date: 2026-08-28
+Profile: phase1_alberta
+Folder: user_test/agent_trial_phase1/Phase1_Alberta (local trial — not client data)
+
+Purpose
+-------
+Validate inventory → Cowork-style ai_drafts → apply-drafts → render --package
+using scripts/agent_folder_report.py (same path as Cursor esa-agent-folder-report skill).
+
+Steps run
+---------
+1. python scripts/create_gold_project_folders.py --dest user_test/agent_trial_phase1 --profile phase1_alberta
+2. Placed Cowork-simulated ai_drafts/narratives.json (executive_summary, site_reconnaissance)
+3. python scripts/agent_folder_report.py --folder <folder> --mode inventory
+   → Wrote inventory + preflight to ai_drafts/
+4. python scripts/agent_folder_report.py --folder <folder> --mode apply-drafts
+   → Backup: ai_drafts/project_data_pre_apply_backup.xlsx
+   → Applied site_reconnaissance; skipped filled executive_summary
+5. python scripts/agent_folder_report.py --folder <folder> --mode render --package
+   → delivered/*.docx, *_manifest.json, *_package.zip
+
+Result: PASS (exit code 0)
+QP review still required before any client delivery.
+
+Reproduce
+---------
+cd "Report Generator"
+.\.venv\Scripts\Activate.ps1
+python scripts\create_gold_project_folders.py --dest user_test\agent_trial_phase1 --profile phase1_alberta
+python scripts\agent_folder_report.py --folder user_test\agent_trial_phase1\Phase1_Alberta --mode inventory
+python scripts\agent_folder_report.py --folder user_test\agent_trial_phase1\Phase1_Alberta --mode apply-drafts
+python scripts\agent_folder_report.py --folder user_test\agent_trial_phase1\Phase1_Alberta --mode render --package
+
+Related guides: Guides/27-cursor-claude-alberta-playbook.md · Guides/25-agent-folder-report.md

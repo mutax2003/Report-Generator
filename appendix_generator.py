@@ -202,7 +202,8 @@ def _render_appendix_docx(
     out = io.BytesIO()
     doc.save(out)
     docx_bytes = out.getvalue()
-    validate_rendered_output(docx_bytes)
+    # Just written by DocxTemplate — magic/size only (main report keeps full structure check).
+    validate_rendered_output(docx_bytes, structure_check=False)
     return docx_bytes
 
 
@@ -281,9 +282,7 @@ def attach_appendices_to_record(
         context, meta, extra_labels=uploaded_labels, report_type=rt
     )
     if context.get("_dwda_appendix_labels_evaluated") != labels:
-        context = enrich_dwda_context(
-            context, meta, appendix_labels_present=set(labels)
-        )
+        context = enrich_dwda_context(context, meta, appendix_labels_present=set(labels))
     generated, warnings = render_phase1_appendices(context, meta)
     merged = merge_appendix_lists(generated, uploaded)
     if merged:

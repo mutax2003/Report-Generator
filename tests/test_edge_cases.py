@@ -29,6 +29,7 @@ from engine import (  # noqa: E402
     generate_sample_template_docx,
 )
 from security import (  # noqa: E402
+    MAX_CONTEXT_STRING_LEN,
     MAX_EXCEL_BYTES,
     MAX_LAB_ROWS,
     MAX_META_VALUE_LEN,
@@ -127,9 +128,7 @@ class TestExcelEdgeCases(unittest.TestCase):
     def test_empty_project_data_rows(self) -> None:
         xlsx = _workbook_bytes(
             project=pd.DataFrame(columns=["site_name", "client_name"]),
-            lab=pd.DataFrame(
-                [{"Analyte": "X", "Result": 1, "Unit": "mg/L", "Exceedance": "N"}]
-            ),
+            lab=pd.DataFrame([{"Analyte": "X", "Result": 1, "Unit": "mg/L", "Exceedance": "N"}]),
         )
         engine = ReportEngine(xlsx, self.template_bytes)
         with self.assertRaises(ValueError) as ctx:
@@ -209,9 +208,7 @@ class TestRenderEdgeCases(unittest.TestCase):
         tpl = _minimal_docx_bytes("Extra: {{ not_in_excel }}")
         xlsx = _workbook_bytes(
             project=pd.DataFrame({"site_name": ["S"], "client_name": ["C"]}),
-            lab=pd.DataFrame(
-                [{"Analyte": "A", "Result": 1, "Unit": "u", "Exceedance": "N"}]
-            ),
+            lab=pd.DataFrame([{"Analyte": "A", "Result": 1, "Unit": "u", "Exceedance": "N"}]),
         )
         engine = ReportEngine(xlsx, tpl)
         _docx, warnings, _ctx, _rec = engine.render(
@@ -231,22 +228,16 @@ class TestRenderEdgeCases(unittest.TestCase):
     def test_meta_overrides_excel_key(self) -> None:
         xlsx = _workbook_bytes(
             project=pd.DataFrame({"prepared_by": ["From Excel"], "site_name": ["S"]}),
-            lab=pd.DataFrame(
-                [{"Analyte": "A", "Result": 1, "Unit": "u", "Exceedance": "N"}]
-            ),
+            lab=pd.DataFrame([{"Analyte": "A", "Result": 1, "Unit": "u", "Exceedance": "N"}]),
         )
         engine = ReportEngine(xlsx, self.template_bytes)
-        ctx = engine.build_context(
-            {"prepared_by": "From Sidebar", "report_phase": "Phase 2"}
-        )
+        ctx = engine.build_context({"prepared_by": "From Sidebar", "report_phase": "Phase 2"})
         self.assertEqual(ctx["prepared_by"], "From Sidebar")
 
     def test_render_succeeds_with_minimal_fields(self) -> None:
         xlsx = _workbook_bytes(
             project=pd.DataFrame({"site_name": ["Only Site"]}),
-            lab=pd.DataFrame(
-                [{"Analyte": "A", "Result": 1, "Unit": "u", "Exceedance": "N"}]
-            ),
+            lab=pd.DataFrame([{"Analyte": "A", "Result": 1, "Unit": "u", "Exceedance": "N"}]),
         )
         engine = ReportEngine(xlsx, self.template_bytes)
         docx_bytes, warnings, ctx, _rec = engine.render(
@@ -290,6 +281,15 @@ class TestSecurityEdgeCases(unittest.TestCase):
         ctx, warnings = clamp_context({"lab_results": huge})
         self.assertEqual(len(ctx["lab_results"]), MAX_LAB_ROWS)
         self.assertTrue(any("truncated" in w.lower() for w in warnings))
+
+    def test_clamp_context_skip_table_cell_clamp(self) -> None:
+        long = "x" * (MAX_CONTEXT_STRING_LEN + 50)
+        ctx, _ = clamp_context(
+            {"lab_results": [{"analyte": long}], "site_name": long},
+            skip_table_cell_clamp=True,
+        )
+        self.assertEqual(len(ctx["lab_results"][0]["analyte"]), len(long))
+        self.assertEqual(len(ctx["site_name"]), MAX_CONTEXT_STRING_LEN)
 
     def test_download_filename_unicode_and_empty(self) -> None:
         self.assertTrue(sanitize_download_filename("").endswith(".docx"))

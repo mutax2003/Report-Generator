@@ -19,6 +19,8 @@ SELECTED_SUFFIX = "_selected"
 _CATALOG_JSON = Path(__file__).resolve().parent / "schemas" / "phrase_catalog.json"
 _cached_json: dict[str, Any] | None = None
 _catalog_mtime: float | None = None
+_cached_defs: dict[str, dict[str, Any]] | None = None
+_defs_mtime: float | None = None
 
 
 def _norm_key(name: str) -> str:
@@ -40,9 +42,26 @@ def load_phrase_catalog_json() -> dict[str, Any]:
 
 def list_phrase_definitions() -> dict[str, dict[str, Any]]:
     """phrase_key -> {label, options: [{id, label, text}, ...]}."""
+    global _cached_defs, _defs_mtime
+    mtime = _CATALOG_JSON.stat().st_mtime if _CATALOG_JSON.is_file() else 0.0
+    if _cached_defs is not None and _defs_mtime == mtime:
+        return _cached_defs
     data = load_phrase_catalog_json()
     raw = data.get("phrases", {})
-    return {str(k): dict(v) for k, v in raw.items()}
+    defs: dict[str, dict[str, Any]] = {}
+    for k, v in raw.items():
+        spec = dict(v)
+        by_id: dict[str, str] = {}
+        for opt in spec.get("options", []) or []:
+            oid = str(opt.get("id", "")).strip()
+            text = str(opt.get("text", "")).strip()
+            if oid and text:
+                by_id[oid] = text
+        spec["_by_id"] = by_id
+        defs[str(k)] = spec
+    _cached_defs = defs
+    _defs_mtime = mtime
+    return defs
 
 
 _PHRASE_SHEET_CACHE: dict[str, tuple[tuple[str, str, str], ...]] = {}
@@ -79,9 +98,7 @@ def _parse_phrase_catalog_rows(excel_bytes: bytes) -> tuple[tuple[str, str, str]
     return phrase_rows_from_dataframe(df)
 
 
-def seed_phrase_sheet_cache(
-    digest: str, rows: tuple[tuple[str, str, str], ...]
-) -> None:
+def seed_phrase_sheet_cache(digest: str, rows: tuple[tuple[str, str, str], ...]) -> None:
     """Seed PhraseCatalog row cache when the workbook was already opened elsewhere."""
     if not digest:
         return
@@ -150,6 +167,9 @@ def resolve_phrase_text(
     spec = catalog.get(pk)
     if not spec:
         return None
+    by_id = spec.get("_by_id")
+    if isinstance(by_id, dict) and oid in by_id:
+        return by_id[oid] or None
     for opt in spec.get("options", []):
         if str(opt.get("id", "")).strip() == oid:
             return str(opt.get("text", "")).strip() or None
@@ -175,9 +195,7 @@ def apply_phrase_resolution(
     defs = list_phrase_definitions()
 
     for phrase_key, option_id in selections.items():
-        text = resolve_phrase_text(
-            phrase_key, option_id, excel_lookup=excel_lookup, defs=defs
-        )
+        text = resolve_phrase_text(phrase_key, option_id, excel_lookup=excel_lookup, defs=defs)
         if text:
             context[phrase_key] = text
             context[f"{phrase_key}_option_id"] = option_id

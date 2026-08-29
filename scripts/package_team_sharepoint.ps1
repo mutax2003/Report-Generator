@@ -43,6 +43,9 @@ Copy-IfExists (Join-Path $Root "docs\18-groundwater-reports.md") (Join-Path $Out
 Copy-IfExists (Join-Path $Root "docs\19-charts-and-gis-embed.md") (Join-Path $Out "Guides\19-charts-and-gis-embed.md")
 Copy-IfExists (Join-Path $Root "docs\25-agent-folder-report.md") (Join-Path $Out "Guides\25-agent-folder-report.md")
 Copy-IfExists (Join-Path $Root "docs\26-alberta-prompt-library.md") (Join-Path $Out "Guides\26-alberta-prompt-library.md")
+Copy-IfExists (Join-Path $Root "docs\27-cursor-claude-alberta-playbook.md") (Join-Path $Out "Guides\27-cursor-claude-alberta-playbook.md")
+Copy-IfExists (Join-Path $Root "sharepoint\COWORK-BRIEF-TEMPLATES.txt") (Join-Path $Out "Guides\COWORK-BRIEF-TEMPLATES.txt")
+Copy-IfExists (Join-Path $Root "sharepoint\QP-REVIEW-CHECKLIST.txt") (Join-Path $Out "Guides\QP-REVIEW-CHECKLIST.txt")
 Copy-IfExists (Join-Path $Root "docs\14-deployment.md") (Join-Path $Out "Guides\14-deployment-hosting.md")
 
 # Pilot briefing (Cloud = sample-only)
@@ -151,10 +154,17 @@ Per pilot user:
 [ ] First zip under ~5 minutes unaided
 [ ] At most 2 "which download?" support questions
 
+Desktop folder workflow (optional — real client data; not Cloud):
+[ ] Copied gold folder from ProjectFolders/Phase1_Alberta (or Phase2 / Groundwater)
+[ ] Cursor inventory -> Cowork ai_drafts -> apply-drafts -> render --package
+[ ] QP completed Guides/QP-REVIEW-CHECKLIST.txt before treating output as issuable
+
 Roll-up:
 [ ] All pilots completed zip download without IT help
 [ ] Template owner signed gold Phase I pair (Templates/Alberta_Phase1/*_v2.1.*)
+[ ] Gold project folders published under ProjectFolders/ (Phase1, Phase2, Groundwater)
 [ ] HOSTING-LOCK.txt acknowledged (Cloud = sample-only; client work = Docker/Entra)
+[ ] QP review checklist linked for folder-workflow pilots (Guides/QP-REVIEW-CHECKLIST.txt)
 
 Agent pre-check ($(Get-Date -Format "yyyy-MM-dd")):
 [x] Working tree clean of sample noise
@@ -176,25 +186,40 @@ Copy-IfExists (Join-Path $Root "samples\sample_template.docx") (Join-Path $Out "
 Copy-IfExists (Join-Path $Root "samples\groundwater_monitoring_data.xlsx") (Join-Path $Out "Templates\Groundwater\groundwater_monitoring_data_v2.1.xlsx")
 Copy-IfExists (Join-Path $Root "samples\groundwater_monitoring_template.docx") (Join-Path $Out "Templates\Groundwater\groundwater_monitoring_template_v2.1.docx")
 
+# Gold project-folder templates (Phase I / II / GW — desktop + Cursor/Cowork)
+Write-Host "Building gold project folders..."
+$py = Join-Path $Root ".venv\Scripts\python.exe"
+if (-not (Test-Path $py)) { $py = "python" }
+& $py (Join-Path $Root "scripts\create_gold_project_folders.py") --dest (Join-Path $Out "ProjectFolders")
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "create_gold_project_folders.py failed - run manually after create_samples.py"
+}
+Copy-IfExists (Join-Path $Root "sharepoint\QP-REVIEW-CHECKLIST.txt") (Join-Path $Out "QP-REVIEW-CHECKLIST.txt")
+Copy-IfExists (Join-Path $Root "sharepoint\COWORK-BRIEF-TEMPLATES.txt") (Join-Path $Out "COWORK-BRIEF-TEMPLATES.txt")
+Copy-IfExists (Join-Path $Root "sharepoint\AGENT-FOLDER-TRIAL-LOG.txt") (Join-Path $Out "Guides\AGENT-FOLDER-TRIAL-LOG.txt")
+
 $readme = @"
-# ESA Report Generator — SharePoint bundle
+# ESA Report Generator - SharePoint bundle
 
 Upload this folder to your Microsoft 365 **Templates** or **ESA Reports** library.
 
 ## Folders
 
-- **Guides/** — consultant and template-author documentation (start with ``00-start-here.md``)
-- **Templates/** — gold-copy Excel + Word samples; bump ``v2.1`` in filenames when you publish updates
+* **Guides/** - consultant and template-author documentation (start with ``00-start-here.md``)
+* **Templates/** - gold-copy Excel + Word samples; bump ``v2.1`` in filenames when you publish updates
+* **ProjectFolders/** - copy-ready desktop project folders (Phase I / II / GW) for Cursor + Cowork
+* **QP-REVIEW-CHECKLIST.txt** - sign-off before client issue (folder workflow)
+* **COWORK-BRIEF-TEMPLATES.txt** - paste into Claude Cowork per site
 
 ## Do not upload here
 
-- Client-specific final reports or confidential PDFs (keep on project SharePoint sites only)
-- Files listed in repo ``.gitignore`` under ``samples/*Devon*``, ``samples/*R*.docx``, etc.
+* Client-specific final reports or confidential PDFs (keep on project SharePoint sites only)
+* Files listed in repo ``.gitignore`` under ``samples/*Devon*``, ``samples/*R*.docx``, etc.
 
 ## App URL
 
-- **Pilot (sample data only):** ``https://mutax2003-report-generator-app-ad7xpb.streamlit.app/`` — Alberta Phase I sample → Generate → zip. No client-confidential uploads.
-- **Production:** Internal Docker/Entra host (see ``docs/14-deployment.md`` Hosting lock). Replace placeholder:
+* **Pilot (sample data only):** ``https://mutax2003-report-generator-app-ad7xpb.streamlit.app/`` - Alberta Phase I sample, Generate, zip. No client-confidential uploads.
+* **Production:** Internal Docker/Entra host (see ``docs/14-deployment.md`` Hosting lock). Replace placeholder:
   ``https://esa-reports.YOURCOMPANY.internal``
 
 Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm")

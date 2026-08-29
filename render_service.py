@@ -63,11 +63,18 @@ def _prepare_engine(
     req: RenderRequest,
 ) -> tuple[dict[str, str], PreparedTemplate, frozenset[str], ReportEngine]:
     meta = req.meta or {}
-    prepared = prepare_template_upload_cached(req.template_bytes, req.template_filename)
     labels = resolve_request_labels(req)
     if req.engine is not None:
+        # Cached/UI engine already holds validated (converted) .docx — skip SHA + prepare.
         engine = req.engine
+        prepared = PreparedTemplate(
+            docx_bytes=engine.template_bytes,
+            source_filename=req.template_filename or "template.docx",
+            source_format=str(meta.get("template_source_format") or "docx"),
+            warnings=[],
+        )
     else:
+        prepared = prepare_template_upload_cached(req.template_bytes, req.template_filename)
         engine = ReportEngine(
             excel_bytes=req.excel_bytes,
             template_bytes=prepared.docx_bytes,

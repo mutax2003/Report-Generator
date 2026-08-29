@@ -313,11 +313,14 @@ def validate_template_upload(data: bytes, filename: str = "") -> None:
     inspect_zip_archive(data, purpose="docx")
 
 
-def validate_rendered_output(data: bytes) -> None:
+def validate_rendered_output(data: bytes, *, structure_check: bool = True) -> None:
     """Size + structure check for engine-generated .docx (not untrusted uploads).
 
     Full ``inspect_zip_archive`` is reserved for upload boundaries; self-generated
     output only needs magic bytes, member-count cap, and ``word/document.xml``.
+
+    Pass ``structure_check=False`` for just-written appendix/main output when a full
+    ZIP reopen is redundant (still enforces empty/size/magic).
     """
     limit = MAX_RENDERED_DOCX_BYTES
     if _large_template_mode():
@@ -328,6 +331,8 @@ def validate_rendered_output(data: bytes) -> None:
         raise SecurityError("Generated report exceeds maximum allowed size.")
     if len(data) < 4 or not data.startswith(_ZIP_MAGIC):
         raise SecurityError("Generated report is not a valid Word document.")
+    if not structure_check:
+        return
     try:
         zf = zipfile.ZipFile(io.BytesIO(data), "r")
     except zipfile.BadZipFile as e:
@@ -343,15 +348,12 @@ def validate_rendered_output(data: bytes) -> None:
         except KeyError:
             if not any(i.filename.lower() == _DOCX_REQUIRED_PART for i in infos):
                 raise SecurityError(
-                    "Generated report is not a Word document (.docx): "
-                    "missing word/document.xml."
+                    "Generated report is not a Word document (.docx): missing word/document.xml."
                 ) from None
 
 
 @contextmanager
-def open_docx_zip(
-    data: bytes, *, skip_validation: bool = False
-) -> Iterator[zipfile.ZipFile]:
+def open_docx_zip(data: bytes, *, skip_validation: bool = False) -> Iterator[zipfile.ZipFile]:
     """Open a .docx as ZIP for read-only scanning.
 
     Pass ``skip_validation=True`` when the same bytes were already validated
@@ -433,9 +435,16 @@ def strip_internal_context_keys(context: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in context.items() if not str(k).startswith("_")}
 
 
-def clamp_context(context: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+def clamp_context(
+    context: dict[str, Any],
+    *,
+    skip_table_cell_clamp: bool = False,
+) -> tuple[dict[str, Any], list[str]]:
     """
     Enforce row/column/string limits on render context. Returns (context, warnings).
+
+    Pass ``skip_table_cell_clamp=True`` when list-of-dict tables were already built via
+    engine ``_cell_str`` (caps at ``MAX_CONTEXT_STRING_LEN``) — still truncates row counts.
     """
     warnings: list[str] = []
     if len(context) > MAX_PROJECT_COLUMNS + 50:
@@ -446,6 +455,8 @@ def clamp_context(context: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             if len(val) > MAX_LAB_ROWS:
                 warnings.append(f"{key} truncated from {len(val)} to {MAX_LAB_ROWS} rows.")
                 context[key] = val[:MAX_LAB_ROWS]
+            if skip_table_cell_clamp:
+                continue
             for row in val:
                 if not isinstance(row, dict):
                     continue

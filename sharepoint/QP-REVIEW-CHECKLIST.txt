@@ -1,0 +1,46 @@
+ESA Report Generator — QP review checklist (before client issue)
+================================================================
+Use after render (--package or Streamlit Generate). Real client work: desktop folder or
+internal Docker host only — not Community Cloud sample app.
+
+General (all profiles)
+----------------------
+[ ] Rendered .docx opened and read end-to-end
+[ ] Project metadata correct (client, site, UWI, project number, date of issue, QP name)
+[ ] Executive summary matches site facts and lab/APEC data
+[ ] No placeholder text, [confirm] tags, or AI disclaimer left in client-facing prose
+[ ] Generation manifest JSON saved with issued deliverable on project SharePoint
+[ ] AI drafts applied were reviewed; no fabricated concentrations or citations
+
+Phase I Alberta (phase1_alberta)
+--------------------------------
+[ ] APEC inventory matches site reconnaissance and records review
+[ ] Drilling waste / DWDA narrative matches aer_waste_compliance_option and tables
+[ ] Phase II recommendation consistent with findings (phase2_recommended / conclusions)
+[ ] Appendices A / D / G present when profile requires (DWDA Option 1–2)
+[ ] SED 002 §10 checklist complete — see Guides/20-aer-sed002-phase1-esa.md (if applicable)
+[ ] OneStop export bundle reviewed if submitting to AER
+
+Phase II ESA (phase2_esa)
+--------------------------
+[ ] LabResults sheet matches certificate-of-analysis PDFs (sample ID, analyte, result, units)
+[ ] Exceedance flags in Word table match Excel LabResults and Alberta Tier criteria
+[ ] Conclusions reference actual exceedance count and locations — not draft-only narrative
+[ ] Sample locations / investigation scope described match field data
+[ ] Limitations section addresses data gaps and delineation scope
+
+Groundwater monitoring (groundwater_monitoring)
+----------------------------------------------
+[ ] well_id values identical across MonitoringWells, WaterLevels, and GroundwaterLab
+[ ] Water level dates and depths consistent with field sheets
+[ ] GroundwaterLab results match COA PDFs; exceedances correctly flagged
+[ ] Hydrograph / site map figures render if path columns set (figures/ or absolute path)
+[ ] Trend narrative (stable/increasing) supported by tabulated results
+[ ] Monitoring program scope and compliance period stated correctly
+
+Sign-off
+--------
+QP name: _________________________  Date: __________
+Project number: __________________  Deliverable zip: __________________
+
+Related: Guides/27-cursor-claude-alberta-playbook.md · Guides/PILOT-EXIT-CHECKLIST.txt
