@@ -31,13 +31,14 @@ Each profile has: `system_addon`, `sections`, `section_instructions`, `agent_bri
 
 ## Agent tasks (folder workflow)
 
-Under `agent_tasks` in the JSON: `folder_inventory`, `apec_extract`, `lab_coa`, `sed002_copilot`, `render_gate`.
+Under `agent_tasks` in the JSON: `folder_inventory`, `apec_extract`, `lab_coa`, `sed002_copilot`, `render_gate`, `adversarial_review`.
 
 ```python
 from ai.prompts import agent_brief, agent_task_prompt, system_prompt_for
 
 print(agent_brief("phase1_alberta"))
 print(agent_task_prompt("folder_inventory"))
+print(agent_task_prompt("adversarial_review"))
 print(system_prompt_for("groundwater_monitoring"))
 ```
 
@@ -46,7 +47,8 @@ print(system_prompt_for("groundwater_monitoring"))
 1. Set report type / profile from `project.json` or Excel `ReportConfig`.
 2. Paste `agent_brief(<report_type>)` into the agent task.
 3. For folder runs, follow [25-agent-folder-report.md](25-agent-folder-report.md) and skill `esa-agent-folder-report`.
-4. Use `agent_task_prompt(...)` for inventory / APEC / lab / SED / render-gate steps.
+4. After Cowork drafts: run `--mode review`, then use `agent_task_prompt("adversarial_review")` in Cursor to challenge prose vs `source/`.
+5. Use other `agent_task_prompt(...)` keys for inventory / APEC / lab / SED / render-gate steps.
 
 ## Contrast with phrase catalog
 

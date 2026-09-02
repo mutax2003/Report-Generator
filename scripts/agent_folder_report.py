@@ -6,6 +6,7 @@ Apply drafts into Excel only with explicit --mode apply-drafts (or --apply-draft
 
   .\\.venv\\Scripts\\python.exe scripts\\agent_folder_report.py --folder <path> --mode inventory
   .\\.venv\\Scripts\\python.exe scripts\\agent_folder_report.py --folder <path> --mode enrich --no-llm
+  .\\.venv\\Scripts\\python.exe scripts\\agent_folder_report.py --folder <path> --mode review
   .\\.venv\\Scripts\\python.exe scripts\\agent_folder_report.py --folder <path> --mode apply-drafts
   .\\.venv\\Scripts\\python.exe scripts\\agent_folder_report.py --folder <path> --mode render --package
   .\\.venv\\Scripts\\python.exe scripts\\agent_folder_report.py --folder <path> --mode full --package
@@ -29,7 +30,7 @@ from project_folder import (  # noqa: E402
     resolve_project_folder,
 )
 
-MODES = ("inventory", "enrich", "apply-drafts", "render", "full")
+MODES = ("inventory", "enrich", "review", "apply-drafts", "render", "full")
 MAX_FOLDER_PATH_LEN = 480
 EXCEL_SUFFIXES = {".xlsx"}
 TEMPLATE_SUFFIXES = {".docx", ".pdf"}
@@ -297,6 +298,30 @@ def run_mode(
             )
             return 0
 
+        if mode == "review":
+            from ai.adversarial_review import run_adversarial_review
+
+            result = run_adversarial_review(resolved)
+            out_md = resolved.ai_drafts_dir / "adversarial_review.md"
+            print(f"Wrote adversarial review -> {out_md}")
+            print(
+                f"Blockers: {len(result.blockers)}  Warnings: {len(result.warnings)}  "
+                f"can_apply={result.can_apply}  can_render={result.can_render}"
+            )
+            if result.blockers:
+                for f in result.blockers[:12]:
+                    print(f"  BLOCKER [{f.code}]: {f.message}")
+                _print_next(
+                    "Fix blockers (Cursor adversarial pass on ai_drafts/), "
+                    "then re-run --mode review before apply-drafts"
+                )
+                return 1
+            _print_next(
+                "Cursor: challenge prose vs source/ using ai_drafts/adversarial_review.md; "
+                "then --mode apply-drafts (user confirm) -> --mode render --package"
+            )
+            return 0
+
         if mode == "apply-drafts":
             apply_drafts_to_excel(resolved, overwrite_filled=overwrite_filled)
             _print_next("Run --mode render --package after confirming Excel")
@@ -315,7 +340,7 @@ def run_mode(
 
         if mode == "full":
             enrich_project_folder(resolved, use_llm=use_llm, modes=("inventory",))
-            print(f"Inventory done → {resolved.ai_drafts_dir}")
+            print(f"Inventory done -> {resolved.ai_drafts_dir}")
             paths = enrich_project_folder(
                 resolved,
                 use_llm=use_llm,
@@ -350,7 +375,7 @@ def run_mode(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Agent folder report: inventory / enrich / apply-drafts / render "
+            "Agent folder report: inventory / enrich / review / apply-drafts / render "
             "for Cursor, Codex, or Claude Cowork (see docs/25-agent-folder-report.md)."
         ),
     )
@@ -364,7 +389,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--mode",
         choices=MODES,
         required=True,
-        help="Orchestrator step (full = inventory → enrich → optional apply → render)",
+        help=(
+            "Orchestrator step (review = Cursor adversarial gate; "
+            "full = inventory -> enrich -> optional apply -> render)"
+        ),
     )
     parser.add_argument(
         "--no-llm",

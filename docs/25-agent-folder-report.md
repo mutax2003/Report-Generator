@@ -33,6 +33,7 @@ cd "Report Generator"
 
 .\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode inventory
 .\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode enrich --no-llm
+.\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode review
 .\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode apply-drafts
 .\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode render --package
 ```
@@ -41,25 +42,24 @@ cd "Report Generator"
 |------|--------|
 | `inventory` | Preflight + inventory → `ai_drafts/` |
 | `enrich` | Source ingest, narratives, appendix classify (default offline; `--llm` for Gemini/Ollama) |
+| `review` | **Cursor adversarial gate** — deterministic checks + Cursor prompt → `adversarial_review.md` (exit 1 if blockers) |
 | `apply-drafts` | Explicit patch of `project_data.xlsx` from `narratives.json` / `excel_field_suggestions.json` |
 | `render` | Write `delivered/` (+ `--package` zip) |
 | `full` | inventory → enrich → render; Excel Apply only if `--apply-drafts` |
 
 Equivalent lower-level: `scripts/ingest_project_folder.py --ai …` / `--render --package`.
 
-## Cursor
+## Claude Cowork + Cursor adversarial review (Phase I)
 
-1. Open this repo in Cursor.
-2. Ask the agent to follow skill **`esa-agent-folder-report`** (`.cursor/skills/esa-agent-folder-report/SKILL.md`) with your folder path.
-3. Or paste the CLI commands above.
+Recommended split of labour for Alberta Phase I:
 
-## Codex
-
-From the repo root, attach this doc and run the same `agent_folder_report.py` commands. Prefer `--no-llm` when Codex itself edits Excel or `ai_drafts/`.
-
-## Claude Cowork
-
-Copy this task brief into Cowork (replace the folder path):
+| Role | Tool | Action |
+|------|------|--------|
+| Draft | **Claude Cowork / Claude Code** | Write `ai_drafts/narratives.json` (and optional APEC suggestions) from `source/` PDFs |
+| Challenge | **Cursor Pro** | Run `--mode review`, then adversarially check claims vs `source/` using `ai_drafts/adversarial_review.md` |
+| Merge | Cursor CLI (user confirm) | `--mode apply-drafts` |
+| Render | Cursor CLI | `--mode render --package` |
+| Sign-off | Human QP | [sharepoint/QP-REVIEW-CHECKLIST.txt](../sharepoint/QP-REVIEW-CHECKLIST.txt) |
 
 ```
 Repo: Report Generator (ESA)
@@ -70,13 +70,27 @@ Layout: docs/22-project-folder-workflow.md
 
 Steps:
 1) python scripts/agent_folder_report.py --folder <Folder> --mode inventory
-2) Review ai_drafts/; optionally enrich with --mode enrich --no-llm
-3) Only if I confirm: --mode apply-drafts
-4) --mode render --package
-5) Show paths under delivered/ — QP review required; do not email client without sign-off.
+2) Claude Cowork: draft ai_drafts/narratives.json from source/ (cite filenames; no invented labs)
+3) Cursor: python scripts/agent_folder_report.py --folder <Folder> --mode review
+4) Cursor: fix blockers / challenge ungrounded prose (agent_task_prompt adversarial_review)
+5) Only if I confirm: --mode apply-drafts
+6) --mode render --package
+7) Show paths under delivered/ — QP review required; do not email client without sign-off.
 
-Do not modify engine.py to call an LLM. Do not skip Apply confirmation.
+Do not modify engine.py to call an LLM. Do not skip Apply confirmation or adversarial review.
 ```
+
+See also [27-cursor-claude-alberta-playbook.md](27-cursor-claude-alberta-playbook.md).
+
+## Cursor
+
+1. Open this repo in Cursor.
+2. Ask the agent to follow skill **`esa-agent-folder-report`** (`.cursor/skills/esa-agent-folder-report/SKILL.md`) with your folder path — **inventory → (Cowork drafts) → review → apply → render**.
+3. Or paste the CLI commands above.
+
+## Codex
+
+From the repo root, attach this doc and run the same `agent_folder_report.py` commands. Prefer `--no-llm` when Codex itself edits Excel or `ai_drafts/`. Use `--mode review` before apply-drafts.
 
 ## Streamlit
 

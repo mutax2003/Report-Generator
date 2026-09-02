@@ -60,7 +60,10 @@ Prompt keys: groundwater_monitoring; agent_tasks: folder_inventory, render_gate
 cd "Report Generator"
 .\.venv\Scripts\Activate.ps1
 python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode inventory
+python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode review
+# Cursor: open ai_drafts/adversarial_review.md — challenge claims vs source/ PDFs
 python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode apply-drafts
 python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode render --package
 
 Deliverable: delivered\*.zip — QP must review before client issue.
+Prompt key: agent_task_prompt("adversarial_review") — docs/27-cursor-claude-alberta-playbook.md

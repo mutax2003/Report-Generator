@@ -133,6 +133,10 @@
     "render_gate": {
       "label": "Render readiness check",
       "prompt": "Confirm project_data.xlsx and template.docx exist, preflight has no blocking errors, and drafts were applied only if the user confirmed. Then run scripts/agent_folder_report.py --mode render --package."
+    },
+    "adversarial_review": {
+      "label": "Cursor adversarial review (after Cowork drafts)",
+      "prompt": "You are Cursor performing adversarial review of Claude Cowork / Claude Code drafts for Alberta Phase I ESA. Read ai_drafts/adversarial_review.md (from --mode review). Challenge every narrative claim against source/ PDFs. Remove LLM boilerplate, invent-admissions, and uncited facts. Add [confirm] where evidence is missing. Do not invent lab results, APECs, UWIs, or certificate numbers. Do not modify engine.py. Fix only ai_drafts/; Excel Apply only after the user confirms. Re-run --mode review until blockers are clear, then apply-drafts → render --package. QP review still required."
     }
   }
 }

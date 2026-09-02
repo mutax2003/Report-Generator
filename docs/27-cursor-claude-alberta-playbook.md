@@ -41,10 +41,18 @@ cd "Report Generator"
 python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode inventory
 ```
 
-### Step B — Structured data + apply
+### Step B — Structured data + Cursor adversarial review
 
 1. Cursor fills tabular sheets from COAs (deterministic — not LLM-guessed numbers).
-2. Merge Cowork JSON after review:
+2. **Cursor adversarial gate** before Apply:
+
+```powershell
+python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode review
+```
+
+Exit code **1** = blockers. Open `ai_drafts/adversarial_review.md` and challenge Cowork prose against `source/` PDFs (`agent_task_prompt("adversarial_review")`).
+
+3. Merge Cowork JSON after review is clean and you confirm:
 
 ```powershell
 python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode apply-drafts
@@ -132,9 +140,9 @@ Canonical JSON: [`schemas/alberta_prompt_library.json`](../schemas/alberta_promp
 
 | Profile key | Narrative sections | Agent task prompts |
 |-------------|-------------------|-------------------|
-| `phase1_alberta` | executive_summary, drilling_waste, site_reconnaissance, conclusions_recommendations | folder_inventory, apec_extract, sed002_copilot, render_gate |
-| `phase2_esa` | executive_summary, site_description, conclusions_limitations | folder_inventory, lab_coa, render_gate |
-| `groundwater_monitoring` | executive_summary, hydrogeologic_setting, conclusions_recommendations | folder_inventory, render_gate |
+| `phase1_alberta` | executive_summary, drilling_waste, site_reconnaissance, conclusions_recommendations | folder_inventory, apec_extract, sed002_copilot, **adversarial_review**, render_gate |
+| `phase2_esa` | executive_summary, site_description, conclusions_limitations | folder_inventory, lab_coa, **adversarial_review**, render_gate |
+| `groundwater_monitoring` | executive_summary, hydrogeologic_setting, conclusions_recommendations | folder_inventory, **adversarial_review**, render_gate |
 
 Python access:
 
@@ -159,7 +167,8 @@ print(agent_brief("phase1_alberta"))
 - Client PDFs on Community Cloud
 - Cowork writing directly to `project_data.xlsx` without Apply
 - LLM-extracted lab numbers without COA cross-check
-- One mega-prompt for the entire report instead of inventory → drafts → apply → render
+- One mega-prompt for the entire report instead of inventory → drafts → **review** → apply → render
+- Skipping `--mode review` after Claude Cowork drafts
 
 ## Related
 
