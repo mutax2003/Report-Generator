@@ -599,18 +599,16 @@ cd &quot;Report Generator&quot;
 
 .\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode enrich --no-llm
 
+.\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode review
+
 .\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode apply-drafts
 
 .\.venv\Scripts\python.exe scripts\agent_folder_report.py --folder C:\Projects\260109R --mode render --package
 
 </code></pre>
 <p>Equivalent lower-level: `scripts/ingest_project_folder.py --ai …` / `--render --package`.</p>
-<h2>Cursor</h2>
-<p>1. Open this repo in Cursor. 2. Ask the agent to follow skill **`esa-agent-folder-report`** (`.cursor/skills/esa-agent-folder-report/SKILL.md`) with your folder path. 3. Or paste the CLI commands above.</p>
-<h2>Codex</h2>
-<p>From the repo root, attach this doc and run the same `agent_folder_report.py` commands. Prefer `--no-llm` when Codex itself edits Excel or `ai_drafts/`.</p>
-<h2>Claude Cowork</h2>
-<p>Copy this task brief into Cowork (replace the folder path):</p>
+<h2>Claude Cowork + Cursor adversarial review (Phase I)</h2>
+<p>Recommended split of labour for Alberta Phase I:</p>
 <pre><code>
 Repo: Report Generator (ESA)
 
@@ -628,19 +626,28 @@ Steps:
 
 1) python scripts/agent_folder_report.py --folder &lt;Folder&gt; --mode inventory
 
-2) Review ai_drafts/; optionally enrich with --mode enrich --no-llm
+2) Claude Cowork: draft ai_drafts/narratives.json from source/ (cite filenames; no invented labs)
 
-3) Only if I confirm: --mode apply-drafts
+3) Cursor: python scripts/agent_folder_report.py --folder &lt;Folder&gt; --mode review
 
-4) --mode render --package
+4) Cursor: fix blockers / challenge ungrounded prose (agent_task_prompt adversarial_review)
 
-5) Show paths under delivered/ — QP review required; do not email client without sign-off.
+5) Only if I confirm: --mode apply-drafts
+
+6) --mode render --package
+
+7) Show paths under delivered/ — QP review required; do not email client without sign-off.
 
 
 
-Do not modify engine.py to call an LLM. Do not skip Apply confirmation.
+Do not modify engine.py to call an LLM. Do not skip Apply confirmation or adversarial review.
 
 </code></pre>
+<p>See also <a href="27-cursor-claude-alberta-playbook.md">27-cursor-claude-alberta-playbook.md</a>.</p>
+<h2>Cursor</h2>
+<p>1. Open this repo in Cursor. 2. Ask the agent to follow skill **`esa-agent-folder-report`** (`.cursor/skills/esa-agent-folder-report/SKILL.md`) with your folder path — **inventory → (Cowork drafts) → review → apply → render**. 3. Or paste the CLI commands above.</p>
+<h2>Codex</h2>
+<p>From the repo root, attach this doc and run the same `agent_folder_report.py` commands. Prefer `--no-llm` when Codex itself edits Excel or `ai_drafts/`. Use `--mode review` before apply-drafts.</p>
 <h2>Streamlit</h2>
 <p>On desktop **Project folder + AI**, you can still Load folder → Analyze → Generate. For agent-driven runs, use this CLI/skill path. See the caption on the folder step linking here.</p>
 <h2>Related</h2>
@@ -664,7 +671,7 @@ Do not modify engine.py to call an LLM. Do not skip Apply confirmation.
 <h2>Profiles covered</h2>
 <p>Each profile has: `system_addon`, `sections`, `section_instructions`, `agent_brief`.</p>
 <h2>Agent tasks (folder workflow)</h2>
-<p>Under `agent_tasks` in the JSON: `folder_inventory`, `apec_extract`, `lab_coa`, `sed002_copilot`, `render_gate`.</p>
+<p>Under `agent_tasks` in the JSON: `folder_inventory`, `apec_extract`, `lab_coa`, `sed002_copilot`, `render_gate`, `adversarial_review`.</p>
 <pre><code>
 from ai.prompts import agent_brief, agent_task_prompt, system_prompt_for
 
@@ -674,11 +681,13 @@ print(agent_brief(&quot;phase1_alberta&quot;))
 
 print(agent_task_prompt(&quot;folder_inventory&quot;))
 
+print(agent_task_prompt(&quot;adversarial_review&quot;))
+
 print(system_prompt_for(&quot;groundwater_monitoring&quot;))
 
 </code></pre>
 <h2>Cursor / Codex / Claude Cowork</h2>
-<p>1. Set report type / profile from `project.json` or Excel `ReportConfig`. 2. Paste `agent_brief(&lt;report_type&gt;)` into the agent task. 3. For folder runs, follow <a href="25-agent-folder-report.md">25-agent-folder-report.md</a> and skill `esa-agent-folder-report`. 4. Use `agent_task_prompt(...)` for inventory / APEC / lab / SED / render-gate steps.</p>
+<p>1. Set report type / profile from `project.json` or Excel `ReportConfig`. 2. Paste `agent_brief(&lt;report_type&gt;)` into the agent task. 3. For folder runs, follow <a href="25-agent-folder-report.md">25-agent-folder-report.md</a> and skill `esa-agent-folder-report`. 4. After Cowork drafts: run `--mode review`, then use `agent_task_prompt(&quot;adversarial_review&quot;)` in Cursor to challenge prose vs `source/`. 5. Use other `agent_task_prompt(...)` keys for inventory / APEC / lab / SED / render-gate steps.</p>
 <h2>Contrast with phrase catalog</h2>
 <h2>Related</h2>
 <ul>

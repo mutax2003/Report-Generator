@@ -299,7 +299,10 @@ def get_cached_report_engine(excel_bytes: bytes, template_bytes: bytes) -> Repor
     cache = st.session_state.setdefault("_report_engine_cache", {})
     if cache.get("key") != key:
         cache["key"] = key
-        cache["engine"] = ReportEngine(excel_bytes, template_bytes, inputs_validated=True)
+        engine = ReportEngine(excel_bytes, template_bytes, inputs_validated=True)
+        # Cache key digests are full SHA-256 of the same bytes — seed to skip re-hash.
+        engine.seed_input_digests(excel_sha256=key[0], template_sha256=key[1])
+        cache["engine"] = engine
     return cache["engine"]
 
 

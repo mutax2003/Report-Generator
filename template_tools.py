@@ -86,9 +86,18 @@ def clear_template_scan_cache() -> None:
     _scan_cache.clear()
 
 
-def scan_template(template_bytes: bytes, *, max_split_issues: int = 15) -> TemplateScan:
-    """One ZIP pass: root vars, expressions, blocks, split-run lint."""
-    digest = hashlib.sha256(template_bytes).hexdigest()
+def scan_template(
+    template_bytes: bytes,
+    *,
+    max_split_issues: int = 15,
+    digest: str | None = None,
+) -> TemplateScan:
+    """One ZIP pass: root vars, expressions, blocks, split-run lint.
+
+    Pass ``digest`` (SHA-256 hex of ``template_bytes``) to avoid a second hash
+    when the caller already computed it (e.g. ReportEngine.template_sha256).
+    """
+    digest = digest or hashlib.sha256(template_bytes).hexdigest()
     key = (digest, max_split_issues)
     hit = _scan_cache.get(key)
     if hit is not None:
@@ -101,10 +110,13 @@ def scan_template(template_bytes: bytes, *, max_split_issues: int = 15) -> Templ
 
 
 def scan_template_trusted(
-    template_bytes: bytes, *, max_split_issues: int = 15
+    template_bytes: bytes,
+    *,
+    max_split_issues: int = 15,
+    digest: str | None = None,
 ) -> TemplateScan:
     """Like ``scan_template`` but skip ZIP re-validation (caller already validated)."""
-    digest = hashlib.sha256(template_bytes).hexdigest()
+    digest = digest or hashlib.sha256(template_bytes).hexdigest()
     key = (digest, max_split_issues)
     hit = _scan_cache.get(key)
     if hit is not None:
@@ -263,7 +275,9 @@ def run_preflight(
     try:
         # Engine ctor already validated the ZIP; skip a second full inspect.
         if engine is not None:
-            scan = scan_template_trusted(template_bytes)
+            scan = scan_template_trusted(
+                template_bytes, digest=engine.template_sha256()
+            )
         else:
             scan = scan_template(template_bytes)
         result.template_var_count = len(scan.root_vars)

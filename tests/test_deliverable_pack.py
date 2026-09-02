@@ -57,6 +57,9 @@ class DeliverablePackTests(unittest.TestCase):
         self.assertGreater(len(zbytes), 10)
         with zipfile.ZipFile(BytesIO(zbytes)) as zf:
             names = zf.namelist()
+            info = zf.getinfo("report.docx")
+            self.assertEqual(info.compress_type, zipfile.ZIP_STORED)
+            self.assertGreaterEqual(info.date_time[0], 2020)
         self.assertIn("report.docx", names)
         self.assertIn("report_manifest.json", names)
         self.assertTrue(any(n.startswith("appendices/") for n in names))

@@ -419,6 +419,18 @@ class ReportEngine:
         self._phrase_lookup: dict[tuple[str, str], str] | None = None
         self._config_cache: dict[tuple[tuple[str, str], ...], ReportRuntimeConfig] = {}
 
+    def seed_input_digests(
+        self,
+        *,
+        excel_sha256: str | None = None,
+        template_sha256: str | None = None,
+    ) -> None:
+        """Reuse SHA-256 digests already computed by the UI/cache layer."""
+        if excel_sha256:
+            self._excel_sha256 = excel_sha256
+        if template_sha256:
+            self._template_sha256 = template_sha256
+
     def excel_sha256(self) -> str:
         if self._excel_sha256 is None:
             from provenance import sha256_hex
@@ -440,7 +452,7 @@ class ReportEngine:
         from report_profile import loops_from_block_tags
         from template_tools import scan_template_trusted
 
-        scan = scan_template_trusted(self.template_bytes)
+        scan = scan_template_trusted(self.template_bytes, digest=self.template_sha256())
         self._root_vars_cache = scan.root_vars
         self._template_loops_cache = loops_from_block_tags(scan.block_tags)
 
@@ -474,8 +486,14 @@ class ReportEngine:
         if template_loops is not None:
             self._template_loops_cache = template_loops
 
-    def resolve_config(self, meta: dict[str, str] | None) -> ReportRuntimeConfig:
-        meta_key = tuple(sorted(sanitize_meta(meta).items()))
+    def resolve_config(
+        self,
+        meta: dict[str, str] | None,
+        *,
+        meta_sanitized: bool = False,
+    ) -> ReportRuntimeConfig:
+        cleaned = meta if meta_sanitized and meta is not None else sanitize_meta(meta)
+        meta_key = tuple(sorted(cleaned.items()))
         cached = self._config_cache.get(meta_key)
         if cached is not None:
             return cached
@@ -483,7 +501,7 @@ class ReportEngine:
         runtime = resolve_report_config(
             self.excel_bytes,
             self.template_bytes,
-            meta,
+            cleaned,
             template_loops=self._template_loops_cache,
             excel_meta=self._get_excel_meta(),
         )
@@ -635,7 +653,7 @@ class ReportEngine:
         tables_prefiltered: bool = False,
     ) -> dict[str, Any]:
         meta = sanitize_meta(meta)
-        runtime = self.resolve_config(meta)
+        runtime = self.resolve_config(meta, meta_sanitized=True)
         if parsed_excel is not None:
             project_rows, list_data = parsed_excel
         else:
@@ -869,8 +887,8 @@ class ReportEngine:
         out = io.BytesIO()
         doc.save(out)
         docx_bytes = out.getvalue()
-        # Full ZIP structure check once per main report; appendices use a lighter path.
-        validate_rendered_output(docx_bytes)
+        # Just written by DocxTemplate — magic/size only (same as appendix path).
+        validate_rendered_output(docx_bytes, structure_check=False)
         from provenance import build_generation_record
 
         coverage = None

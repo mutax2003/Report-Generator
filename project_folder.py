@@ -869,6 +869,10 @@ def render_project_folder(
     prepared = prepare_template_upload_cached(template_bytes, resolved.template_path.name)
     meta.setdefault("template_source_format", prepared.source_format)
     engine = ReportEngine(excel_bytes, prepared.docx_bytes, inputs_validated=True)
+    engine.seed_input_digests(
+        excel_sha256=sha256_hex(excel_bytes),
+        template_sha256=sha256_hex(prepared.docx_bytes),
+    )
     result = render_report(
         RenderRequest(
             excel_bytes=excel_bytes,
@@ -889,7 +893,8 @@ def render_project_folder(
 
     out_name = suggested_download_name(context, meta)
     record.output_filename = out_name
-    record.output_sha256 = sha256_hex(docx_bytes)
+    if not record.output_sha256:
+        record.output_sha256 = sha256_hex(docx_bytes)
     record.project_folder = str(resolved.root)
     manifest_bytes = record.to_json_bytes()
 

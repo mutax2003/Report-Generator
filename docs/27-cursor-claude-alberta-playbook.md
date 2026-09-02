@@ -8,8 +8,9 @@ Speed up **real client** Alberta reports using **Cursor Pro** (repo agent + fold
 
 | Tool | Use for | Does not replace |
 |------|---------|------------------|
-| **Cursor Pro** | Open this repo; run `agent_folder_report.py`; fill lab/well tables; apply drafts; render; fix template tags | QP sign-off, regulatory judgment |
-| **Claude Max (Cowork)** | Draft narratives from `source/` PDFs into `ai_drafts/*.json`; review prose before issue | In-app AI tab (unless IT configures Anthropic API separately) |
+| **Cursor Pro** | Optional: lab tables, template fixes, CLI review/render | QP sign-off |
+| **Claude Max (Cowork)** | Draft **and** challenge narratives (`adversarial_review.md` vs `source/`) — Cursor not required for step 2 | In-app AI tab (unless Anthropic API is configured) |
+| **Streamlit (this app)** | Load folder, **Cowork brief**, **Run adversarial review**, Apply, Generate zip | Claude/Cursor logins |
 
 **Hard boundary:** AI never auto-merges into `ReportEngine`. Flow: `ai_drafts/` → explicit **Apply** → review → **Generate**.
 
@@ -44,15 +45,15 @@ python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode inventory
 ### Step B — Structured data + Cursor adversarial review
 
 1. Cursor fills tabular sheets from COAs (deterministic — not LLM-guessed numbers).
-2. **Cursor adversarial gate** before Apply:
+2. **Adversarial gate** in Streamlit (Project folder expander → **Run adversarial review**) or CLI:
 
 ```powershell
 python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode review
 ```
 
-Exit code **1** = blockers. Open `ai_drafts/adversarial_review.md` and challenge Cowork prose against `source/` PDFs (`agent_task_prompt("adversarial_review")`).
+Exit code **1** = blockers. Open `ai_drafts/adversarial_review.md`. **Claude Max** can challenge claims vs `source/` (Cursor optional). Prompt: `agent_task_prompt("adversarial_review")`.
 
-3. Merge Cowork JSON after review is clean and you confirm:
+3. Merge Cowork JSON after review is clean and you confirm (Streamlit AI tab **Apply**, or):
 
 ```powershell
 python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode apply-drafts

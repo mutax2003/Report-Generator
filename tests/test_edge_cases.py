@@ -291,6 +291,20 @@ class TestSecurityEdgeCases(unittest.TestCase):
         self.assertEqual(len(ctx["lab_results"][0]["analyte"]), len(long))
         self.assertEqual(len(ctx["site_name"]), MAX_CONTEXT_STRING_LEN)
 
+    def test_resolve_config_meta_sanitized_skips_second_sanitize(self) -> None:
+        xlsx = ROOT / "samples" / "phase1_alberta_data.xlsx"
+        tpl = ROOT / "samples" / "phase1_alberta_template.docx"
+        if not xlsx.is_file() or not tpl.is_file():
+            self.skipTest("samples missing")
+        from engine import ReportEngine
+        from security import sanitize_meta
+
+        engine = ReportEngine(xlsx.read_bytes(), tpl.read_bytes())
+        meta = sanitize_meta({"prepared_by": "QP", "report_phase": "Phase 1"})
+        a = engine.resolve_config(meta, meta_sanitized=True)
+        b = engine.resolve_config(meta, meta_sanitized=True)
+        self.assertIs(a, b)
+
     def test_download_filename_unicode_and_empty(self) -> None:
         self.assertTrue(sanitize_download_filename("").endswith(".docx"))
         name = sanitize_download_filename("___\x00///.docx")

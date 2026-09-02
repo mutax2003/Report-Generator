@@ -12,6 +12,7 @@ import streamlit as st
 
 from ui.helpers import show_upload_status
 from ui.layout import render_section_header
+from security import user_safe_error
 
 FolderLoadResult = tuple[Any, Any, Any, list[str]]
 
@@ -251,6 +252,7 @@ def _render_folder_controls() -> FolderLoadResult | None:
         st.session_state.project_folder_loaded = loaded
         _show_folder_inventory(st.session_state.get("project_folder_inventory"))
         st.success(f"Loaded from `{folder_path}`")
+        _render_cowork_and_review_panel(folder_path)
         return loaded.as_tuple()
 
     loaded = _coerce_folder_load(st.session_state.get("project_folder_loaded"))
@@ -264,6 +266,9 @@ def _render_folder_controls() -> FolderLoadResult | None:
             show_upload_status("Excel", loaded.excel_file)
             show_upload_status("Template", loaded.template_file)
             _show_folder_inventory(st.session_state.get("project_folder_inventory"))
+        _render_cowork_and_review_panel(
+            st.session_state.get("project_folder_path") or folder_path
+        )
         return loaded.as_tuple()
 
     stale = st.session_state.get("project_folder_loaded")
@@ -273,6 +278,111 @@ def _render_folder_controls() -> FolderLoadResult | None:
 
     _render_folder_idle_state()
     return None
+
+
+def _render_cowork_and_review_panel(folder_path: str | None) -> None:
+    """Cowork brief download + deterministic adversarial review for loaded folder."""
+    if not folder_path:
+        return
+    from security import folder_workflow_disabled
+
+    if folder_workflow_disabled():
+        return
+
+    meta = st.session_state.get("project_folder_meta") or {}
+    report_type = str(meta.get("report_type") or "phase1_alberta")
+
+    with st.expander("Claude Max / Cowork handoff + adversarial review", expanded=False):
+        st.caption(
+            "Claude Max can draft **and** challenge narratives (step 2). "
+            "Cursor Pro is optional. Streamlit only merges after you Apply."
+        )
+        try:
+            from ai.cowork_brief import build_site_cowork_brief
+
+            brief = build_site_cowork_brief(folder_path, report_type=report_type)
+        except (OSError, ValueError, TypeError) as e:
+            st.warning(user_safe_error(e))
+            brief = ""
+
+        if brief:
+            st.text_area(
+                "Paste into Claude Max / Cowork",
+                value=brief,
+                height=220,
+                key="cowork_brief_text_area",
+            )
+            st.download_button(
+                "Download Cowork brief (.txt)",
+                data=brief.encode("utf-8"),
+                file_name="cowork_brief.txt",
+                mime="text/plain",
+                key="download_cowork_brief",
+            )
+
+        b1, b2 = st.columns(2)
+        run_review = b1.button(
+            "Run adversarial review",
+            key="run_folder_adversarial_review",
+            help="Writes ai_drafts/adversarial_review.md (deterministic; no LLM).",
+            width="stretch",
+        )
+        if b2.button(
+            "Refresh brief",
+            key="refresh_cowork_brief",
+            width="stretch",
+        ):
+            st.rerun()
+
+        if run_review:
+            run_folder_adversarial_review(folder_path)
+
+        review_md = Path(folder_path) / "ai_drafts" / "adversarial_review.md"
+        if review_md.is_file():
+            try:
+                text = review_md.read_text(encoding="utf-8")
+            except OSError as e:
+                st.error(user_safe_error(e))
+            else:
+                with st.expander("Latest adversarial_review.md", expanded=False):
+                    st.markdown(text[:12_000])
+                st.caption(
+                    "Paste that review into Claude Max to challenge claims vs `source/` "
+                    "PDFs, then Apply drafts on the AI tab."
+                )
+
+
+def run_folder_adversarial_review(folder_str: str) -> None:
+    from ai.adversarial_review import run_adversarial_review
+    from project_folder import resolve_project_folder
+
+    try:
+        resolved = resolve_project_folder(Path(folder_str), create_subdirs=True)
+        result = run_adversarial_review(resolved)
+    except (FileNotFoundError, ValueError, OSError, TypeError, KeyError) as e:
+        st.error(user_safe_error(e))
+        return
+
+    out = resolved.ai_drafts_dir / "adversarial_review.md"
+    if result.blockers:
+        st.error(
+            f"Adversarial review: **{len(result.blockers)} blocker(s)** "
+            f"(can_apply={result.can_apply}). See `{out}`."
+        )
+        for f in result.blockers[:8]:
+            st.caption(f"- `{f.code}`: {f.message}")
+    else:
+        st.success(
+            f"Adversarial review: no blockers "
+            f"({len(result.warnings)} warning(s)). See `{out}`."
+        )
+    from ai.models import AiAudit
+
+    existing: list = st.session_state.get("ai_audit_log") or []
+    existing.append(
+        AiAudit(features=["adversarial_review"], used_llm=False).to_dict()
+    )
+    st.session_state["ai_audit_log"] = existing[-20:]
 
 
 def _render_folder_idle_state() -> None:

@@ -294,6 +294,7 @@ def _tab_folder_drafts() -> None:
         return
 
     review_files = (
+        ("adversarial_review.md", "markdown"),
         ("inventory.md", "markdown"),
         ("preflight_report.md", "markdown"),
         ("source_summaries.json", "json"),
@@ -309,7 +310,7 @@ def _tab_folder_drafts() -> None:
         if not path.is_file():
             continue
         shown += 1
-        with st.expander(name, expanded=name in ("preflight_report.md", "narratives.json")):
+        with st.expander(name, expanded=name in ("adversarial_review.md", "preflight_report.md", "narratives.json")):
             try:
                 text = path.read_text(encoding="utf-8")
             except OSError as e:
@@ -328,6 +329,21 @@ def _tab_folder_drafts() -> None:
         return
 
     st.caption(f"Files live under `{drafts_dir}` — use **Apply** below or edit on disk.")
+
+    r1, r2 = st.columns(2)
+    if r1.button(
+        "Run adversarial review",
+        key="ai_tab_run_adversarial_review",
+        help="Deterministic gate → ai_drafts/adversarial_review.md (Claude Max can challenge next).",
+    ):
+        from ui.project_folder import run_folder_adversarial_review
+
+        run_folder_adversarial_review(str(root))
+        st.rerun()
+    r2.caption(
+        "Claude Max can do the prose challenge (paste adversarial_review.md + source/). "
+        "Cursor Pro is optional."
+    )
 
     from ai.apply_drafts import load_field_suggestions, load_narratives_payload
 

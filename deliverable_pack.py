@@ -10,6 +10,7 @@ import json
 import re
 import zipfile
 from dataclasses import dataclass, field
+from datetime import datetime
 from functools import cached_property
 from typing import Any
 
@@ -83,12 +84,14 @@ def build_batch_reports_zip(
             else:
                 seen[safe] = 1
             stem = safe.rsplit(".", 1)[0] if "." in safe else safe
-            zf.writestr(f"reports/{safe}", docx_bytes)
+            _writestr_ooxml(zf, f"reports/{safe}", docx_bytes)
             if manifest_bytes:
                 zf.writestr(f"manifests/{stem}_manifest.json", manifest_bytes)
             for ap in appendices or []:
                 ap_safe = ap.filename.replace("\\", "_").replace("/", "_")
-                zf.writestr(f"appendices/{stem}/{ap.label}_{ap_safe}", ap.data)
+                _writestr_ooxml(
+                    zf, f"appendices/{stem}/{ap.label}_{ap_safe}", ap.data
+                )
     return bio.getvalue()
 
 
@@ -222,6 +225,24 @@ def _zip_path(prefix: str, name: str) -> str:
     return f"{prefix}/{name}" if prefix else name
 
 
+def _zip_now() -> tuple[int, int, int, int, int, int]:
+    dt = datetime.now()
+    return (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)
+
+
+def _writestr_ooxml(zf: zipfile.ZipFile, arcname: str, data: bytes) -> None:
+    """Store nested OOXML/xlsx without re-deflating (already ZIP containers)."""
+    lower = arcname.lower()
+    if lower.endswith((".docx", ".xlsx", ".xlsm")):
+        info = zipfile.ZipInfo(arcname)
+        info.compress_type = zipfile.ZIP_STORED
+        # Default ZipInfo date_time is DOS minimum (1980-01-01 UTC) → 1979-12-31 in US zones.
+        info.date_time = _zip_now()
+        zf.writestr(info, data)
+    else:
+        zf.writestr(arcname, data)
+
+
 def write_deliverable_to_zip(
     zf: zipfile.ZipFile,
     package: DeliverablePackage,
@@ -229,7 +250,9 @@ def write_deliverable_to_zip(
     path_prefix: str = "",
 ) -> None:
     """Write one deliverable package into an open ZipFile (optional folder prefix)."""
-    zf.writestr(_zip_path(path_prefix, package.report_filename), package.report_docx)
+    _writestr_ooxml(
+        zf, _zip_path(path_prefix, package.report_filename), package.report_docx
+    )
     if package.manifest_bytes:
         zf.writestr(
             _zip_path(path_prefix, package.manifest_filename),
@@ -237,12 +260,14 @@ def write_deliverable_to_zip(
         )
     for ap in package.appendices:
         safe = ap.filename.replace("\\", "_").replace("/", "_")
-        zf.writestr(
+        _writestr_ooxml(
+            zf,
             _zip_path(path_prefix, f"appendices/{ap.label}_{safe}"),
             ap.data,
         )
     if package.converted_template_docx and package.converted_template_name:
-        zf.writestr(
+        _writestr_ooxml(
+            zf,
             _zip_path(path_prefix, f"templates/{package.converted_template_name}"),
             package.converted_template_docx,
         )
@@ -318,9 +343,7 @@ def _write_qp_templates(zf: zipfile.ZipFile, *, path_prefix: str = "") -> None:
         return
     for zip_name, path in list_qp_template_files():
         data = read_qp_template_bytes(str(path))
-        info = zipfile.ZipInfo(_zip_path(path_prefix, f"qp_templates/{zip_name}"))
-        info.compress_type = zipfile.ZIP_STORED
-        zf.writestr(info, data)
+        _writestr_ooxml(zf, _zip_path(path_prefix, f"qp_templates/{zip_name}"), data)
 
 
 def build_deliverable_zip(package: DeliverablePackage) -> bytes:

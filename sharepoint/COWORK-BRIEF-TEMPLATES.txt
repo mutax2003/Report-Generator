@@ -12,7 +12,9 @@ Field names: match schemas/report_profiles.json recommended_fields for the profi
 Tone: Alberta O&G QP-ready prose; cite source PDF filenames in each section; mark gaps [confirm]
 NEVER invent lab concentrations, exceedances, UWIs, or certificate numbers
 Do not modify engine.py or skip Apply confirmation
-After you write drafts, the user will run Cursor apply-drafts and render — QP review required
+After you write drafts, run Streamlit **Run adversarial review** (or CLI --mode review).
+Claude Max can also challenge ai_drafts/adversarial_review.md vs source/ — Cursor Pro is optional.
+Apply in Streamlit AI tab, then Generate — QP review required
 
 --- PHASE I ALBERTA (phase1_alberta) ---
 
@@ -55,15 +57,11 @@ Well IDs must match across MonitoringWells, WaterLevels, and GroundwaterLab shee
 Alberta library agent_brief: monitoring wells, water levels, lab results; no invented trends.
 Prompt keys: groundwater_monitoring; agent_tasks: folder_inventory, render_gate
 
---- CURSOR CLI (user runs after Cowork drafts) ---
+--- AFTER DRAFTS (Streamlit / Claude Max / optional Cursor) ---
 
-cd "Report Generator"
-.\.venv\Scripts\Activate.ps1
-python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode inventory
-python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode review
-# Cursor: open ai_drafts/adversarial_review.md — challenge claims vs source/ PDFs
-python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode apply-drafts
-python scripts\agent_folder_report.py --folder C:\Projects\<id> --mode render --package
+1) Streamlit Project folder: **Run adversarial review** (or CLI --mode review)
+2) Claude Max: paste adversarial_review.md + source/ — challenge claims (Cursor optional)
+3) Streamlit AI tab: Apply drafts → Report: Generate → zip
+4) QP review before client issue
 
-Deliverable: delivered\*.zip — QP must review before client issue.
 Prompt key: agent_task_prompt("adversarial_review") — docs/27-cursor-claude-alberta-playbook.md

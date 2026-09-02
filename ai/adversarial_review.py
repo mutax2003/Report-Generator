@@ -209,11 +209,16 @@ def _review_field_suggestions(drafts: Path, findings: list[ReviewFinding]) -> No
                 )
 
 
-def _review_preflight(resolved: Any, findings: list[ReviewFinding]) -> bool:
+def _review_preflight(
+    resolved: Any,
+    findings: list[ReviewFinding],
+    *,
+    core_files: tuple[bytes, bytes] | None = None,
+) -> bool:
     from project_folder import run_preflight_for_folder
 
     try:
-        pre = run_preflight_for_folder(resolved)
+        pre = run_preflight_for_folder(resolved, core_files=core_files)
     except Exception as e:  # noqa: BLE001 — surface as blocker for agents
         findings.append(
             ReviewFinding(
@@ -327,7 +332,12 @@ def run_adversarial_review(resolved: Any) -> AdversarialReviewResult:
 
     _review_narratives(drafts, findings)
     _review_field_suggestions(drafts, findings)
-    can_generate = _review_preflight(resolved, findings)
+    core_files: tuple[bytes, bytes] | None = None
+    try:
+        core_files = resolved.read_core_files()
+    except (OSError, FileNotFoundError, ValueError):
+        core_files = None
+    can_generate = _review_preflight(resolved, findings, core_files=core_files)
 
     has_blocker = any(f.severity == "blocker" for f in findings)
     can_apply = not has_blocker

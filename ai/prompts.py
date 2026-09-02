@@ -144,6 +144,8 @@ def load_prompt_library(*, strict: bool = False) -> dict[str, Any]:
 
 def clear_prompt_library_cache() -> None:
     _load_prompt_library_cached.cache_clear()
+    agent_brief.cache_clear()
+    agent_task_prompt.cache_clear()
 
 
 def profile_key_for_report_type(report_type: str) -> str:
@@ -206,6 +208,7 @@ def section_instruction(report_type: str, section: str) -> str:
     )
 
 
+@lru_cache(maxsize=32)
 def agent_brief(report_type: str) -> str:
     profile = get_profile(report_type)
     brief = str(profile.get("agent_brief") or "").strip()
@@ -214,6 +217,7 @@ def agent_brief(report_type: str) -> str:
     return str(load_prompt_library().get("tone") or "")
 
 
+@lru_cache(maxsize=32)
 def agent_task_prompt(task_id: str) -> str:
     try:
         tid = _sanitize_id(task_id, what="agent task id")

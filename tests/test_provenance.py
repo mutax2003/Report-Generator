@@ -66,6 +66,16 @@ class ProvenanceTests(unittest.TestCase):
         warnings = contract_warnings({"client_name": "X"}, report_phase="Phase 2")
         self.assertTrue(any("site_name" in w for w in warnings))
 
+    def test_seed_input_digests_skips_rehash(self) -> None:
+        engine = ReportEngine(excel_bytes=self.excel, template_bytes=self.template)
+        known_excel = sha256_hex(self.excel)
+        known_tpl = sha256_hex(self.template)
+        engine.seed_input_digests(excel_sha256=known_excel, template_sha256=known_tpl)
+        self.assertIs(engine._excel_sha256, known_excel)
+        self.assertIs(engine._template_sha256, known_tpl)
+        self.assertEqual(engine.excel_sha256(), known_excel)
+        self.assertEqual(engine.template_sha256(), known_tpl)
+
     def test_build_generation_record(self) -> None:
         engine = ReportEngine(excel_bytes=self.excel, template_bytes=self.template)
         cov = engine.coverage({"report_phase": "Phase 2"})
