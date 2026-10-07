@@ -45,8 +45,11 @@ jobs:
       - name: Unit tests with coverage
         run: coverage run -m unittest discover -s tests -q
 
+      # opencv's cv2 loader execs config.py / config-3.py by bare name, so coverage
+      # attributes them to the repo root where no source exists. Anchor to the
+      # workspace so ai/config.py stays measured.
       - name: Coverage report
-        run: coverage report --fail-under=50
+        run: coverage report --fail-under=50 --omit="${GITHUB_WORKSPACE}/config.py,${GITHUB_WORKSPACE}/config-*.py"
 
       - name: Validation evidence package
         run: python scripts/validation_evidence.py
