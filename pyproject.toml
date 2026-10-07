@@ -18,6 +18,9 @@ omit = [
   "scripts/*",
   ".venv/*",
   "dist/*",
+  # opencv's cv2 loader execs config.py / config-3.py by bare name; no source here
+  "config.py",
+  "config-*.py",
 ]
 
 [tool.coverage.report]
