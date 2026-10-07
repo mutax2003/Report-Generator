@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -93,7 +94,7 @@ def _read_last_hash(path: Path) -> str:
 
 
 def _platform_lock(fh: Any) -> None:
-    if os.name == "nt":
+    if sys.platform == "win32":
         import msvcrt
 
         fh.seek(0)
@@ -105,11 +106,11 @@ def _platform_lock(fh: Any) -> None:
     else:
         import fcntl
 
-        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)  # type: ignore[attr-defined]
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
 
 
 def _platform_unlock(fh: Any) -> None:
-    if os.name == "nt":
+    if sys.platform == "win32":
         import msvcrt
 
         fh.seek(0)
@@ -120,7 +121,7 @@ def _platform_unlock(fh: Any) -> None:
     else:
         import fcntl
 
-        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)  # type: ignore[attr-defined]
+        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
 
 def append_audit_event(

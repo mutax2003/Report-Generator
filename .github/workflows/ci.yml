@@ -45,8 +45,11 @@ jobs:
       - name: Unit tests with coverage
         run: coverage run -m unittest discover -s tests -q
 
+      # opencv's cv2 loader execs config.py / config-3.py by bare name, so coverage
+      # attributes them to the repo root where no source exists. Anchor to the
+      # workspace so ai/config.py stays measured.
       - name: Coverage report
-        run: coverage report --fail-under=50
+        run: coverage report --fail-under=50 --omit="${GITHUB_WORKSPACE}/config.py,${GITHUB_WORKSPACE}/config-*.py"
 
       - name: Validation evidence package
         run: python scripts/validation_evidence.py
@@ -116,12 +119,16 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      # build_windows_deploy.ps1 runs sample/help generators with the dev venv.
+      - name: Create dev venv
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .venv\Scripts\python.exe -m pip install -r requirements.txt
 
       - name: Build Windows deploy folder
         shell: pwsh
-        run: .\scripts\build_windows_deploy.ps1 -SkipExe
+        run: .\scripts\build_windows_deploy.ps1
 
       - name: Verify deploy output
         shell: pwsh
@@ -135,10 +142,10 @@ jobs:
 
       - name: Post-build health check
         shell: pwsh
-        run: dist\ESA-Report-Generator\runtime\.venv\Scripts\python.exe scripts\health_check.py
+        run: runtime\.venv\Scripts\python.exe scripts\health_check.py
         working-directory: dist\ESA-Report-Generator
 
       - name: Post-build Streamlit AppTest smoke
         shell: pwsh
-        run: dist\ESA-Report-Generator\runtime\.venv\Scripts\python.exe scripts\streamlit_smoke.py
+        run: runtime\.venv\Scripts\python.exe scripts\streamlit_smoke.py
         working-directory: dist\ESA-Report-Generator
