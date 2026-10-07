@@ -14,7 +14,7 @@ No API key required. Rule-based fallbacks power all features.
 2. **Free default:** if [Ollama](https://ollama.com) is running locally (`ollama pull qwen2.5:7b`), the app auto-selects it. Otherwise set `GEMINI_API_KEY` or `GROQ_API_KEY`, or set `AI_PROVIDER` explicitly.
 3. Enable **Use LLM when available** in the sidebar (**AI options** expander).
 
-Provider resolution is in [`ai/config.py`](../ai/config.py) (`resolve_llm_settings()`). Preference when `AI_PROVIDER` is unset: **Ollama (reachable) → Gemini → Groq → Together → Anthropic (if key set) → OpenAI**. Explicit `OPENAI_BASE_URL` / `OPENAI_MODEL` override preset defaults. LLM output is advisory until you **Apply** / **Merge** — it is never injected into `ReportEngine` merge automatically.
+Provider resolution is in [`ai/config.py`](../ai/config.py) (`resolve_llm_settings()`). Preference when `AI_PROVIDER` is unset: **Ollama (reachable) → Gemini → Groq → Together → OpenAI**. Anthropic is **opt-in only** (`AI_PROVIDER=anthropic`); a bare `ANTHROPIC_API_KEY` is ignored because Claude Code / Claude Desktop often export one. Explicit `OPENAI_BASE_URL` / `OPENAI_MODEL` override preset defaults. LLM output is advisory until you **Apply** / **Merge** — it is never injected into `ReportEngine` merge automatically.
 
 **Default paid model:** `gpt-4o-mini` when `AI_PROVIDER=openai` (~$0.01–0.05 per site for narrative drafts).
 
@@ -29,7 +29,7 @@ All use the same [`ai/client.py`](../ai/client.py) via the OpenAI Python SDK:
 | **Groq** | Free tier | Cloud | `groq` | `GROQ_API_KEY` | `llama-3.1-8b-instant` |
 | **Google Gemini** | Free tier | Cloud | `gemini` | `GEMINI_API_KEY` | `gemini-2.0-flash` |
 | **Together AI** | Free credits | Cloud | `together` | `TOGETHER_API_KEY` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
-| **Anthropic Claude** | Paid (API) | Cloud | `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` |
+| **Anthropic Claude** | Paid (API) | Cloud | `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-5-5` (override with `ANTHROPIC_MODEL`) |
 | **OpenAI** | Low | Cloud | `openai` | `OPENAI_API_KEY` | `gpt-4o-mini` |
 
 **Ecoventure recommendation:** **Ollama** on desktop for confidential site folders (auto-detected when running); **Gemini** or **Groq** for free cloud trials; **Anthropic Claude API** for Cowork-quality narratives inside Streamlit (requires Console API key — not Claude Max login); **gpt-4o-mini** when paid OpenAI quality matters most.

@@ -2,7 +2,9 @@
 AI configuration — keys via environment or Streamlit secrets only (never commit keys).
 
 Default preference (when AI_PROVIDER is unset): local Ollama if reachable, then free-tier
-cloud keys (Gemini → Groq → Together), then paid OpenAI. LLM stays in the AI side-car
+cloud keys (Gemini → Groq → Together), then paid OpenAI. Anthropic is never auto-selected
+from a bare ANTHROPIC_API_KEY (the key is often present in the environment for other
+tools) — set AI_PROVIDER=anthropic to opt in. LLM stays in the AI side-car
 (ai/* + UI Apply) — never inside ReportEngine merge.
 """
 
@@ -20,6 +22,7 @@ MAX_PDF_BYTES = 10 * 1024 * 1024
 MAX_AI_INPUT_CHARS = 48_000
 MAX_AI_OUTPUT_TOKENS = 4096
 DEFAULT_MODEL = "gpt-4o-mini"
+ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-5-5"
 OLLAMA_DEFAULT_BASE = "http://localhost:11434/v1"
 OLLAMA_PROBE_URL = "http://localhost:11434/api/tags"
 OLLAMA_PROBE_TIMEOUT_S = 0.4
@@ -34,6 +37,7 @@ _SECRET_KEYS = (
     "TOGETHER_API_KEY",
     "GROQ_API_KEY",
     "ANTHROPIC_API_KEY",
+    "ANTHROPIC_MODEL",
 )
 
 # AI_PROVIDER=ollama|groq|gemini|together|anthropic|openai|azure|offline
@@ -70,8 +74,9 @@ PROVIDER_PRESETS: dict[str, dict[str, str | bool]] = {
     "anthropic": {
         "label": "Anthropic Claude (API)",
         "base_url": "https://api.anthropic.com/v1",
-        "model": "claude-sonnet-4-20250514",
-        "supports_json_mode": True,
+        "model": ANTHROPIC_DEFAULT_MODEL,
+        # Anthropic's OpenAI-compatible endpoint ignores response_format.
+        "supports_json_mode": False,
         "free": False,
     },
     "openai": {
@@ -174,8 +179,6 @@ def _infer_provider_from_snapshot(snap: dict[str, str]) -> str:
         env_name = PROVIDER_KEY_ENV[free_cloud]
         if _snap(snap, env_name):
             return free_cloud
-    if _snap(snap, "ANTHROPIC_API_KEY"):
-        return "anthropic"
     if _snap(snap, "OPENAI_API_KEY"):
         # Placeholder "ollama" without base URL still means local Ollama intent
         if _snap(snap, "OPENAI_API_KEY").lower() == "ollama":
@@ -219,10 +222,21 @@ def resolve_llm_settings() -> LlmSettings:
     preset = PROVIDER_PRESETS.get(provider, PROVIDER_PRESETS["openai"])
     label = str(preset.get("label", provider.title()))
     api_key = _resolve_api_key(provider, preset, snap)
-    base_url = _snap(snap, "OPENAI_BASE_URL") or _snap(snap, "AZURE_OPENAI_ENDPOINT")
+    if provider == "anthropic":
+        # OPENAI_* overrides usually belong to another provider; never send an
+        # Anthropic key to a non-Anthropic host or a non-Claude model name.
+        override = _snap(snap, "OPENAI_BASE_URL")
+        base_url = override if "anthropic.com" in override.lower() else ""
+        openai_model = _snap(snap, "OPENAI_MODEL")
+        model = _snap(snap, "ANTHROPIC_MODEL") or (
+            openai_model if openai_model.lower().startswith("claude") else ""
+        )
+    else:
+        base_url = _snap(snap, "OPENAI_BASE_URL") or _snap(snap, "AZURE_OPENAI_ENDPOINT")
+        model = _snap(snap, "OPENAI_MODEL")
     if not base_url:
         base_url = str(preset.get("base_url") or "")
-    model = _snap(snap, "OPENAI_MODEL") or str(preset.get("model") or DEFAULT_MODEL)
+    model = model or str(preset.get("model") or DEFAULT_MODEL)
     supports_json_mode = bool(preset.get("supports_json_mode", True))
     free = bool(preset.get("free", False))
 

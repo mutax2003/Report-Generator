@@ -71,8 +71,10 @@ def _chat_completion_with_settings(
             {"role": "user", "content": user[:120_000]},
         ],
         "max_tokens": MAX_AI_OUTPUT_TOKENS,
-        "temperature": 0.2,
     }
+    # Newer Claude models reject non-default sampling params; keep Anthropic on defaults.
+    if settings.provider != "anthropic":
+        kwargs["temperature"] = 0.2
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
