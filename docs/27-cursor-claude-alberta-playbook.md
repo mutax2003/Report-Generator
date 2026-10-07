@@ -9,8 +9,8 @@ Speed up **real client** Alberta reports using **Cursor Pro** (repo agent + fold
 | Tool | Use for | Does not replace |
 |------|---------|------------------|
 | **Cursor Pro** | Optional: lab tables, template fixes, CLI review/render | QP sign-off |
-| **Claude Max (Cowork)** | Draft **and** challenge narratives (`adversarial_review.md` vs `source/`) — Cursor not required for step 2 | In-app AI tab (unless Anthropic API is configured) |
-| **Streamlit (this app)** | Load folder, **Cowork brief**, **Run adversarial review**, Apply, Generate zip | Claude/Cursor logins |
+| **Claude Max (Cowork)** | Draft **and** challenge narratives (`adversarial_review.md` vs `source/`) — Cursor not required for step 2 | QP sign-off |
+| **Streamlit (this app)** | Load folder, **Cowork brief**, **Run adversarial review**, **Claude via Anthropic API** (AI tab), Apply, Generate zip | Claude Max / Cursor logins |
 
 **Hard boundary:** AI never auto-merges into `ReportEngine`. Flow: `ai_drafts/` → explicit **Apply** → review → **Generate**.
 

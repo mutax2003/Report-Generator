@@ -33,9 +33,10 @@ _SECRET_KEYS = (
     "GEMINI_API_KEY",
     "TOGETHER_API_KEY",
     "GROQ_API_KEY",
+    "ANTHROPIC_API_KEY",
 )
 
-# AI_PROVIDER=ollama|groq|gemini|together|openai|azure|offline
+# AI_PROVIDER=ollama|groq|gemini|together|anthropic|openai|azure|offline
 PROVIDER_PRESETS: dict[str, dict[str, str | bool]] = {
     "ollama": {
         "label": "Ollama (local, free)",
@@ -66,6 +67,13 @@ PROVIDER_PRESETS: dict[str, dict[str, str | bool]] = {
         "supports_json_mode": False,
         "free": True,
     },
+    "anthropic": {
+        "label": "Anthropic Claude (API)",
+        "base_url": "https://api.anthropic.com/v1",
+        "model": "claude-sonnet-4-20250514",
+        "supports_json_mode": True,
+        "free": False,
+    },
     "openai": {
         "label": "OpenAI",
         "base_url": "",
@@ -86,6 +94,7 @@ PROVIDER_KEY_ENV: dict[str, str] = {
     "gemini": "GEMINI_API_KEY",
     "together": "TOGETHER_API_KEY",
     "groq": "GROQ_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
 }
 
 # Prefer free providers when AI_PROVIDER is unset (after Ollama auto-detect).
@@ -156,6 +165,8 @@ def _infer_provider_from_snapshot(snap: dict[str, str]) -> str:
         return "gemini"
     if "together.xyz" in base:
         return "together"
+    if "anthropic.com" in base:
+        return "anthropic"
     # Free-first auto-select when no explicit provider
     if ollama_reachable():
         return "ollama"
@@ -163,6 +174,8 @@ def _infer_provider_from_snapshot(snap: dict[str, str]) -> str:
         env_name = PROVIDER_KEY_ENV[free_cloud]
         if _snap(snap, env_name):
             return free_cloud
+    if _snap(snap, "ANTHROPIC_API_KEY"):
+        return "anthropic"
     if _snap(snap, "OPENAI_API_KEY"):
         # Placeholder "ollama" without base URL still means local Ollama intent
         if _snap(snap, "OPENAI_API_KEY").lower() == "ollama":
@@ -255,7 +268,10 @@ def ai_status_message(settings: LlmSettings | None = None) -> str:
         return (
             "AI running in **offline mode** (rule-based). For a free LLM: install "
             "[Ollama](https://ollama.com) (`ollama pull qwen2.5:7b`) or set "
-            "`GEMINI_API_KEY` / `GROQ_API_KEY` in `.streamlit/secrets.toml`."
+            "`GEMINI_API_KEY` / `GROQ_API_KEY` in `.streamlit/secrets.toml`. "
+            "For **Claude in Streamlit**, set `AI_PROVIDER=anthropic` and "
+            "`ANTHROPIC_API_KEY` (Anthropic Console API key — Claude Max login "
+            "cannot be shared with the app)."
         )
     cost = "free" if settings.free else "paid"
     return (

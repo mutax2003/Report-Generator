@@ -703,12 +703,12 @@ print(system_prompt_for(&quot;groundwater_monitoring&quot;))
 <h3>Offline mode (default)</h3>
 <p>No API key required. Rule-based fallbacks power all features.</p>
 <h3>Cloud / free LLM mode</h3>
-<p>1. Copy <a href="../.streamlit/secrets.toml.example">`.streamlit/secrets.toml.example`</a> → `.streamlit/secrets.toml`, or set environment variables. 2. **Free default:** if <a href="https://ollama.com">Ollama</a> is running locally (`ollama pull qwen2.5:7b`), the app auto-selects it. Otherwise set `GEMINI_API_KEY` or `GROQ_API_KEY`, or set `AI_PROVIDER` explicitly. 3. Enable **Use free/local LLM when available** in the sidebar (**AI options** expander).</p>
-<p>Provider resolution is in <a href="../ai/config.py">`ai/config.py`</a> (`resolve_llm_settings()`). Preference when `AI_PROVIDER` is unset: **Ollama (reachable) → Gemini → Groq → Together → OpenAI**. Explicit `OPENAI_BASE_URL` / `OPENAI_MODEL` override preset defaults. LLM output is advisory until you **Apply** / **Merge** — it is never injected into `ReportEngine` merge automatically.</p>
+<p>1. Copy <a href="../.streamlit/secrets.toml.example">`.streamlit/secrets.toml.example`</a> → `.streamlit/secrets.toml`, or set environment variables. 2. **Free default:** if <a href="https://ollama.com">Ollama</a> is running locally (`ollama pull qwen2.5:7b`), the app auto-selects it. Otherwise set `GEMINI_API_KEY` or `GROQ_API_KEY`, or set `AI_PROVIDER` explicitly. 3. Enable **Use LLM when available** in the sidebar (**AI options** expander).</p>
+<p>Provider resolution is in <a href="../ai/config.py">`ai/config.py`</a> (`resolve_llm_settings()`). Preference when `AI_PROVIDER` is unset: **Ollama (reachable) → Gemini → Groq → Together → Anthropic (if key set) → OpenAI**. Explicit `OPENAI_BASE_URL` / `OPENAI_MODEL` override preset defaults. LLM output is advisory until you **Apply** / **Merge** — it is never injected into `ReportEngine` merge automatically.</p>
 <p>**Default paid model:** `gpt-4o-mini` when `AI_PROVIDER=openai` (~$0.01–0.05 per site for narrative drafts).</p>
 <h3>Free or cheap alternatives (OpenAI-compatible)</h3>
 <p>All use the same <a href="../ai/client.py">`ai/client.py`</a> via the OpenAI Python SDK:</p>
-<p>**Ecoventure recommendation:** **Ollama** on desktop for confidential site folders (auto-detected when running); **Gemini** or **Groq** for free cloud trials; **gpt-4o-mini** when paid quality matters most.</p>
+<p>**Ecoventure recommendation:** **Ollama** on desktop for confidential site folders (auto-detected when running); **Gemini** or **Groq** for free cloud trials; **Anthropic Claude API** for Cowork-quality narratives inside Streamlit (requires Console API key — not Claude Max login); **gpt-4o-mini** when paid OpenAI quality matters most.</p>
 <p>**JSON-mode note:** Lab PDF and template tagger use structured JSON when supported. Gemini, Together, and Ollama may fall back to text + heuristic JSON parse — quality varies; offline heuristics still run when LLM output is unusable.</p>
 <h3>Setup: Google Gemini (free tier)</h3>
 <p>1. Create an API key at <a href="https://aistudio.google.com/apikey">Google AI Studio</a>. 2. Add to `.streamlit/secrets.toml`:</p>
@@ -728,6 +728,20 @@ TOGETHER_API_KEY = &quot;your-key&quot;
 
 </code></pre>
 <p>3. Optional: override model with `OPENAI_MODEL = &quot;meta-llama/Llama-3.3-70B-Instruct-Turbo&quot;`.</p>
+<h3>Setup: Anthropic Claude (Streamlit in-app — API key)</h3>
+<p>Use this when you want **Claude inside the AI tab** (narratives, lab extract, copilot) without pasting into Cowork.</p>
+<p>**Important:** A **Claude Max subscription login cannot be wired into Streamlit**. You need an <a href="https://console.anthropic.com/settings/keys">Anthropic Console</a> **API key** (usage-based billing).</p>
+<p>1. Create an API key at <a href="https://console.anthropic.com/settings/keys">Anthropic Console</a>. 2. Add to `.streamlit/secrets.toml`:</p>
+<pre><code>
+AI_PROVIDER = &quot;anthropic&quot;
+
+ANTHROPIC_API_KEY = &quot;sk-ant-...&quot;
+
+OPENAI_MODEL = &quot;claude-sonnet-4-20250514&quot;
+
+</code></pre>
+<p>3. Restart Streamlit; sidebar **AI options** should show **Anthropic Claude (API)**. 4. Enable **Use LLM when available**; draft narratives on the **AI drafts &amp; tools** tab, then **Apply** → **Generate** on the Report tab.</p>
+<p>Same hard boundary: LLM output stays advisory until Apply; `ReportEngine` merge is unchanged. For folder workflow, you can still use Cowork brief + adversarial review — or use in-app **Draft narratives** with Claude API.</p>
 <h3>CLI without LLM</h3>
 <p>For headless folder ingest with no external calls:</p>
 <pre><code>
@@ -759,7 +773,7 @@ ui/ai_panel.py
 
     └── ai/source_ingest.py     → source/ PDF text + summaries → ai_drafts/
 
-         └── ai/client.py       → OpenAI-compatible API (OpenAI, Ollama, Groq, Gemini, Together, Azure)
+         └── ai/client.py       → OpenAI-compatible API (OpenAI, Ollama, Groq, Gemini, Together, Anthropic, Azure)
 
 </code></pre>
 <p>`ai/config.py` — `AI_PROVIDER` presets, `resolve_llm_settings()`. `ai/models.py` — `AiAudit` entries for session log.</p>
@@ -839,7 +853,7 @@ ui/ai_panel.py
 <li>On **Generate report**, `generation_record.ai_audit` includes session AI actions in manifest JSON</li>
 </ul>
 <h2>Security and privacy</h2>
-<p>For strict confidentiality, use **Ollama** (local) or keep **Use free/local LLM** off (offline heuristics only).</p>
+<p>For strict confidentiality, use **Ollama** (local) or keep **Use LLM when available** off (offline heuristics only).</p>
 <h2>Limitations</h2>
 <ul>
 <li>AI does not modify Word templates on disk automatically (tagger is suggest-only)</li>

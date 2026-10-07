@@ -166,6 +166,54 @@ class AiConfigTests(unittest.TestCase):
         self.assertEqual(settings.api_key, "gemini-free")
         self.assertTrue(settings.free)
 
+    def test_anthropic_preset(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "AI_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "sk-ant-test",
+            },
+            clear=True,
+        ):
+            settings = resolve_llm_settings()
+            self.assertEqual(settings.provider, "anthropic")
+            self.assertEqual(settings.label, "Anthropic Claude (API)")
+            self.assertEqual(settings.api_key, "sk-ant-test")
+            self.assertEqual(settings.base_url, "https://api.anthropic.com/v1")
+            self.assertEqual(settings.model, "claude-sonnet-4-20250514")
+            self.assertTrue(settings.supports_json_mode)
+            self.assertFalse(settings.free)
+            self.assertTrue(settings.available)
+
+    def test_anthropic_auto_detect_from_key(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"ANTHROPIC_API_KEY": "sk-ant-only"},
+            clear=True,
+        ):
+            settings = resolve_llm_settings()
+        self.assertEqual(settings.provider, "anthropic")
+        self.assertTrue(settings.available)
+
+    def test_anthropic_ignores_openai_api_key(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "AI_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "sk-ant-only",
+                "OPENAI_API_KEY": "sk-openai-should-not-leak",
+            },
+            clear=True,
+        ):
+            settings = resolve_llm_settings()
+            self.assertEqual(settings.api_key, "sk-ant-only")
+
+    def test_normalize_base_url_anthropic(self) -> None:
+        self.assertEqual(
+            normalize_base_url("https://api.anthropic.com/v1"),
+            "https://api.anthropic.com/v1",
+        )
+
     def test_offline_provider_flag(self) -> None:
         with patch.dict(os.environ, {"AI_PROVIDER": "offline"}, clear=True):
             settings = resolve_llm_settings()
