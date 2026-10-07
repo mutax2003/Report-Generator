@@ -34,21 +34,28 @@ class FolderPickerTests(unittest.TestCase):
     def test_available_on_windows(self) -> None:
         self.assertTrue(folder_picker_available())
 
+    @patch("ui.folder_picker.folder_picker_available", return_value=True)
     @patch("tkinter.filedialog.askdirectory", return_value="")
     @patch("tkinter.Tk")
-    def test_pick_cancelled(self, _tk: MagicMock, _ask: MagicMock) -> None:
+    def test_pick_cancelled(self, _tk: MagicMock, _ask: MagicMock, _avail: MagicMock) -> None:
         self.assertIsNone(pick_local_folder(initial=""))
 
+    @patch("ui.folder_picker.folder_picker_available", return_value=True)
     @patch("tkinter.filedialog.askdirectory")
     @patch("tkinter.Tk")
-    def test_pick_returns_resolved_path(self, _tk: MagicMock, ask: MagicMock) -> None:
+    def test_pick_returns_resolved_path(
+        self, _tk: MagicMock, ask: MagicMock, _avail: MagicMock
+    ) -> None:
         ask.return_value = str(ROOT)
         path = pick_local_folder(initial="")
         self.assertEqual(path, str(ROOT.resolve()))
 
+    @patch("ui.folder_picker.folder_picker_available", return_value=True)
     @patch("tkinter.filedialog.askdirectory")
     @patch("tkinter.Tk")
-    def test_pick_handles_dialog_error(self, mock_tk: MagicMock, ask: MagicMock) -> None:
+    def test_pick_handles_dialog_error(
+        self, mock_tk: MagicMock, ask: MagicMock, _avail: MagicMock
+    ) -> None:
         import tkinter as tk
 
         ask.side_effect = tk.TclError("broken")

@@ -116,12 +116,16 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      # build_windows_deploy.ps1 runs sample/help generators with the dev venv.
+      - name: Create dev venv
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .venv\Scripts\python.exe -m pip install -r requirements.txt
 
       - name: Build Windows deploy folder
         shell: pwsh
-        run: .\scripts\build_windows_deploy.ps1 -SkipExe
+        run: .\scripts\build_windows_deploy.ps1
 
       - name: Verify deploy output
         shell: pwsh
@@ -135,10 +139,10 @@ jobs:
 
       - name: Post-build health check
         shell: pwsh
-        run: dist\ESA-Report-Generator\runtime\.venv\Scripts\python.exe scripts\health_check.py
+        run: runtime\.venv\Scripts\python.exe scripts\health_check.py
         working-directory: dist\ESA-Report-Generator
 
       - name: Post-build Streamlit AppTest smoke
         shell: pwsh
-        run: dist\ESA-Report-Generator\runtime\.venv\Scripts\python.exe scripts\streamlit_smoke.py
+        run: runtime\.venv\Scripts\python.exe scripts\streamlit_smoke.py
         working-directory: dist\ESA-Report-Generator
