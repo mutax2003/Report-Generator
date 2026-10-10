@@ -166,6 +166,115 @@ class AiConfigTests(unittest.TestCase):
         self.assertEqual(settings.api_key, "gemini-free")
         self.assertTrue(settings.free)
 
+    def test_anthropic_preset(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "AI_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "sk-ant-test",
+            },
+            clear=True,
+        ):
+            settings = resolve_llm_settings()
+            self.assertEqual(settings.provider, "anthropic")
+            self.assertEqual(settings.label, "Anthropic Claude (API)")
+            self.assertEqual(settings.api_key, "sk-ant-test")
+            self.assertEqual(settings.base_url, "https://api.anthropic.com/v1")
+            self.assertEqual(settings.model, "claude-sonnet-5-5")
+            self.assertFalse(settings.supports_json_mode)
+            self.assertFalse(settings.free)
+            self.assertTrue(settings.available)
+
+    def test_anthropic_key_alone_is_not_auto_selected(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"ANTHROPIC_API_KEY": "sk-ant-only"},
+            clear=True,
+        ):
+            settings = resolve_llm_settings()
+        self.assertEqual(settings.provider, "offline")
+        self.assertFalse(settings.available)
+
+    def test_anthropic_key_does_not_beat_openai(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"ANTHROPIC_API_KEY": "sk-ant-only", "OPENAI_API_KEY": "sk-openai"},
+            clear=True,
+        ):
+            settings = resolve_llm_settings()
+        self.assertEqual(settings.provider, "openai")
+
+    def test_anthropic_ignores_foreign_base_url_and_model(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "AI_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "sk-ant-only",
+                "OPENAI_BASE_URL": "https://api.groq.com/openai/v1",
+                "OPENAI_MODEL": "llama-3.1-8b-instant",
+            },
+            clear=True,
+        ):
+            settings = resolve_llm_settings()
+        self.assertEqual(settings.base_url, "https://api.anthropic.com/v1")
+        self.assertEqual(settings.model, "claude-sonnet-5-5")
+
+    def test_anthropic_model_override(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "AI_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "sk-ant-only",
+                "ANTHROPIC_MODEL": "claude-opus-5-5",
+            },
+            clear=True,
+        ):
+            settings = resolve_llm_settings()
+        self.assertEqual(settings.model, "claude-opus-5-5")
+
+    def test_anthropic_ignores_openai_api_key(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "AI_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "sk-ant-only",
+                "OPENAI_API_KEY": "sk-openai-should-not-leak",
+            },
+            clear=True,
+        ):
+            settings = resolve_llm_settings()
+            self.assertEqual(settings.api_key, "sk-ant-only")
+
+    def test_anthropic_request_omits_temperature(self) -> None:
+        from unittest.mock import MagicMock
+
+        from ai.client import _chat_completion_with_settings
+
+        with patch.dict(
+            os.environ,
+            {"AI_PROVIDER": "anthropic", "ANTHROPIC_API_KEY": "sk-ant-only"},
+            clear=True,
+        ):
+            settings = resolve_llm_settings()
+        client = MagicMock()
+        client.chat.completions.create.return_value.choices = [
+            MagicMock(message=MagicMock(content="ok"))
+        ]
+        with patch("ai.client._create_client", return_value=client):
+            self.assertEqual(
+                _chat_completion_with_settings(settings, system="s", user="u", json_mode=False),
+                "ok",
+            )
+        kwargs = client.chat.completions.create.call_args.kwargs
+        self.assertNotIn("temperature", kwargs)
+        self.assertEqual(kwargs["model"], "claude-sonnet-5-5")
+
+    def test_normalize_base_url_anthropic(self) -> None:
+        self.assertEqual(
+            normalize_base_url("https://api.anthropic.com/v1"),
+            "https://api.anthropic.com/v1",
+        )
+
     def test_offline_provider_flag(self) -> None:
         with patch.dict(os.environ, {"AI_PROVIDER": "offline"}, clear=True):
             settings = resolve_llm_settings()

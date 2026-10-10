@@ -214,17 +214,20 @@ def render_ai_settings_sidebar(*, folder_mode: bool = False) -> None:
             st.caption(f"Configured provider: **{settings.label}**")
         else:
             st.caption(
-                "Free options: **Ollama** (local, confidential) · **Gemini** / **Groq** (cloud free tier). "
+                "Free options: **Ollama** (local) · **Gemini** / **Groq** (cloud free tier). "
+                "**Claude:** set `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` in secrets "
+                "(Console API key — not Claude Max login). "
                 "See [09-ai-assistant.md](docs/09-ai-assistant.md)."
             )
         st.session_state.setdefault("ai_use_llm", settings.available)
         st.checkbox(
-            "Use free/local LLM when available",
+            "Use LLM when available",
             key="ai_use_llm",
             help=(
-                "Prefers Ollama (local) or Gemini/Groq free tier from secrets. "
-                "Turn off for offline heuristics only. LLM never writes the report "
-                "until you Apply/Merge — see docs/09-ai-assistant.md."
+                "Uses the configured provider from secrets (Ollama, Gemini, Groq, "
+                "Anthropic Claude API, etc.). Turn off for offline heuristics only. "
+                "LLM never writes the report until you Apply/Merge — see "
+                "docs/09-ai-assistant.md."
             ),
         )
         if folder_mode:

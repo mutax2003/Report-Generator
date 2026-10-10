@@ -34,6 +34,10 @@ alwaysApply: false
 - Validation bypass is **refused** when `ESA_HOSTED_MODE` / `ESA_API_KEY` is set.
 - Multipart parsing stays in `automate/multipart.py` — do not trust client filenames/paths.
 
+## AI provider secrets (`ai/config.py`)
+
+LLM provider keys live in `.streamlit/secrets.toml` or env — **never commit real keys**. `AI_PROVIDER` selects the provider; per-provider key env vars: `GEMINI_API_KEY`, `GROQ_API_KEY`, `TOGETHER_API_KEY`, `ANTHROPIC_API_KEY` (Claude API — not Max login), `OPENAI_API_KEY` (OpenAI / Azure / Ollama), `AZURE_OPENAI_ENDPOINT`. LLM is advisory — output is never injected into `ReportEngine` without explicit Apply. See [docs/09-ai-assistant.md](docs/09-ai-assistant.md).
+
 ## Related env
 
 Align with [docs/07-security-and-deployment.md](docs/07-security-and-deployment.md):
