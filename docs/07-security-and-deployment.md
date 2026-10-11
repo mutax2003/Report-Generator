@@ -33,7 +33,7 @@ The application accepts **untrusted uploads** (Excel and Word) from internal use
 
 ### Jinja2
 
-- **Main report:** `SandboxedEnvironment` with `StrictUndefined` during `doc.render`. Missing scalar tags warn and render empty — render does not crash.
+- **Main report:** `report_jinja.LimitedSandboxedEnvironment` (a `SandboxedEnvironment`) with `StrictUndefined` and `autoescape=True` during `doc.render`. Missing scalar tags warn and render empty — render does not crash. Autoescape XML-escapes Excel/sidebar text so a cell cannot inject WordprocessingML; resource limits cap cumulative `range()` items, string/list repetition and concatenation, `**`, and rendered part size.
 - **Auto-generated appendices (A/D/G):** same sandbox with lenient `Undefined` so sparse Excel rows do not abort appendix render; missing keys render blank (same consultant outcome as empty main-report tags).
 - Templates treated as trusted — sandbox blocks dangerous Python, not malicious template authors.
 

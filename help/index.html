@@ -227,7 +227,8 @@ Row 3+: (ignored by engine)
 <li>**Row 1** — Column headers (become Jinja keys after normalization).</li>
 <li>**Row 2** — **Only row used** for the report (single-report mode).</li>
 <li>**Row 3+** — Additional sites. Use **batch generation** in the app (*All N sites (batch zip)*) or `scripts/render_cli.py --all-rows`. Blank rows are skipped (max 100 rows, 50 reports per batch).</li>
-<li>**Linking table sheets** — If `LabResults`, `DrillingWaste`, or `StorageTanks` include a `site_name`, `project_number`, `uwi`, `well_name`, or `project_id` column, only matching rows are merged for each report. Otherwise all table rows are shared across reports.</li>
+<li>**Linking table sheets** — If `LabResults`, `DrillingWaste`, or `StorageTanks` include a `site_name`, `project_number`, `uwi`, `well_name`, or `project_id` column, only matching rows are merged for each report. A site with no matching rows gets an empty table (and a warning) — never another site&#x27;s rows. If that column is absent or entirely blank, all table rows are shared across reports. Fully blank table rows are skipped.</li>
+<li>**Cell values** — Text cells are kept as typed (`007`, `0.50`, `&lt;0.005`); dates at midnight render as `YYYY-MM-DD`; whole numbers render without `.0`; blank cells render empty.</li>
 </ul>
 <p>Empty `ProjectData` (headers only) produces a pre-flight / render error.</p>
 <h3>LabResults layout</h3>
@@ -704,7 +705,7 @@ print(system_prompt_for(&quot;groundwater_monitoring&quot;))
 <p>No API key required. Rule-based fallbacks power all features.</p>
 <h3>Cloud / free LLM mode</h3>
 <p>1. Copy <a href="../.streamlit/secrets.toml.example">`.streamlit/secrets.toml.example`</a> → `.streamlit/secrets.toml`, or set environment variables. 2. **Free default:** if <a href="https://ollama.com">Ollama</a> is running locally (`ollama pull qwen2.5:7b`), the app auto-selects it. Otherwise set `GEMINI_API_KEY` or `GROQ_API_KEY`, or set `AI_PROVIDER` explicitly. 3. Enable **Use LLM when available** in the sidebar (**AI options** expander).</p>
-<p>Provider resolution is in <a href="../ai/config.py">`ai/config.py`</a> (`resolve_llm_settings()`). Preference when `AI_PROVIDER` is unset: **Ollama (reachable) → Gemini → Groq → Together → Anthropic (if key set) → OpenAI**. Explicit `OPENAI_BASE_URL` / `OPENAI_MODEL` override preset defaults. LLM output is advisory until you **Apply** / **Merge** — it is never injected into `ReportEngine` merge automatically.</p>
+<p>Provider resolution is in <a href="../ai/config.py">`ai/config.py`</a> (`resolve_llm_settings()`). Preference when `AI_PROVIDER` is unset: **Ollama (reachable) → Gemini → Groq → Together → OpenAI**. Anthropic is **opt-in only** (`AI_PROVIDER=anthropic`); a bare `ANTHROPIC_API_KEY` is ignored because Claude Code / Claude Desktop often export one. Explicit `OPENAI_BASE_URL` / `OPENAI_MODEL` override preset defaults. LLM output is advisory until you **Apply** / **Merge** — it is never injected into `ReportEngine` merge automatically.</p>
 <p>**Default paid model:** `gpt-4o-mini` when `AI_PROVIDER=openai` (~$0.01–0.05 per site for narrative drafts).</p>
 <h3>Free or cheap alternatives (OpenAI-compatible)</h3>
 <p>All use the same <a href="../ai/client.py">`ai/client.py`</a> via the OpenAI Python SDK:</p>
