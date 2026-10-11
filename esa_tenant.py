@@ -13,10 +13,20 @@ from pathlib import Path
 _TENANT_UNSAFE = re.compile(r"[^a-z0-9_-]+")
 # Final shape every tenant id / category segment must match before touching disk.
 _TENANT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+# Windows device names: "nul", "con", ... resolve to devices, not directories, on any drive.
+_WINDOWS_RESERVED_NAMES = frozenset(
+    {"con", "prn", "aux", "nul"}
+    | {f"com{i}" for i in range(1, 10)}
+    | {f"lpt{i}" for i in range(1, 10)}
+)
 
 
 class TenantError(ValueError):
     """Invalid tenant identifier."""
+
+
+def _is_reserved_name(token: str) -> bool:
+    return token.lower() in _WINDOWS_RESERVED_NAMES
 
 
 def normalize_tenant_id(tenant_id: str) -> str:
@@ -24,14 +34,14 @@ def normalize_tenant_id(tenant_id: str) -> str:
     if not token:
         token = "default"
     safe = _TENANT_UNSAFE.sub("_", token).strip("_-")[:64].rstrip("_-")
-    if not safe or not _TENANT_ID_RE.fullmatch(safe):
+    if not safe or not _TENANT_ID_RE.fullmatch(safe) or _is_reserved_name(safe):
         raise TenantError("Tenant id is empty or invalid after normalization")
     return safe
 
 
 def _validate_category(category: str) -> str:
     token = (category or "").strip()
-    if not _TENANT_ID_RE.fullmatch(token):
+    if not _TENANT_ID_RE.fullmatch(token) or _is_reserved_name(token):
         raise TenantError("Invalid tenant storage category.")
     return token
 

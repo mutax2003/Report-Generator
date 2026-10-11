@@ -52,6 +52,24 @@ class EsaTenantTests(unittest.TestCase):
                     with self.assertRaises(TenantError):
                         tenant_subdir(category, tenant_id="team-a", base=Path(tmp))
 
+    def test_windows_reserved_device_names_rejected(self) -> None:
+        reserved = ("nul", "NUL", "con", "prn", "aux", "com1", "Com9", "lpt1", "LPT9", " nul ")
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in reserved:
+                with self.subTest(tenant_id=name):
+                    with self.assertRaises(TenantError):
+                        normalize_tenant_id(name)
+                    with self.assertRaises(TenantError):
+                        tenant_subdir("jobs", tenant_id=name, base=Path(tmp), create=True)
+                with self.subTest(category=name):
+                    with self.assertRaises(TenantError):
+                        tenant_subdir(name, tenant_id="team-a", base=Path(tmp), create=True)
+            # Lookalikes that are not device names stay valid.
+            for ok in ("nul_x", "console", "com10", "lpt0", "auxiliary"):
+                with self.subTest(ok=ok):
+                    self.assertEqual(normalize_tenant_id(ok), ok)
+                    tenant_subdir(ok, tenant_id="team-a", base=Path(tmp), create=True)
+
 
 if __name__ == "__main__":
     unittest.main()
