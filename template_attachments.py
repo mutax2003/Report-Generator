@@ -40,6 +40,28 @@ def template_extension_ok(filename: str) -> bool:
     return ext in (".docx", ".pdf")
 
 
+def reject_encrypted_pdf(data: bytes, what: str = "PDF") -> None:
+    """Raise a clear SecurityError for encrypted / password-protected PDFs.
+
+    Call before the ``security`` PDF validators so users get an actionable message
+    (their encrypted branch fails with UnboundLocalError). PDFs that cannot be
+    parsed at all are left to those validators.
+    """
+    if not data or not data.startswith(_PDF_MAGIC):
+        return
+    try:
+        from pypdf import PdfReader
+
+        encrypted = PdfReader(io.BytesIO(data), strict=False).is_encrypted
+    except Exception:
+        return
+    if encrypted:
+        raise SecurityError(
+            f"{what} is encrypted or password-protected, which is not supported. "
+            "Remove the password/security (e.g. print or save it as a new PDF) and upload it again."
+        )
+
+
 def detect_template_format(data: bytes, filename: str = "") -> str:
     """Return ``docx`` or ``pdf`` from magic bytes and filename."""
     name = (filename or "").lower()
@@ -125,6 +147,7 @@ def prepare_template_upload(data: bytes, filename: str = "") -> PreparedTemplate
     name = filename or ("template.pdf" if fmt == "pdf" else "template.docx")
 
     if fmt == "pdf":
+        reject_encrypted_pdf(data, "PDF template")
         validate_pdf_template_upload(data, filename)
         warnings = [
             "PDF template was converted to Word (.docx) for merging. "

@@ -67,7 +67,7 @@ Jinja in `.docx` is **trusted** (authors with template access). Untrusted input 
 
 ## Local project folder (not uploads)
 
-**Project folder** reads Excel/template/PDFs from disk via `project_folder.py` (`resolve_project_folder`, `ensure_under_project_root`, `atomic_write_bytes` / `atomic_write_text`, `_cached_file_bytes`). Paths must resolve under the project root; **symlinks are refused**. Appendix/source listing skips symlink escape. Hosted gate: `security.folder_workflow_disabled()` (env) blocks `resolve_project_folder` and agent CLI (UI also checks secrets). AI draft apply (`ai/apply_drafts.py`) caps JSON size/field count, neutralizes Excel formula injection (`_cell_str`), and re-validates patched Excel before session/disk write. `ai/excel_builder.py` also runs `_cell_str` on AI-built Lab/APEC/well/`ProjectData` cells.
+**Project folder** reads Excel/template/PDFs from disk via `project_folder.py` (`resolve_project_folder`, `ensure_under_project_root`, `atomic_write_bytes` / `atomic_write_text`, `_cached_file_bytes`). Paths must resolve under the project root; **symlinks are refused**. Appendix/source listing skips symlink escape. Hosted gate: `security.folder_workflow_disabled()` (env) blocks `resolve_project_folder` and agent CLI (UI also checks secrets). AI draft apply (`ai/apply_drafts.py`) caps JSON size/field count, neutralizes Excel formula injection (`_excel_cell_str`), and re-validates patched Excel before session/disk write. `ai/excel_builder.py` also runs `_excel_cell_str` on AI-built Lab/APEC/well/`ProjectData` cells.
 
 ## Rendered output vs uploads
 

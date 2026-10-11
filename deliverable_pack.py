@@ -144,18 +144,39 @@ def build_onestop_phase1_summary(
     }
 
 
+def onestop_export_applies(
+    context: dict[str, Any] | None,
+    meta: dict[str, str] | None = None,
+) -> bool:
+    """OneStop Phase 1 ESA summary belongs only in Phase I profile deliverables.
+
+    Uses the engine-resolved ``_report_type`` (then meta). With no profile at all,
+    falls back to the report phase; with neither, keeps the legacy include.
+    """
+    ctx = context or {}
+    meta = meta or {}
+    rt = str(ctx.get("_report_type") or meta.get("report_type") or "").strip()
+    if rt:
+        return rt in _PHASE1_QP_PROFILES
+    phase = str(ctx.get("report_phase") or meta.get("report_phase") or "").strip().lower()
+    return not phase or phase.startswith("phase 1")
+
+
 def build_onestop_export_bytes(
     context: dict[str, Any],
     meta: dict[str, str] | None = None,
 ) -> tuple[bytes, bytes, bytes]:
     """Return (summary.json, summary.csv, readme.txt) for OneStop upload prep."""
+    from engine import _excel_cell_str
+
     summary = build_onestop_phase1_summary(context, meta)
     json_bytes = json.dumps(summary, indent=2, sort_keys=True).encode("utf-8")
     csv_buf = io.StringIO()
     writer = csv.writer(csv_buf)
     writer.writerow(["field", "value"])
     for k, v in sorted(summary.items()):
-        writer.writerow([k, v])
+        # CSV opens in Excel: neutralize formula injection here (not in Word context).
+        writer.writerow([k, _excel_cell_str(v)])
     csv_bytes = csv_buf.getvalue().encode("utf-8")
     readme = """OneStop submission folder (manual upload)
 ============================================
@@ -271,7 +292,11 @@ def write_deliverable_to_zip(
             _zip_path(path_prefix, f"templates/{package.converted_template_name}"),
             package.converted_template_docx,
         )
-    if package.include_onestop_export and package.render_context is not None:
+    if (
+        package.include_onestop_export
+        and package.render_context is not None
+        and onestop_export_applies(package.render_context, package.render_meta)
+    ):
         jbytes, cbytes, rbytes = build_onestop_export_bytes(
             package.render_context, package.render_meta
         )

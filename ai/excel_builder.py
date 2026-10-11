@@ -13,7 +13,7 @@ from engine import (
     LAB_SHEET,
     MONITORING_WELLS_SHEET,
     PROJECT_SHEET,
-    _cell_str,
+    _excel_cell_str,
 )
 
 
@@ -24,7 +24,7 @@ def _neutralize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     for col in out.columns:
         out[col] = out[col].map(
-            lambda v: _cell_str(v) if v is not None and not (isinstance(v, float) and pd.isna(v)) else v
+            lambda v: _excel_cell_str(v) if v is not None and not (isinstance(v, float) and pd.isna(v)) else v
         )
     return out
 
@@ -33,7 +33,7 @@ def _project_frame(project_row: dict[str, Any] | None) -> pd.DataFrame:
     row = project_row or {}
     if not row:
         return pd.DataFrame([{}])
-    cleaned = {str(k): _cell_str(v) for k, v in row.items()}
+    cleaned = {str(k): _excel_cell_str(v) for k, v in row.items()}
     return pd.DataFrame([cleaned])
 
 

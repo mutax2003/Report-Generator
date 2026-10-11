@@ -153,8 +153,10 @@ def render_appendix_step(
                 if uploaded is not None:
                     data = cached_upload_bytes(uploaded, slot=f"appendix_{label}") or b""
                     from security import SecurityError, user_safe_error, validate_appendix_pdf_upload
+                    from template_attachments import reject_encrypted_pdf
 
                     try:
+                        reject_encrypted_pdf(data, f"Appendix {label} PDF")
                         validate_appendix_pdf_upload(
                             data, uploaded.name or f"appendix_{label}.pdf"
                         )

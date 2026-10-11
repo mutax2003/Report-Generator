@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from table_link_notes import link_caveat, link_issue
+
 ECOVENTURE_CONSULTANT = "Ecoventure Inc."
 
 
@@ -56,6 +58,13 @@ def enrich_phase2_context(ctx: dict[str, Any]) -> None:
         ctx["exceedance_summary"] = (
             "No analytical results exceeded applicable screening criteria "
             "for the parameters evaluated."
+        )
+    issue = link_issue(ctx, "lab_results")
+    if issue:
+        # Rows were dropped by site linking: never assert absence of exceedances.
+        caveat = link_caveat(issue, "Laboratory results")
+        ctx["exceedance_summary"] = (
+            f"{ctx['exceedance_summary'].rstrip('.')}; {caveat}" if unique_exc else caveat
         )
     ctx["matrices_sampled"] = ", ".join(sorted(matrices)) if matrices else ""
     ctx["sample_location_count"] = str(len(locations) or len(rows))

@@ -44,7 +44,7 @@ Full sheet inventory: [`EXCEL_LAYOUT.txt`](EXCEL_LAYOUT.txt) and [`schemas/repor
 
 **Report profiles (7):** `phase1_alberta`, `phase1_devon`, `phase2_esa`, `groundwater_monitoring`, `reclamation_certificate`, `phase3_remediation`, `template_driven` — see [docs/13-flexible-report-profiles.md](docs/13-flexible-report-profiles.md).
 
-**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (**438 tests**, 4 may skip) · regression: `python scripts\health_check.py` (**18 checks**, incl. HTML help pack)
+**Quick test:** `python scripts\test_with_your_documents.py` or `streamlit run app.py` · unit tests: `python -m unittest discover -s tests -v` (**470 tests**, 4 may skip) · regression: `python scripts\health_check.py` (**18 checks**, incl. HTML help pack)
 
 **Multiple-choice phrases:** [`schemas/phrase_catalog.json`](schemas/phrase_catalog.json) · Excel `PhraseCatalog` sheet · Streamlit **Standard phrases** panel · see [docs/04-template-authoring.md](docs/04-template-authoring.md)
 
@@ -82,7 +82,7 @@ Summary: workflow picker → uploads or project folder → **Report** tab (next 
 - Shared `_JINJA_ENV` (Sandboxed + StrictUndefined); batch uses `tables_prefiltered` to skip double table filter; digests cached via `excel_sha256` / `template_sha256`
 - `seed_input_digests(excel_sha256=, template_sha256=)` lets callers (UI cache, folder render) skip re-hashing bytes already digested upstream
 - Template ZIP scan after ctor validation: `scan_template_trusted` (skips re-inspect)
-- Formula injection: `_cell_str` prefixes `=+-@\t\r` (also used by draft apply / excel_builder)
+- Formula injection: `_excel_cell_str` prefixes `=+-@\t\r` (non-numeric text) for draft apply / excel_builder / OneStop CSV; Word values use `_cell_str` (no prefix)
 - **No LLM / AI inside `ReportEngine`** — drafts stay in `ai/*` and UI apply paths (`ai/apply_drafts.py`); never auto-inject into merge/render
 
 ### Architecture

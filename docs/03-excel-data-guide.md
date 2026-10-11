@@ -30,7 +30,8 @@ Row 3+: (ignored by engine)
 - **Row 1** — Column headers (become Jinja keys after normalization).
 - **Row 2** — **Only row used** for the report (single-report mode).
 - **Row 3+** — Additional sites. Use **batch generation** in the app (*All N sites (batch zip)*) or `scripts/render_cli.py --all-rows`. Blank rows are skipped (max 100 rows, 50 reports per batch).
-- **Linking table sheets** — If `LabResults`, `DrillingWaste`, or `StorageTanks` include a `site_name`, `project_number`, `uwi`, `well_name`, or `project_id` column, only matching rows are merged for each report. Otherwise all table rows are shared across reports.
+- **Linking table sheets** — If `LabResults`, `DrillingWaste`, or `StorageTanks` include a `site_name`, `project_number`, `uwi`, `well_name`, or `project_id` column, only matching rows are merged for each report. A site with no matching rows gets an empty table (and a warning) — never another site's rows. If that column is absent or entirely blank, all table rows are shared across reports. Fully blank table rows are skipped.
+- **Cell values** — Text cells are kept as typed (`007`, `0.50`, `<0.005`); dates at midnight render as `YYYY-MM-DD`; whole numbers render without `.0`; blank cells render empty.
 
 Empty `ProjectData` (headers only) produces a pre-flight / render error.
 
@@ -198,7 +199,7 @@ python scripts\create_samples.py
 
 ## Formula injection mitigation
 
-Cell values starting with `=`, `+`, `-`, `@`, or tab are prefixed with `'` when converted to strings (reduces formula injection if Word tables are re-opened in Excel).
+Word output shows cell values exactly as typed (a negative number such as `-5` stays `-5`). When values are written back to spreadsheet/CSV outputs (AI draft apply into ProjectData, AI-built workbooks, OneStop CSV export), text starting with `=`, `+`, `-`, `@`, tab, or carriage return is prefixed with `'` so it cannot run as a formula; plain numeric text such as `-5` or `+1.2` is left unchanged.
 
 ## Limits
 

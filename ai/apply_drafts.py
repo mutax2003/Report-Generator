@@ -13,7 +13,7 @@ from typing import Any
 
 import pandas as pd
 
-from engine import PROJECT_SHEET, _cell_str, _norm_key
+from engine import PROJECT_SHEET, _excel_cell_str, _norm_key
 from security import MAX_CONTEXT_STRING_LEN, MAX_PROJECT_COLUMNS
 
 # Narrative draft section → ProjectData field key
@@ -68,7 +68,7 @@ def _sanitize_field_map(fields: dict[str, Any]) -> dict[str, str]:
         nk = _norm_key(str(key))
         if not nk or len(nk) > MAX_FIELD_KEY_LEN:
             continue
-        val = _cell_str(value)
+        val = _excel_cell_str(value)
         if not val:
             continue
         if len(val) > MAX_CONTEXT_STRING_LEN:
@@ -182,7 +182,7 @@ def patch_project_data_fields(
     """Patch ProjectData row with field values.
 
     Returns (new_excel_bytes, applied_keys, skipped_keys).
-    Values are formula-injection neutralized via ``_cell_str``.
+    Values are formula-injection neutralized via ``_excel_cell_str``.
     """
     fields = _sanitize_field_map(fields) if fields else {}
     if not fields:
@@ -208,7 +208,7 @@ def patch_project_data_fields(
 
     for key, value in fields.items():
         nk = _norm_key(key)
-        val = _cell_str(value)
+        val = _excel_cell_str(value)
         if not nk or not val:
             continue
         if nk not in col_by_key:
