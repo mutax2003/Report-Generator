@@ -299,7 +299,7 @@ python scripts\create_samples.py
 
 </code></pre>
 <h2>Formula injection mitigation</h2>
-<p>Cell values starting with `=`, `+`, `-`, `@`, or tab are prefixed with `&#x27;` when converted to strings (reduces formula injection if Word tables are re-opened in Excel).</p>
+<p>Word output shows cell values exactly as typed (a negative number such as `-5` stays `-5`). When values are written back to spreadsheet/CSV outputs (AI draft apply into ProjectData, AI-built workbooks, OneStop CSV export), text starting with `=`, `+`, `-`, `@`, tab, or carriage return is prefixed with `&#x27;` so it cannot run as a formula; plain numeric text such as `-5` or `+1.2` is left unchanged.</p>
 <h2>Limits</h2>
 <p>See <a href="07-security-and-deployment.md">07-security-and-deployment.md</a>.</p>
 <h2>Checklist for new projects</h2>
