@@ -136,6 +136,44 @@ class HostedModeFlagParsingTests(unittest.TestCase):
             with patch.object(wm.st, "secrets", {"ESA_HOSTED_MODE": "off"}):
                 self.assertFalse(wm.hosted_mode_enabled())
 
+    def test_security_layer_honours_streamlit_secrets_including_toml_booleans(self) -> None:
+        """Streamlit exports only str/int/float secrets to env; a TOML ``true`` is a bool."""
+        import types
+
+        from security import folder_workflow_disabled, validation_bypass_enabled
+
+        def fake_streamlit(secrets: object) -> types.ModuleType:
+            mod = types.ModuleType("streamlit")
+            mod.secrets = secrets  # type: ignore[attr-defined]
+            return mod
+
+        env = _clean_flag_env(ESA_VALIDATION_BYPASS="1")
+        with patch.dict(os.environ, env, clear=True):
+            for key in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW"):
+                for value in (True, "on", 1):
+                    with self.subTest(key=key, value=value):
+                        st = fake_streamlit({key: value})
+                        with patch.dict(sys.modules, {"streamlit": st}):
+                            self.assertTrue(folder_workflow_disabled())
+                            self.assertFalse(validation_bypass_enabled())
+            for value in (False, "off", 0):
+                with self.subTest(value=value):
+                    st = fake_streamlit({"ESA_HOSTED_MODE": value})
+                    with patch.dict(sys.modules, {"streamlit": st}):
+                        self.assertFalse(folder_workflow_disabled())
+                        self.assertTrue(validation_bypass_enabled())
+
+            class _NoSecretsFile:
+                def __contains__(self, key: object) -> bool:
+                    raise FileNotFoundError("no secrets.toml")
+
+            with patch.dict(sys.modules, {"streamlit": fake_streamlit(_NoSecretsFile())}):
+                self.assertFalse(folder_workflow_disabled())
+            # Streamlit absent (CLI / HTTP server): env-only, never imports streamlit.
+            with patch.dict(sys.modules, {"streamlit": None}):
+                self.assertFalse(folder_workflow_disabled())
+                self.assertTrue(validation_bypass_enabled())
+
 
 def _make_dir_link(link: Path, target: Path) -> bool:
     """Create a directory symlink (POSIX) or NTFS junction (Windows, no admin needed)."""

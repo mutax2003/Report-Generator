@@ -8,6 +8,7 @@ import io
 import logging
 import os
 import re
+import sys
 import zipfile
 from contextlib import contextmanager
 from typing import Any, Iterator
@@ -397,14 +398,34 @@ def env_flag_enabled(name: str) -> bool:
 HOSTED_MODE_FLAGS = ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW")
 
 
+def _streamlit_secret_flag_enabled(key: str) -> bool:
+    """True when Streamlit is already loaded and ``st.secrets[key]`` is truthy.
+
+    Streamlit copies only str/int/float secrets into ``os.environ``, so a TOML boolean
+    (``ESA_HOSTED_MODE = true``) never reaches env. Streamlit is never imported here:
+    CLI / HTTP processes without it stay env-only.
+    """
+    st = sys.modules.get("streamlit")
+    if st is None:
+        return False
+    try:
+        secrets = st.secrets
+        return key in secrets and flag_value_enabled(secrets[key])
+    except Exception:
+        # No secrets.toml (StreamlitSecretNotFoundError) or a partially initialised module.
+        return False
+
+
 def folder_workflow_disabled() -> bool:
     """True when local project-folder paths must not be used (shared/hosted hosts).
 
-    Checks environment only. Streamlit UI also consults ``st.secrets`` via
-    ``ui.workflow_mode.hosted_mode_enabled`` — set the same keys in secrets **and**
-    env on Cloud for defense-in-depth at ``resolve_project_folder``.
+    Checks the environment, plus ``st.secrets`` when Streamlit is loaded in this process
+    (booleans included), so the validation bypass and ``resolve_project_folder`` agree
+    with ``ui.workflow_mode.hosted_mode_enabled``.
     """
-    return any(env_flag_enabled(key) for key in HOSTED_MODE_FLAGS)
+    return any(
+        env_flag_enabled(key) or _streamlit_secret_flag_enabled(key) for key in HOSTED_MODE_FLAGS
+    )
 
 
 def validation_bypass_enabled() -> bool:
