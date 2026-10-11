@@ -501,5 +501,50 @@ class TestAppendixAndOnestopByProfile(unittest.TestCase):
         self.assertFalse([n for n in names if "/appendices/" in n], names)
 
 
+def _pdf(*, user_password: str | None = None) -> bytes:
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    if user_password is not None:
+        writer.encrypt(user_password=user_password, owner_password="owner")
+    bio = io.BytesIO()
+    writer.write(bio)
+    return bio.getvalue()
+
+
+class TestEncryptedPdf(unittest.TestCase):
+    """Defect 10: encrypted PDFs give a clear error, not UnboundLocalError."""
+
+    def test_reject_encrypted_pdf_helper(self) -> None:
+        from security import SecurityError
+        from template_attachments import reject_encrypted_pdf
+
+        reject_encrypted_pdf(_pdf(), "Appendix PDF")  # plain PDF passes
+        reject_encrypted_pdf(b"not a pdf", "Appendix PDF")  # left to the validators
+        with self.assertRaises(SecurityError) as cm:
+            reject_encrypted_pdf(_pdf(user_password="secret"), "Appendix PDF")
+        self.assertIn("password", str(cm.exception))
+        self.assertTrue(str(cm.exception).startswith("Appendix PDF"))
+
+    def test_pdf_template_upload_encrypted_is_clear_error(self) -> None:
+        from security import SecurityError
+        from template_attachments import prepare_template_upload
+
+        with self.assertRaises(SecurityError) as cm:
+            prepare_template_upload(_pdf(user_password="secret"), "template.pdf")
+        self.assertIn("encrypted", str(cm.exception))
+
+    def test_ai_pdf_text_ingest_encrypted(self) -> None:
+        from ai.lab_extract import extract_pdf_text
+        from security import SecurityError
+
+        with self.assertRaises(SecurityError) as cm:
+            extract_pdf_text(_pdf(user_password="secret"))
+        self.assertIn("password", str(cm.exception))
+        # Owner-password-only PDFs open without a password and still ingest.
+        self.assertEqual(extract_pdf_text(_pdf(user_password="")), "")
+
+
 if __name__ == "__main__":
     unittest.main()
