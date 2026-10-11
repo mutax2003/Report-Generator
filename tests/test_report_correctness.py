@@ -222,7 +222,7 @@ class TestBatchIsolation(unittest.TestCase):
         self.assertEqual(len(batch[0].context["lab_results"]), 2)
         self.assertEqual(batch[1].context["lab_results"], [])
         self.assertNotIn("ANALYTE_FROM_SITE_A", _plain_text(batch[1].docx_bytes))
-        self.assertTrue(any("lab_results" in w for w in batch[1].warnings), batch[1].warnings)
+        self.assertTrue(any("LabResults" in w for w in batch[1].warnings), batch[1].warnings)
         self.assertFalse(any("links rows to sites" in w for w in batch[0].warnings))
 
     def test_single_render_of_unmatched_row_is_empty(self) -> None:
@@ -544,6 +544,194 @@ class TestEncryptedPdf(unittest.TestCase):
         self.assertIn("password", str(cm.exception))
         # Owner-password-only PDFs open without a password and still ingest.
         self.assertEqual(extract_pdf_text(_pdf(user_password="")), "")
+
+
+PHASE2_SITE = "Example 4D Windy 4-4-49-4"
+NO_EXC_PHASE2 = "No analytical results exceeded"
+
+
+def _phase2_sample_with_lab_column(col: str, values: list) -> bytes:
+    """Sample Phase II workbook (single site) with a link column added to LabResults."""
+    wb = openpyxl.load_workbook(ROOT / "samples" / "phase2_alberta_data.xlsx")
+    ws = wb["LabResults"]
+    ws.insert_cols(1)
+    ws.cell(row=1, column=1, value=col)
+    for i, v in enumerate(values, start=2):
+        ws.cell(row=i, column=1, value=v)
+    bio = io.BytesIO()
+    wb.save(bio)
+    return bio.getvalue()
+
+
+def _phase2_render(xb: bytes, *, project_row_index: int = 0):
+    tb = (ROOT / "samples" / "phase2_alberta_template.docx").read_bytes()
+    return ReportEngine(xb, tb).render(
+        {**META, "report_type": "phase2_esa"}, project_row_index=project_row_index
+    )
+
+
+class TestLinkMatching(unittest.TestCase):
+    """Review follow-up 1: link mismatches must not empty a table and claim 'no exceedances'."""
+
+    def test_uppercased_site_name_single_site_repro(self) -> None:
+        xb = _phase2_sample_with_lab_column("site_name", [PHASE2_SITE.upper()] * 3)
+        _d, _w, ctx, _r = _phase2_render(xb)
+        self.assertEqual(len(ctx["lab_results"]), 3)
+        self.assertIn("Benzene", ctx["exceedance_summary"])
+        self.assertNotIn(NO_EXC_PHASE2, ctx["executive_summary"])
+
+    def test_unmatched_link_single_site_keeps_all_rows_with_warning(self) -> None:
+        xb = _phase2_sample_with_lab_column("site_name", ["Some Other Site"] * 3)
+        _d, warnings, ctx, _r = _phase2_render(xb)
+        self.assertEqual(len(ctx["lab_results"]), 3)
+        self.assertIn("Benzene", ctx["exceedance_summary"])
+        self.assertTrue(any("one site" in w and "LabResults" in w for w in warnings), warnings)
+
+    def test_licence_well_name_vs_monitoring_well_single_site(self) -> None:
+        xb = _xlsx(
+            {
+                "ProjectData": [["site_name", "well_name"], ["Site A", "ABC 4-4-49-4"]],
+                "LabResults": [
+                    ["well_name"] + LAB_HDR,
+                    ["MW-1", "Benzene", 2, "mg/L", 1, "Y"],
+                    ["MW-2", "Toluene", 0.1, "mg/L", 1, "N"],
+                ],
+            }
+        )
+        _d, _w, ctx, _r = ReportEngine(xb, _template(["x"], lab_table=True)).render(META)
+        self.assertEqual(len(ctx["lab_results"]), 2)
+        self.assertIn("Benzene", ctx["exceedance_summary"])
+
+    def test_link_key_normalization(self) -> None:
+        from engine import _link_key
+
+        self.assertEqual(_link_key("0101"), _link_key("101"))
+        self.assertEqual(_link_key("101.0"), _link_key(101))
+        self.assertEqual(_link_key("1e2"), _link_key("100"))
+        self.assertEqual(_link_key("  Site   A "), _link_key("site a"))
+        self.assertEqual(_link_key("STRASSE"), _link_key("straße"))
+        self.assertNotEqual(_link_key("Site A"), _link_key("Site B"))
+        self.assertEqual(_link_key(None), "")
+
+    def test_multi_site_numeric_and_case_variants_match(self) -> None:
+        xb = _xlsx(
+            {
+                "ProjectData": [
+                    ["site_name", "project_number"],
+                    ["Site A", "0101"],
+                    ["Site B", "202"],
+                ],
+                "LabResults": [
+                    ["project_number"] + LAB_HDR,
+                    [101, "Benzene", 2, "mg/kg", 1, "Y"],
+                    ["202.0", "Toluene", 0.1, "mg/kg", 1, "N"],
+                ],
+            }
+        )
+        batch = ReportEngine(xb, _template(["x"], lab_table=True)).render_batch(META)
+        self.assertEqual([[r["analyte"] for r in b.context["lab_results"]] for b in batch],
+                         [["Benzene"], ["Toluene"]])
+        self.assertFalse(any("could not be matched" in w for b in batch for w in b.warnings))
+
+    def test_mostly_blank_link_cells_single_site_keeps_blank_rows(self) -> None:
+        xb = _phase2_sample_with_lab_column("site_name", [None, PHASE2_SITE, None])
+        _d, _w, ctx, _r = _phase2_render(xb)
+        self.assertEqual(len(ctx["lab_results"]), 3)
+        self.assertIn("Benzene", ctx["exceedance_summary"])
+
+    def _multi_site(self, lab_links: list) -> bytes:
+        rows = [
+            ["Benzene", 2, "mg/kg", 1, "Y"],
+            ["Toluene", 0.1, "mg/kg", 1, "N"],
+            ["Xylene", 0.1, "mg/kg", 1, "N"],
+        ]
+        return _xlsx(
+            {
+                "ProjectData": [["site_name", "client_name"], ["Site A", "C"], ["Site B", "C"]],
+                "LabResults": [["site_name"] + LAB_HDR]
+                + [[link] + row for link, row in zip(lab_links, rows)],
+            }
+        )
+
+    def test_multi_site_partial_links_flag_narrative(self) -> None:
+        xb = self._multi_site([None, "Site B", None])
+        tb = _template(["SUMMARY: {{ executive_summary }}"], lab_table=True)
+        batch = ReportEngine(xb, tb).render_batch(META)
+        b = batch[1]
+        self.assertEqual([r["analyte"] for r in b.context["lab_results"]], ["Toluene"])
+        self.assertNotIn(NO_EXC_PHASE2, b.context["exceedance_summary"])
+        self.assertIn("could not be matched", b.context["exceedance_summary"])
+        self.assertIn("LabResults", b.context["exceedance_summary"])
+        self.assertNotIn(NO_EXC_PHASE2, _plain_text(b.docx_bytes))
+        self.assertTrue(any("LabResults" in w and "blank" in w for w in b.warnings), b.warnings)
+
+    def test_multi_site_unmatched_does_not_claim_no_exceedances(self) -> None:
+        xb = self._multi_site(["SITE A", "Site A", "site a "])
+        tb = _template(["SUMMARY: {{ executive_summary }}"], lab_table=True)
+        batch = ReportEngine(xb, tb).render_batch(META)
+        self.assertEqual(len(batch[0].context["lab_results"]), 3)
+        self.assertIn("Benzene", batch[0].context["exceedance_summary"])
+        b = batch[1]
+        self.assertEqual(b.context["lab_results"], [])
+        self.assertNotIn(NO_EXC_PHASE2, _plain_text(b.docx_bytes))
+        self.assertIn("could not be matched", b.context["exceedance_summary"])
+        # Single (non-batch) render of the same row agrees.
+        _d, warnings, ctx, _r = ReportEngine(xb, tb).render(META, project_row_index=1)
+        self.assertIn("could not be matched", ctx["executive_summary"])
+        self.assertTrue(any("LabResults" in w for w in warnings), warnings)
+
+    def test_groundwater_remediation_phase1_narratives_respect_link_issues(self) -> None:
+        from groundwater_narrative import build_groundwater_executive_summary, enrich_groundwater_context
+        from phase1_narrative import build_phase1_executive_summary
+        from remediation_narrative import build_remediation_executive_summary
+
+        def issue(loop_var: str, sheet: str) -> dict:
+            return {loop_var: {"status": "unmatched", "sheet": sheet, "column": "site_name"}}
+
+        gw = {"groundwater_results": [], "_table_link_issues": issue("groundwater_results", "GroundwaterResults")}
+        enrich_groundwater_context(gw)
+        text = build_groundwater_executive_summary(gw)
+        self.assertNotIn("No groundwater analytical results exceeded", text)
+        self.assertIn("could not be matched", text)
+
+        rem = {
+            "confirmatory_sampling": [{"exceedance_flag": "No"}],
+            "_table_link_issues": {
+                "confirmatory_sampling": {"status": "partial", "sheet": "ConfirmatorySampling", "column": "site_name"}
+            },
+        }
+        text = build_remediation_executive_summary(rem)
+        self.assertNotIn("All confirmatory results within objectives", text)
+        self.assertIn("could not be matched", text)
+
+        p1 = {
+            "phase2_drilling_waste_required": "No",
+            "drilling_waste_summary": "x",
+            "_table_link_issues": issue("drilling_waste", "DrillingWaste"),
+        }
+        text = build_phase1_executive_summary(p1)
+        self.assertNotIn("A Phase II ESA is not required for the drilling waste", text)
+        self.assertIn("could not be matched", text)
+
+    def test_results_ui_callout_picks_link_warnings(self) -> None:
+        from ui.results import _table_link_warnings
+
+        xb = self._multi_site(["Site A", "Site A", "Site A"])
+        batch = ReportEngine(xb, _template(["x"], lab_table=True)).render_batch(META)
+        all_w = [w for b in batch for w in b.warnings]
+        picked = _table_link_warnings(all_w)
+        self.assertEqual(len(picked), 1, all_w)
+        self.assertIn("Site B", picked[0])
+
+    def test_preflight_reports_unmatched_rows_for_every_site(self) -> None:
+        from template_tools import run_preflight
+
+        xb = self._multi_site(["Site A", "Site A", "Site A"])
+        tb = _template(["x"], lab_table=True)
+        result = run_preflight(xb, tb, META)
+        self.assertTrue(
+            any("Site B" in w and "LabResults" in w for w in result.warnings), result.warnings
+        )
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ import io
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import pandas as pd
@@ -18,6 +19,7 @@ from jinja2.sandbox import SecurityError as TemplateSecurityError
 
 from phase1_narrative import build_phase1_executive_summary
 from report_jinja import make_report_jinja_env
+from table_link_notes import LINK_ISSUES_KEY
 from report_profile import (
     ReportRuntimeConfig,
     list_keys_from_context,
@@ -257,80 +259,182 @@ def _project_row_to_dict(df: pd.DataFrame) -> dict[str, Any]:
     return rows[0] if rows else {}
 
 
-def _filter_records_for_project(
-    records: list[dict[str, Any]], project: dict[str, Any]
-) -> list[dict[str, Any]]:
-    """When table sheets include a link column, keep rows matching this project.
+def _link_key(value: Any) -> str:
+    """Normalize a link-column value for site matching.
 
-    A link column counts only when the sheet fills it in and the project row has
-    a value for it. If such a column exists but no row matches, the project gets
-    no rows (never another site's rows). Sheets without a usable link column
-    (single-project workbooks) keep all rows.
+    Strips, collapses internal whitespace, and casefolds text; numeric-looking
+    values compare by numeric value (``0101`` == ``101`` == ``101.0``).
     """
-    if not records:
-        return []
-    has_link = False
-    for col in _TABLE_LINK_COLUMNS:
-        project_val = _s(project.get(col))
-        if not project_val:
-            continue
-        if col not in records[0] or not any(_s(r.get(col)) for r in records):
-            continue
-        has_link = True
-        matched = [r for r in records if _s(r.get(col)) == project_val]
-        if matched:
-            return matched
-    return [] if has_link else records
+    text = " ".join(_s(value).split()).casefold()
+    if text and _NUMERIC_TEXT_RE.match(text):
+        try:
+            num = Decimal(text)
+        except InvalidOperation:
+            return text
+        if num.is_finite() and abs(num.adjusted()) < 40:
+            canon = format(num.normalize(), "f")
+            return "0" if canon in ("-0", "+0") else canon
+    return text
 
 
-def _index_records_by_link_columns(
-    records: list[dict[str, Any]],
-) -> dict[str, dict[str, list[dict[str, Any]]]]:
-    """Build link_col -> value -> rows indexes for batch filtering (O(M) once)."""
+# link_col -> (normalized value -> rows, rows with a blank link cell). Only columns
+# that the sheet actually fills in (at least one non-blank cell) are indexed.
+LinkIndexes = dict[str, tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]]
+
+
+def _index_records_by_link_columns(records: list[dict[str, Any]]) -> LinkIndexes:
+    """Build normalized link indexes once per table (O(M)) for batch filtering."""
     if not records:
         return {}
     first = records[0]
-    indexes: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    indexes: LinkIndexes = {}
     for col in _TABLE_LINK_COLUMNS:
         if col not in first:
             continue
         by_val: dict[str, list[dict[str, Any]]] = {}
+        blank: list[dict[str, Any]] = []
         for rec in records:
-            val = _s(rec.get(col))
-            if val:
-                by_val.setdefault(val, []).append(rec)
-        indexes[col] = by_val
+            key = _link_key(rec.get(col))
+            if key:
+                by_val.setdefault(key, []).append(rec)
+            else:
+                blank.append(rec)
+        if by_val:
+            indexes[col] = (by_val, blank)
     return indexes
+
+
+def _filter_records_with_status(
+    records: list[dict[str, Any]],
+    project: dict[str, Any],
+    indexes: LinkIndexes,
+    *,
+    multi_site: bool,
+) -> tuple[list[dict[str, Any]], dict[str, str] | None]:
+    """Rows of one table for one project, plus a link issue (or None).
+
+    Link columns are tried in ``_TABLE_LINK_COLUMNS`` order with normalized values.
+
+    * No link column filled in the sheet: all rows (shared table).
+    * Multi-site workbook: matched rows only. No match -> ``[]`` with status
+      ``unmatched``; rows with a blank link cell dropped -> status ``partial``.
+      Another site's rows are never used.
+    * Single-site workbook (one ProjectData row): no other site can leak in, so
+      matched rows plus blank-link rows are kept; if nothing matches, all rows are
+      kept with status ``fallback`` (warning only).
+    """
+    if not records or not indexes:
+        return list(records), None
+    first_col = ""
+    for col in _TABLE_LINK_COLUMNS:
+        entry = indexes.get(col)
+        if entry is None:
+            continue
+        first_col = first_col or col
+        key = _link_key(project.get(col))
+        if not key:
+            continue
+        by_val, blank = entry
+        matched = by_val.get(key)
+        if not matched:
+            continue
+        if not multi_site:
+            if not blank:
+                return list(matched), None
+            keep = {id(r) for r in matched} | {id(r) for r in blank}
+            return [r for r in records if id(r) in keep], None
+        if blank:
+            return list(matched), {"status": "partial", "column": col}
+        return list(matched), None
+    if multi_site:
+        return [], {"status": "unmatched", "column": first_col}
+    return list(records), {"status": "fallback", "column": first_col}
+
+
+def _filter_records_for_project(
+    records: list[dict[str, Any]], project: dict[str, Any], *, multi_site: bool = True
+) -> list[dict[str, Any]]:
+    """Rows of a table linked to ``project`` (see ``_filter_records_with_status``)."""
+    rows, _issue = _filter_records_with_status(
+        records, project, _index_records_by_link_columns(records), multi_site=multi_site
+    )
+    return rows
 
 
 def _filter_records_for_project_indexed(
     records: list[dict[str, Any]],
     project: dict[str, Any],
-    indexes: dict[str, dict[str, list[dict[str, Any]]]],
+    indexes: LinkIndexes,
+    *,
+    multi_site: bool = True,
 ) -> list[dict[str, Any]]:
-    """Same semantics as ``_filter_records_for_project`` using prebuilt indexes."""
-    if not records:
-        return []
-    has_link = False
-    for col in _TABLE_LINK_COLUMNS:
-        project_val = _s(project.get(col))
-        if not project_val:
-            continue
-        by_val = indexes.get(col)
-        if not by_val:
-            continue
-        has_link = True
-        matched = by_val.get(project_val)
-        if matched:
-            return matched
-    return [] if has_link else records
+    """Same as ``_filter_records_for_project`` using prebuilt indexes."""
+    rows, _issue = _filter_records_with_status(
+        records, project, indexes, multi_site=multi_site
+    )
+    return rows
 
 
-def _unmatched_table_warning(loop_var: str, project: dict[str, Any]) -> str:
-    label = _s(project.get("site_name") or project.get("project_number") or project.get("uwi"))
+def _link_filter_all_rows(
+    project_rows: list[dict[str, Any]], list_data: dict[str, list]
+) -> list[tuple[dict[str, list], dict[str, dict[str, str]]]]:
+    """Per ProjectData row: (filtered tables, link issues). Indexes each table once."""
+    multi_site = len(project_rows) > 1
+    indexes = {lv: _index_records_by_link_columns(rows) for lv, rows in list_data.items()}
+    out: list[tuple[dict[str, list], dict[str, dict[str, str]]]] = []
+    for project in project_rows:
+        tables: dict[str, list] = {}
+        issues: dict[str, dict[str, str]] = {}
+        for loop_var, rows in list_data.items():
+            tables[loop_var], issue = _filter_records_with_status(
+                rows, project, indexes[loop_var], multi_site=multi_site
+            )
+            if issue:
+                issues[loop_var] = issue
+        out.append((tables, issues))
+    return out
+
+
+def _site_label(project: dict[str, Any]) -> str:
+    return _s(
+        project.get("site_name")
+        or project.get("project_number")
+        or project.get("uwi")
+        or project.get("well_name")
+    )
+
+
+# Prefix on every link-filter warning; UI callouts (ui/results.py) match on it.
+TABLE_LINK_WARNING_PREFIX = "Table link check: "
+
+
+def is_table_link_warning(warning: str) -> bool:
+    return TABLE_LINK_WARNING_PREFIX in warning
+
+
+def _table_link_warning(sheet: str, issue: dict[str, str], project: dict[str, Any]) -> str:
+    return TABLE_LINK_WARNING_PREFIX + _table_link_warning_body(sheet, issue, project)
+
+
+def _table_link_warning_body(sheet: str, issue: dict[str, str], project: dict[str, Any]) -> str:
+    label = _site_label(project)
+    site = f"site '{label}'" if label else "this ProjectData row"
+    col = issue.get("column") or "link"
+    status = issue.get("status")
+    if status == "unmatched":
+        return (
+            f"Sheet '{sheet}' links rows to sites by '{col}', but no row matches {site}; "
+            f"the table is empty in this report and auto-generated text does not state "
+            f"that nothing exceeded criteria. Check the {col} values in {sheet}."
+        )
+    if status == "partial":
+        return (
+            f"Sheet '{sheet}' links rows to sites by '{col}'; rows with a blank {col} "
+            f"were left out of the report for {site}. Fill in {col} for every {sheet} row."
+        )
     return (
-        f"Table '{loop_var}' links rows to sites, but none match this ProjectData row"
-        f"{f' ({label})' if label else ''}; the table is empty in this report."
+        f"Sheet '{sheet}' has a '{col}' column, but no value matches {site}; all rows "
+        f"were used because ProjectData has one site. Check the {col} values in {sheet}."
     )
 
 
@@ -688,6 +792,22 @@ class ReportEngine:
 
         return project_rows, lists
 
+    def table_link_warnings(self, meta: dict[str, str] | None = None) -> list[str]:
+        """Link-column warnings for every ProjectData row (pre-flight, batch QA)."""
+        runtime = self.resolve_config(meta)
+        project_rows, list_data = self._get_parsed_excel(runtime)
+        loop_to_sheet = {lv: sheet for sheet, lv in runtime.sheet_to_loop.items()}
+        warnings: list[str] = []
+        for project, (_tables, issues) in zip(
+            project_rows, _link_filter_all_rows(project_rows, list_data)
+        ):
+            row = project.get("_excel_row_number")
+            prefix = f"Excel row {row}: " if len(project_rows) > 1 and row else ""
+            for loop_var, issue in issues.items():
+                sheet = loop_to_sheet.get(loop_var, loop_var)
+                warnings.append(prefix + _table_link_warning(sheet, issue, project))
+        return warnings
+
     def project_row_count(self, meta: dict[str, str] | None = None) -> int:
         runtime = self.resolve_config(meta)
         project_rows, _ = self._get_parsed_excel(runtime)
@@ -706,6 +826,7 @@ class ReportEngine:
         parsed_excel: tuple[list[dict[str, Any]], dict[str, list]] | None = None,
         appendix_labels_present: set[str] | None = None,
         tables_prefiltered: bool = False,
+        table_link_issues: dict[str, dict[str, str]] | None = None,
     ) -> dict[str, Any]:
         meta = sanitize_meta(meta)
         runtime = self.resolve_config(meta, meta_sanitized=True)
@@ -739,14 +860,25 @@ class ReportEngine:
         )
         if phrase_warnings:
             ctx["_phrase_warnings"] = phrase_warnings
-        table_warnings: list[str] = []
+        multi_site = len(project_rows) > 1
+        link_issues: dict[str, dict[str, str]] = dict(table_link_issues or {})
         for loop_var, rows in list_data.items():
             if tables_prefiltered:
                 ctx[loop_var] = rows
-            else:
-                ctx[loop_var] = _filter_records_for_project(rows, project)
-                if rows and not ctx[loop_var]:
-                    table_warnings.append(_unmatched_table_warning(loop_var, project))
+                continue
+            ctx[loop_var], issue = _filter_records_with_status(
+                rows, project, _index_records_by_link_columns(rows), multi_site=multi_site
+            )
+            if issue:
+                link_issues[loop_var] = issue
+        loop_to_sheet = {lv: sheet for sheet, lv in runtime.sheet_to_loop.items()}
+        table_warnings: list[str] = []
+        for loop_var, issue in link_issues.items():
+            issue.setdefault("sheet", loop_to_sheet.get(loop_var, loop_var))
+            table_warnings.append(_table_link_warning(issue["sheet"], issue, project))
+        if link_issues:
+            # Read by narrative builders (table_link_notes) below.
+            ctx[LINK_ISSUES_KEY] = link_issues
         for loop_var in runtime.template_loops:
             ctx.setdefault(loop_var, [])
         for legacy in (
@@ -903,13 +1035,13 @@ class ReportEngine:
         include_coverage: bool = True,
         appendix_labels_present: set[str] | None = None,
         tables_prefiltered: bool = False,
-        table_filter_warnings: list[str] | None = None,
+        table_link_issues: dict[str, dict[str, str]] | None = None,
     ) -> tuple[bytes, list[str], dict[str, Any], "GenerationRecord"]:
         """
         Returns (docx_bytes, warnings, context).
         Warnings include template variables not supplied by Excel/meta
-        (filled with empty string for render). ``table_filter_warnings`` carries
-        link-column warnings when the caller pre-filtered tables (batch).
+        (filled with empty string for render). ``table_link_issues`` carries
+        link-filter issues when the caller pre-filtered tables (batch).
         """
         context = self.build_context(
             meta,
@@ -917,12 +1049,11 @@ class ReportEngine:
             parsed_excel=parsed_excel,
             appendix_labels_present=appendix_labels_present,
             tables_prefiltered=tables_prefiltered,
+            table_link_issues=table_link_issues,
         )
         auto_exec = context.pop("_executive_summary_auto_generated", False)
         phrase_warnings = context.pop("_phrase_warnings", [])
-        table_warnings = context.pop("_table_filter_warnings", []) + list(
-            table_filter_warnings or []
-        )
+        table_warnings = context.pop("_table_filter_warnings", [])
         context.pop("_project_row_count", None)
         context.pop("_project_row_index", None)
         context.pop("_excel_row_number", None)
@@ -1006,19 +1137,7 @@ class ReportEngine:
                 f"{MAX_BATCH_REPORTS} reports per run."
             )
         labels = _labels_from_project_rows(project_rows)
-        # Index table sheets once (O(M)), then filter each site in O(1) per link col.
-        loop_indexes = {
-            loop_var: _index_records_by_link_columns(rows) for loop_var, rows in list_data.items()
-        }
-        filtered_per_row = [
-            {
-                loop_var: _filter_records_for_project_indexed(
-                    rows, project_rows[i], loop_indexes[loop_var]
-                )
-                for loop_var, rows in list_data.items()
-            }
-            for i in range(n)
-        ]
+        per_row = _link_filter_all_rows(project_rows, list_data)
         results: list[BatchReportResult] = []
         for i in range(n):
             excel_row = int(project_rows[i].get("_excel_row_number", _excel_row_number(i)))
@@ -1027,15 +1146,11 @@ class ReportEngine:
                 excel_filename=excel_filename,
                 template_filename=template_filename,
                 project_row_index=i,
-                parsed_excel=(project_rows, filtered_per_row[i]),
+                parsed_excel=(project_rows, per_row[i][0]),
                 include_coverage=(i == n - 1),
                 appendix_labels_present=appendix_labels_present,
                 tables_prefiltered=True,
-                table_filter_warnings=[
-                    _unmatched_table_warning(loop_var, project_rows[i])
-                    for loop_var, rows in list_data.items()
-                    if rows and not filtered_per_row[i][loop_var]
-                ],
+                table_link_issues=per_row[i][1],
             )
             filename = suggested_download_name(
                 context, meta or {}, project_row_index=i, batch_size=n

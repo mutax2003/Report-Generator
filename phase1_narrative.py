@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from table_link_notes import link_caveat, link_issue
+
 ECOVENTURE_CONSULTANT = "Ecoventure Inc."
 
 
@@ -129,7 +131,11 @@ def build_phase1_executive_summary(context: dict[str, Any]) -> str:
 
     # Paragraph 3 — Phase II for drilling waste + air photo + site visit (Signum)
     p3_parts: list[str] = []
-    if phase2_waste.lower().startswith("n"):
+    waste_link_issue = link_issue(context, "drilling_waste")
+    if phase2_waste.lower().startswith("n") and waste_link_issue:
+        # Drilling waste rows were dropped by site linking: do not conclude "not required".
+        p3_parts.append(link_caveat(waste_link_issue, "Drilling waste records") + ".")
+    elif phase2_waste.lower().startswith("n"):
         p3_parts.append("A Phase II ESA is not required for the drilling waste.")
     elif phase2_waste.lower().startswith("y"):
         p3_parts.append("A Phase II ESA is required for the drilling waste.")

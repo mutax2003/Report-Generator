@@ -32,6 +32,21 @@ def _render_appendix_warning_callout(warnings: list[str]) -> None:
         st.warning(w)
 
 
+def _table_link_warnings(warnings: list[str]) -> list[str]:
+    from engine import is_table_link_warning
+
+    return [w for w in warnings if is_table_link_warning(w)]
+
+
+def _render_table_link_callout(warnings: list[str], *, limit: int = 10) -> None:
+    """Show site-link problems outside the collapsed warnings expander."""
+    link_warnings = _table_link_warnings(warnings)
+    for w in link_warnings[:limit]:
+        st.warning(w)
+    if len(link_warnings) > limit:
+        st.caption(f"... and {len(link_warnings) - limit} more table link warning(s) below.")
+
+
 def _render_checklist(title: str, items: list[str]) -> None:
     st.markdown(f"**{title}**")
     for item in items:
@@ -134,6 +149,7 @@ def render_deliverable_success(
             st.caption(cap)
 
     _render_appendix_warning_callout(warnings)
+    _render_table_link_callout(warnings)
     if warnings:
         with st.expander(
             f"Warnings ({len(warnings)}) — review before client delivery",
@@ -233,6 +249,7 @@ def render_batch_deliverable_success(
                 )
 
     _render_appendix_warning_callout(all_warnings)
+    _render_table_link_callout(all_warnings)
     if all_warnings:
         with st.expander("Batch warnings", expanded=False):
             for w in all_warnings[:40]:
