@@ -33,7 +33,7 @@ The application accepts **untrusted uploads** (Excel and Word) from internal use
 
 ### Jinja2
 
-- **Main report:** `report_jinja.LimitedSandboxedEnvironment` (a `SandboxedEnvironment`) with `StrictUndefined` and `autoescape=True` during `doc.render`. Missing scalar tags warn and render empty — render does not crash. Autoescape XML-escapes Excel/sidebar text so a cell cannot inject WordprocessingML; resource limits cap cumulative `range()` items, string/list repetition and concatenation, `**`, and rendered part size.
+- **Main report:** `report_jinja.LimitedSandboxedEnvironment` (a `SandboxedEnvironment`) with `StrictUndefined` and `autoescape=True` during `doc.render`. Missing scalar tags warn and render empty — render does not crash. Autoescape XML-escapes Excel/sidebar text so a cell cannot inject WordprocessingML; resource limits cap cumulative `range()` items, total `{% for %}` iterations (nested and recursive), total calls (macros, `loop()`), the size of every expression/filter/method result (repetition, `+`, `~`, `%`, `str.format`, `center`, `replace`, `join`, ...; amplifying operations are pre-checked), `**`, and rendered part size. Docx core properties (Title, Author) render with the same sandbox without autoescape — python-docx escapes them itself. Residual risk (see `report_jinja.py` docstring): one checked operation can transiently allocate up to about the size cap, and CPU-heavy builtins on capped inputs are bounded by size, not time; templates come only from authenticated consultants.
 - **Auto-generated appendices (A/D/G):** same sandbox with lenient `Undefined` so sparse Excel rows do not abort appendix render; missing keys render blank (same consultant outcome as empty main-report tags).
 - Templates treated as trusted — sandbox blocks dangerous Python, not malicious template authors.
 
@@ -61,7 +61,7 @@ Rendered `.docx` re-validated as ZIP with `word/document.xml` before download.
 
 ### Formula injection
 
-Formula injection only matters where values land in a spreadsheet. `engine._excel_cell_str` prefixes `'` to cell strings starting with `=+-@\t\r` (except plain numeric text like `-5`) for AI draft apply into ProjectData, AI-built workbooks, and the OneStop CSV export. Word output (`_cell_str`) is not prefixed — negative numbers render as typed, and XML escaping is handled by Jinja autoescape.
+Formula injection only matters where values land in a spreadsheet. In `.xlsx` files written by AI draft apply and AI-built workbooks (`ai.excel_builder.sheets_to_xlsx_bytes`), text starting with `=` is stored as a text cell (string type + `quotePrefix`), so Excel never runs it and the value has no visible `'`. The OneStop CSV export uses `engine._excel_cell_str`, which prefixes `'` to strings starting with `=+-@\t\r` (except plain numeric text like `-5`). Word output (`_cell_str`) is not prefixed — negative numbers render as typed, and XML escaping is handled by Jinja autoescape.
 
 ### Project folder / AI drafts
 
