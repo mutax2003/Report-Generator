@@ -261,6 +261,8 @@ class HttpServerHardeningTests(unittest.TestCase):
         "ESA_AUTH_FAIL_MAX",
         "ESA_AUTH_FAIL_WINDOW_SEC",
         "ESA_HTTP_SOCKET_TIMEOUT_SEC",
+        "ESA_HTTP_REQUEST_DEADLINE_SEC",
+        "ESA_HTTP_MAX_CONNECTIONS",
     )
 
     def setUp(self) -> None:
@@ -364,6 +366,119 @@ class HttpServerHardeningTests(unittest.TestCase):
             self.assertEqual(status, 401)
             self.assertEqual(headers.get("Connection", "").lower(), "close")
             self.assertIn(b"error", payload)
+
+    @staticmethod
+    def _closed_by_server(sock: object, wait: float) -> bool:
+        """True when the peer has closed (EOF / reset) within ``wait`` seconds."""
+        import select
+
+        readable, _, _ = select.select([sock], [], [], wait)
+        if not readable:
+            return False
+        try:
+            data = sock.recv(4096)  # type: ignore[attr-defined]
+        except OSError:
+            return True
+        return data == b"" or data.startswith(b"HTTP/1.")
+
+    def test_trickled_headers_hit_overall_request_deadline(self) -> None:
+        """One header byte per interval resets a per-read timeout; the total deadline must not."""
+        import socket
+        import time
+
+        fx = self._start(ESA_HTTP_SOCKET_TIMEOUT_SEC="5", ESA_HTTP_REQUEST_DEADLINE_SEC="2")
+        sock = socket.create_connection(("127.0.0.1", fx.port), timeout=10)
+        try:
+            sock.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\nX-Trickle: ")
+            t0 = time.monotonic()
+            closed_at = None
+            while time.monotonic() - t0 < 12:
+                if self._closed_by_server(sock, 0.3):
+                    closed_at = time.monotonic() - t0
+                    break
+                try:
+                    sock.send(b"a")
+                except OSError:
+                    closed_at = time.monotonic() - t0
+                    break
+            self.assertIsNotNone(closed_at, "trickling client was never dropped")
+            self.assertLess(closed_at, 8.0)
+        finally:
+            sock.close()
+
+    def test_open_connections_are_capped(self) -> None:
+        import socket
+        import time
+
+        fx = self._start(ESA_HTTP_MAX_CONNECTIONS="3", ESA_HTTP_SOCKET_TIMEOUT_SEC="30")
+        stalled = []
+        try:
+            for _ in range(3):
+                s = socket.create_connection(("127.0.0.1", fx.port), timeout=10)
+                s.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\nX-Slow: ")
+                stalled.append(s)
+            time.sleep(0.5)
+            extra = socket.create_connection(("127.0.0.1", fx.port), timeout=10)
+            try:
+                extra.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\n\r\n")
+                head = extra.recv(200)
+            except OSError:
+                head = b""
+            finally:
+                extra.close()
+            self.assertNotIn(b" 200 ", head.split(b"\r\n")[0])
+            if head:
+                self.assertIn(b" 503 ", head.split(b"\r\n")[0])
+        finally:
+            for s in stalled:
+                s.close()
+        # Slots are released when the stalled clients go away.
+        deadline = time.monotonic() + 10
+        status = None
+        while time.monotonic() < deadline:
+            try:
+                status = fx.request("GET", "/health", timeout=5)[0]
+            except OSError:
+                status = None
+            if status == 200:
+                break
+            time.sleep(0.2)
+        self.assertEqual(status, 200)
+
+    def test_busy_render_slots_reject_before_body_without_charging_quota(self) -> None:
+        from automate.http_server import _render_semaphore
+
+        key = "valid-test-key-0123456789abcdef"
+        fx = self._start(ESA_API_KEY=key, ESA_RATE_LIMIT_MAX="1")
+        slots = _render_semaphore()
+        held = 0
+        while slots.acquire(blocking=False):
+            held += 1
+        try:
+            good = {"X-ESA-API-Key": key, "Content-Type": "text/plain"}
+            for _ in range(3):
+                status, headers, _ = fx.request(
+                    "POST", "/render", body=b"z" * (256 * 1024), headers=good
+                )
+                self.assertEqual(status, 503)
+                self.assertIn("Retry-After", headers)
+        finally:
+            for _ in range(held):
+                slots.release()
+        # The 503s did not consume the one-request quota: the next call reaches validation.
+        status = fx.request("POST", "/render", body=b"z", headers=good)[0]
+        self.assertEqual(status, 400)
+
+    def test_failed_auth_429_drains_body(self) -> None:
+        fx = self._start(ESA_API_KEY="valid-test-key-0123456789abcdef", ESA_AUTH_FAIL_MAX="1")
+        body = b"q" * (8 * 1024 * 1024)
+        bad = {"X-ESA-API-Key": "wrong", "Content-Type": "multipart/form-data; boundary=zz"}
+        statuses = []
+        for _ in range(6):
+            status, headers, payload = fx.request("POST", "/render", body=body, headers=bad)
+            statuses.append(status)
+            self.assertIn(b"error", payload)
+        self.assertEqual(statuses, [401] + [429] * 5)
 
     def test_negative_content_length_rejected(self) -> None:
         import socket
