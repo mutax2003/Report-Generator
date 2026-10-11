@@ -170,6 +170,107 @@ class TestSandboxLimits(unittest.TestCase):
         self.assertEqual(make_report_jinja_env().from_string(src).render(), "ok")
 
 
+class TestSandboxBypasses(unittest.TestCase):
+    """Review follow-up 2: filters, str methods, ~, loops and recursion are capped too."""
+
+    BLOCKED = {
+        "replace_amplify": '{{ ("a"*1000)|replace("a","a"*99999) }}',
+        "center_filter": '{{ "x"|center(50000000) }}',
+        "str_format_width": '{{ "{:>50000000}".format("x") }}',
+        "str_format_nested_width": '{{ "{:>{w}}".format("x", w=50000000) }}',
+        "str_ljust": '{{ "x".ljust(50000000) }}',
+        "format_filter_width": '{{ "%50000000s"|format("x") }}',
+        "percent_width": '{{ "%50000000s" % "x" }}',
+        "percent_precision": '{{ "%.50000000f" % 1.5 }}',
+        "join_sep_amplify": '{{ ("a"*1000000)|join("b"*1000) }}',
+        "indent_amplify": '{{ ("\\n"*100000)|indent(1000) }}',
+        "batch_fill": '{{ [1]|batch(100000000, 0)|list|length }}',
+        "nested_string_loops": (
+            '{% for a in "x"*3000 %}{% for b in "x"*3000 %}{% endfor %}{% endfor %}'
+        ),
+        "tilde_doubling": (
+            '{% set ns = namespace(s="x") %}{% for i in range(40) %}'
+            "{% set ns.s = ns.s ~ ns.s %}{% endfor %}{{ ns.s|length }}"
+        ),
+        "list_extend_doubling": (
+            "{% set l = [1] %}{% for i in range(40) %}{{ l.extend(l) }}{% endfor %}"
+        ),
+        "sum_lists": "{{ ([[0]*1000000]*1000)|sum(start=[])|length }}",
+        "macro_fanout": (
+            "{% macro f(n) %}{% if n > 0 %}{{ f(n-1) }}{{ f(n-1) }}{% endif %}{% endmacro %}"
+            "{{ f(40) }}"
+        ),
+        "recursive_loop_fanout": (
+            "{% for x in [1, 1] recursive %}{% if loop.depth < 40 %}{{ loop([1, 1]) }}"
+            "{% endif %}{% endfor %}"
+        ),
+    }
+
+    def test_each_bypass_is_blocked_quickly(self) -> None:
+        import time
+        from unittest import mock
+
+        from jinja2.sandbox import SecurityError
+
+        import report_jinja
+        from report_jinja import make_report_jinja_env
+
+        # Small budgets keep the call/loop cases fast on slow CI hosts; the size
+        # checks use the real limits. Real budgets: test_*_real_* below.
+        with mock.patch.object(report_jinja, "MAX_CALLS", 5_000), mock.patch.object(
+            report_jinja, "MAX_LOOP_ITERATIONS", 100_000
+        ):
+            for name, src in self.BLOCKED.items():
+                with self.subTest(name):
+                    start = time.monotonic()
+                    with self.assertRaises(SecurityError):
+                        make_report_jinja_env().from_string(src).render()
+                    self.assertLess(time.monotonic() - start, 10.0)
+
+    def test_real_call_budget_stops_macro_fanout(self) -> None:
+        from jinja2.sandbox import SecurityError
+
+        from report_jinja import MAX_CALLS, make_report_jinja_env
+
+        env = make_report_jinja_env()
+        with self.assertRaises(SecurityError):
+            env.from_string(self.BLOCKED["macro_fanout"]).render()
+        self.assertEqual(env._calls, MAX_CALLS + 1)
+
+    def test_bypass_through_engine_is_a_clean_error(self) -> None:
+        xb = _xlsx({"ProjectData": [["site_name"], ["S"]], "LabResults": [LAB_HDR]})
+        tb = _template(['{{ "x"|center(50000000) }}'])
+        with self.assertRaises(ValueError) as cm:
+            ReportEngine(xb, tb).render(META)
+        self.assertIn("Template rendering stopped", str(cm.exception))
+
+    def test_ordinary_filters_methods_and_loops_still_work(self) -> None:
+        from report_jinja import make_report_jinja_env
+
+        src = (
+            "{% for r in rows %}{{ loop.index }}/{{ loop.length }}:{{ r|center(5) }}"
+            '{{ "%.2f"|format(1.5) }}|{{ "{:,}".format(12345678) }}|{{ "%5s" % "a" }}|'
+            '{{ "a,b"|replace(",", ";") }}|{{ r ~ "-" ~ r }}{% endfor %}'
+            '|{{ rows|join(", ") }}|{{ "x".ljust(3) }}.|{{ [[1], [2]]|sum(start=[]) }}'
+            "{% for x in missing %}never{% else %}|empty{% endfor %}"
+            "{% for x in [[1, [2]]] recursive %}{% if x is iterable %}{{ loop(x) }}"
+            "{% else %}{{ x }}{% endif %}{% endfor %}"
+        )
+        out = make_report_jinja_env(strict=False).from_string(src).render(rows=["a", "b"])
+        self.assertEqual(
+            out,
+            "1/2:  a  1.50|12,345,678|    a|a;b|a-a2/2:  b  1.50|12,345,678|    a|a;b|b-b"
+            "|a, b|x  .|[1, 2]|empty12",
+        )
+
+    def test_loop_budget_allows_large_real_tables(self) -> None:
+        from report_jinja import make_report_jinja_env
+
+        rows = [{"a": i} for i in range(10_000)]
+        src = "{% for r in rows %}{% for k in r %}{% endfor %}{% endfor %}ok"
+        self.assertEqual(make_report_jinja_env().from_string(src).render(rows=rows), "ok")
+
+
 class TestNegativeNumbers(unittest.TestCase):
     """Defect 3: no formula-injection apostrophe in Word output."""
 
