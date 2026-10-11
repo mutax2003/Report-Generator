@@ -365,6 +365,8 @@ def _lab_frame_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
         return None
 
     for row in df.itertuples(index=False, name=None):
+        if not any(_cell_str(v) for v in row):
+            continue  # fully blank spreadsheet row — not a "No exceedance" result
         analyte = get_at(row, "analyte", "parameter", "constituent")
         result = get_at(row, "result", "value")
         unit = get_at(row, "unit", "units")
@@ -404,10 +406,11 @@ def _dataframe_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
         df = df.head(MAX_LAB_ROWS)
     cols = [c for c in df.columns if _norm_key(c)]
     keys = [_norm_key(c) for c in cols]
-    return [
+    records = [
         {k: _cell_str(v) for k, v in zip(keys, row)}
         for row in df[cols].itertuples(index=False, name=None)
     ]
+    return [rec for rec in records if any(rec.values())]  # skip fully blank rows
 
 
 def collect_template_root_vars(template_bytes: bytes) -> set[str]:
@@ -616,7 +619,9 @@ class ReportEngine:
             primary = runtime.primary_sheet
             if primary not in names:
                 raise ValueError(f"Missing primary sheet '{primary}'. Found: {names}")
-            project_df = xl.parse(primary, header=0)
+            # dtype=object: text cells stay text ("007", "0.50"); numbers stay numeric
+            # (no float upcast from blanks, so 710 is not 710.0). Same for sheets below.
+            project_df = xl.parse(primary, header=0, dtype=object)
             if project_df.empty:
                 raise ValueError(
                     f"Sheet '{primary}' has no data rows (row 1 = headers, row 2+ = values)."
@@ -636,7 +641,7 @@ class ReportEngine:
             for sheet_name, loop_var in runtime.sheet_to_loop.items():
                 if sheet_name == primary or sheet_name not in names:
                     continue
-                df = xl.parse(sheet_name, header=0)
+                df = xl.parse(sheet_name, header=0, dtype=object)
                 if loop_var in (
                     lab_var,
                     "lab_results",
@@ -653,7 +658,7 @@ class ReportEngine:
             if runtime.require_lab_sheet and LAB_SHEET in names:
                 lists.setdefault(
                     lab_var,
-                    _lab_frame_to_records(xl.parse(LAB_SHEET, header=0)),
+                    _lab_frame_to_records(xl.parse(LAB_SHEET, header=0, dtype=object)),
                 )
 
             # Same openpyxl pass: PhraseCatalog + ReportConfig (avoids re-open).
@@ -669,7 +674,7 @@ class ReportEngine:
             )
 
             if self._phrase_lookup is None and PHRASE_CATALOG_SHEET in names:
-                phrase_df = xl.parse(PHRASE_CATALOG_SHEET, header=0)
+                phrase_df = xl.parse(PHRASE_CATALOG_SHEET, header=0, dtype=object)
                 phrase_rows = phrase_rows_from_dataframe(phrase_df)
                 seed_phrase_sheet_cache(self.excel_sha256(), phrase_rows)
                 self._phrase_lookup = {(k, o): t for k, o, t in phrase_rows}

@@ -257,5 +257,180 @@ class TestBatchIsolation(unittest.TestCase):
         self.assertEqual(_filter_records_for_project_indexed(records, project, indexes), [])
 
 
+class TestValueFormatting(unittest.TestCase):
+    """Defect 5: dates, integral floats and blank phrase cells render cleanly."""
+
+    def test_cell_str_formats(self) -> None:
+        import datetime as dt
+
+        import pandas as pd
+
+        from engine import _cell_str
+
+        self.assertEqual(_cell_str(dt.datetime(2026, 5, 20)), "2026-05-20")
+        self.assertEqual(_cell_str(pd.Timestamp("2026-05-20")), "2026-05-20")
+        self.assertEqual(_cell_str(dt.datetime(2026, 5, 21, 13, 5)), "2026-05-21 13:05:00")
+        self.assertEqual(_cell_str(dt.date(2026, 5, 22)), "2026-05-22")
+        self.assertEqual(_cell_str(pd.NaT), "")
+        self.assertEqual(_cell_str(float("nan")), "")
+        self.assertEqual(_cell_str(710.0), "710")
+        self.assertEqual(_cell_str(-3.0), "-3")
+        self.assertEqual(_cell_str(0.5), "0.5")
+        self.assertEqual(_cell_str(710), "710")
+
+    def test_dates_integers_and_phrase_blanks_in_docx(self) -> None:
+        import datetime as dt
+
+        xb = _xlsx(
+            {
+                "ProjectData": [
+                    ["site_name", "sample_date", "well_depth_m", "site_recon_intro_selected"],
+                    ["Row2 Site", dt.datetime(2026, 5, 20), 710, "custom_blank"],
+                    ["Row3 Site", dt.datetime(2026, 5, 21), None, "custom_blank"],
+                ],
+                "LabResults": [LAB_HDR, ["Benzene", 0.1, "mg/kg", 1.0, "N"]],
+                "PhraseCatalog": [
+                    ["phrase_key", "option_id", "text"],
+                    ["site_recon_intro", "custom_blank", None],
+                    [None, None, None],
+                ],
+            }
+        )
+        tb = _template(
+            ["DATE: {{ sample_date }}", "DEPTH: {{ well_depth_m }}", "PHRASE: {{ site_recon_intro }}"],
+            lab_table=True,
+        )
+        docx_bytes, _w, ctx, _rec = ReportEngine(xb, tb).render(META)
+        text = _plain_text(docx_bytes)
+        self.assertIn("DATE: 2026-05-20\n", text)
+        self.assertIn("DEPTH: 710\n", text)
+        self.assertNotIn("00:00:00", text)
+        self.assertNotIn("710.0", text)
+        self.assertNotIn("nan", text.lower())
+        self.assertEqual(ctx["lab_results"][0]["criteria"], "1")
+
+    def test_phrase_rows_skip_nan(self) -> None:
+        import pandas as pd
+
+        from phrase_resolver import phrase_rows_from_dataframe
+
+        df = pd.DataFrame(
+            [
+                {"phrase_key": "k", "option_id": "a", "text": float("nan")},
+                {"phrase_key": float("nan"), "option_id": "b", "text": "x"},
+                {"phrase_key": "k", "option_id": "c", "text": "Real text"},
+            ]
+        )
+        self.assertEqual(phrase_rows_from_dataframe(df), (("k", "c", "Real text"),))
+
+
+class TestNumericTextPreserved(unittest.TestCase):
+    """Defect 6: text cells keep their digits; numeric comparisons still work."""
+
+    def test_text_cells_not_coerced(self) -> None:
+        xb = _xlsx(
+            {
+                "ProjectData": [
+                    ["site_name", "well_code", "conc_text"],
+                    ["S", "007", "0.50"],
+                ],
+                "LabResults": [LAB_HDR, ["Chloride", "120", "mg/L", 250, "N"]],
+            }
+        )
+        tb = _template(["WELLID: {{ well_code }}", "CONC: {{ conc_text }}"], lab_table=True)
+        docx_bytes, _w, ctx, _rec = ReportEngine(xb, tb).render(META)
+        text = _plain_text(docx_bytes)
+        self.assertIn("WELLID: 007", text)
+        self.assertIn("CONC: 0.50", text)
+        self.assertEqual(ctx["lab_results"][0]["result"], "120")
+
+    def test_lab_exceedance_comparison_on_text_and_numeric_cells(self) -> None:
+        xb = _xlsx(
+            {
+                "ProjectData": [["site_name"], ["S"]],
+                "LabResults": [
+                    LAB_HDR,
+                    ["TextOver", "120", "mg/L", 100, None],
+                    ["TextUnder", "0.50", "mg/L", "1.0", None],
+                    ["NumOver", 85, "mg/L", 50, None],
+                    ["NonDetect", "<0.005", "mg/L", 0.01, None],
+                ],
+            }
+        )
+        ctx = ReportEngine(xb, _template(["x"], lab_table=True)).build_context(META)
+        flags = {r["analyte"]: r["exceedance_flag"] for r in ctx["lab_results"]}
+        self.assertEqual(
+            flags, {"TextOver": "Yes", "TextUnder": "No", "NumOver": "Yes", "NonDetect": "No"}
+        )
+        self.assertEqual(ctx["lab_results"][1]["result"], "0.50")
+
+    def test_groundwater_exceedance_summary_with_text_numbers(self) -> None:
+        xb = _xlsx(
+            {
+                "ProjectData": [["site_name", "client_name"], ["GW Site", "C"]],
+                "MonitoringWells": [["well_id"], ["MW-01"]],
+                "WaterLevels": [["well_id", "depth_to_water_m"], ["MW-01", 3.0]],
+                "GroundwaterLab": [
+                    ["well_id"] + LAB_HDR,
+                    ["MW-01", "Chloride", "120", "mg/L", 100, None],
+                    ["MW-01", "Sodium", 85.0, "mg/L", 200, None],
+                ],
+            }
+        )
+        meta = dict(META, report_type="groundwater_monitoring", report_phase="Phase 1")
+        ctx = ReportEngine(xb, _template(["{{ site_name }}"])).build_context(meta)
+        rows = {r["analyte"]: r for r in ctx["groundwater_results"]}
+        self.assertEqual(rows["Chloride"]["result"], "120")
+        self.assertEqual(rows["Sodium"]["result"], "85")
+        self.assertIn("Chloride", ctx["exceedance_summary"])
+        self.assertNotIn("Sodium", ctx["exceedance_summary"])
+        self.assertEqual(ctx["water_levels"][0]["depth_to_water_m"], "3")
+
+    def test_dwda_parse_float_on_context_strings(self) -> None:
+        import pandas as pd
+
+        from compliance_helpers import parse_float
+        from engine import _dataframe_to_records
+
+        recs = _dataframe_to_records(
+            pd.DataFrame([{"Volume": 1234.0, "Text Vol": "1,234", "Blank": None}], dtype=object)
+        )
+        self.assertEqual(recs[0]["volume"], "1234")
+        self.assertEqual(parse_float(recs[0]["volume"]), 1234.0)
+        self.assertEqual(parse_float(recs[0]["text_vol"]), 1234.0)
+        self.assertIsNone(parse_float(recs[0]["blank"]))
+
+
+class TestBlankLabRows(unittest.TestCase):
+    """Defect 7: fully blank spreadsheet rows are not results."""
+
+    def test_blank_lab_row_skipped(self) -> None:
+        xb = _xlsx(
+            {
+                "ProjectData": [["site_name"], ["S8"]],
+                "LabResults": [
+                    LAB_HDR,
+                    ["Benzene", 0.1, "mg/kg", 1, "N"],
+                    [None] * 5,
+                    ["Toluene", 0.2, "mg/kg", 1, "N"],
+                ],
+            }
+        )
+        ctx = ReportEngine(xb, _template(["x"], lab_table=True)).build_context(META)
+        self.assertEqual([r["analyte"] for r in ctx["lab_results"]], ["Benzene", "Toluene"])
+        self.assertEqual([r["exceedance_flag"] for r in ctx["lab_results"]], ["No", "No"])
+
+    def test_blank_generic_table_row_skipped(self) -> None:
+        import pandas as pd
+
+        from engine import _dataframe_to_records
+
+        df = pd.DataFrame(
+            [{"apec_id": "APEC-1", "description": "Tank"}, {"apec_id": None, "description": None}],
+            dtype=object,
+        )
+        self.assertEqual(_dataframe_to_records(df), [{"apec_id": "APEC-1", "description": "Tank"}])
+
+
 if __name__ == "__main__":
     unittest.main()
