@@ -256,5 +256,73 @@ class SourceIngestLinkEscapeTests(unittest.TestCase):
             self.assertTrue(path.resolve().is_relative_to(self.project.resolve()))
 
 
+class CacheEvictionThreadSafetyTests(unittest.TestCase):
+    """Module-level LRU-ish caches are hit concurrently by the threaded HTTP server."""
+
+    @staticmethod
+    def _hammer(fn, threads: int = 8, per_thread: int = 400) -> list[BaseException]:
+        import threading
+
+        errors: list[BaseException] = []
+        start = threading.Barrier(threads)
+
+        def worker(tid: int) -> None:
+            start.wait()
+            for i in range(per_thread):
+                try:
+                    fn(tid, i)
+                except BaseException as exc:  # noqa: BLE001 - collect for the assertion
+                    errors.append(exc)
+
+        prev = sys.getswitchinterval()
+        sys.setswitchinterval(1e-6)
+        try:
+            pool = [threading.Thread(target=worker, args=(t,)) for t in range(threads)]
+            for t in pool:
+                t.start()
+            for t in pool:
+                t.join()
+        finally:
+            sys.setswitchinterval(prev)
+        return errors
+
+    def test_excel_meta_cache_eviction_is_thread_safe(self) -> None:
+        import report_profile
+
+        report_profile.clear_excel_meta_cache()
+        try:
+            errors = self._hammer(
+                lambda tid, i: report_profile.seed_excel_meta_cache(f"{tid}-{i}", ([], {}))
+            )
+            self.assertEqual(errors, [])
+            self.assertLessEqual(
+                len(report_profile._excel_meta_cache), report_profile._EXCEL_META_CACHE_MAX + 8
+            )
+        finally:
+            report_profile.clear_excel_meta_cache()
+
+    def test_prepared_template_cache_eviction_is_thread_safe(self) -> None:
+        import template_attachments
+
+        template_attachments.clear_prepared_template_cache()
+        sentinel = object()
+        try:
+            with patch.object(
+                template_attachments, "prepare_template_upload", lambda data, name="": sentinel
+            ):
+                errors = self._hammer(
+                    lambda tid, i: template_attachments.prepare_template_upload_cached(
+                        f"{tid}-{i}".encode(), "t.docx"
+                    )
+                )
+            self.assertEqual(errors, [])
+            self.assertLessEqual(
+                len(template_attachments._prepared_template_cache),
+                template_attachments._PREPARED_CACHE_MAX + 8,
+            )
+        finally:
+            template_attachments.clear_prepared_template_cache()
+
+
 if __name__ == "__main__":
     unittest.main()
