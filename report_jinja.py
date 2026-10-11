@@ -42,7 +42,8 @@ import string
 from collections.abc import Callable, Iterator, Sized
 from typing import Any
 
-from jinja2 import StrictUndefined, Template, Undefined, nodes
+from docxtpl import DocxTemplate
+from jinja2 import Environment, StrictUndefined, Template, Undefined, nodes
 from jinja2.runtime import LoopContext
 from jinja2.sandbox import SandboxedEnvironment, SecurityError
 from jinja2.visitor import NodeTransformer
@@ -421,3 +422,20 @@ def make_report_jinja_env(*, strict: bool = True) -> LimitedSandboxedEnvironment
         undefined=StrictUndefined if strict else Undefined,
         autoescape=True,
     )
+
+
+class ReportDocxTemplate(DocxTemplate):
+    """DocxTemplate whose core properties render as plain text.
+
+    docxtpl renders Title/Author/Subject/... with the same environment as the
+    XML parts, but python-docx XML-escapes property values on write, so an
+    autoescaping environment would store ``Smith &amp; Sons``. Properties use an
+    overlay of the same sandbox (same filters and limits) with autoescape off.
+    """
+
+    def render_properties(
+        self, context: dict[str, Any], jinja_env: Environment | None = None
+    ) -> None:
+        if jinja_env is not None and jinja_env.autoescape:
+            jinja_env = jinja_env.overlay(autoescape=False)
+        super().render_properties(context, jinja_env)

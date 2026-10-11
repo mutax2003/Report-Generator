@@ -13,20 +13,18 @@ from typing import Any
 
 import pandas as pd
 from docx import Document
-from docxtpl import DocxTemplate, RichText
+from docxtpl import RichText
 from jinja2.exceptions import TemplateError
 from jinja2.sandbox import SecurityError as TemplateSecurityError
 
 from phase1_narrative import build_phase1_executive_summary
-from report_jinja import make_report_jinja_env
-from table_link_notes import LINK_ISSUES_KEY
+from report_jinja import ReportDocxTemplate, make_report_jinja_env
 from report_profile import (
     ReportRuntimeConfig,
     list_keys_from_context,
     resolve_report_config,
     table_row_counts,
 )
-
 from security import (
     MAX_BATCH_REPORTS,
     MAX_LAB_ROWS,
@@ -42,7 +40,7 @@ from security import (
     validate_template_upload,
     validation_bypass_enabled,
 )
-
+from table_link_notes import LINK_ISSUES_KEY
 
 PROJECT_SHEET = "ProjectData"
 LAB_SHEET = "LabResults"
@@ -1077,7 +1075,7 @@ class ReportEngine:
         render_ctx = strip_internal_context_keys(context)
 
         tpl_bio = io.BytesIO(self.template_bytes)
-        doc = DocxTemplate(tpl_bio)
+        doc = ReportDocxTemplate(tpl_bio)
         try:
             # Per-render sandbox: autoescape (Excel text is XML-escaped) + resource limits.
             doc.render(render_ctx, jinja_env=make_report_jinja_env(strict=True))

@@ -10,11 +10,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from docxtpl import DocxTemplate
 from jinja2.exceptions import TemplateError
 
 from deliverable_pack import AppendixFile, appendix_manifest_entries
-from report_jinja import make_report_jinja_env
+from report_jinja import ReportDocxTemplate, make_report_jinja_env
 from report_profile import get_profile_spec
 from security import validate_rendered_output
 
@@ -204,7 +203,7 @@ def _render_appendix_docx(
     template_bytes: bytes,
     render_context: dict[str, Any],
 ) -> bytes:
-    doc = DocxTemplate(io.BytesIO(template_bytes))
+    doc = ReportDocxTemplate(io.BytesIO(template_bytes))
     try:
         # Lenient undefined; same autoescape + resource limits as the main report.
         doc.render(render_context, jinja_env=make_report_jinja_env(strict=False))

@@ -131,6 +131,47 @@ class TestXmlEscaping(unittest.TestCase):
         self.assertIn("A &amp; B &lt;Ltd&gt;", _document_xml(out))
         self.assertIn("Client: A & B <Ltd>", _plain_text(out))
 
+    @staticmethod
+    def _template_with_properties() -> bytes:
+        doc = Document(io.BytesIO(_template(["Site: {{ site_name }}"])))
+        doc.core_properties.title = "{{ site_name }} report"
+        doc.core_properties.author = "{{ client_name }}"
+        bio = io.BytesIO()
+        doc.save(bio)
+        return bio.getvalue()
+
+    def test_core_properties_not_double_escaped(self) -> None:
+        """docx Title/Author are plain text (python-docx escapes XML itself)."""
+        xb = _xlsx(
+            {
+                "ProjectData": [
+                    ["site_name", "client_name", "project_number"],
+                    ["Smith & Sons <North>", "O'Brien & Co", "P-1"],
+                ],
+                "LabResults": [LAB_HDR, ["Benzene", "0.001", "mg/kg", 0.01, "N"]],
+            }
+        )
+        docx_bytes, _w, _ctx, _rec = ReportEngine(xb, self._template_with_properties()).render(META)
+        props = Document(io.BytesIO(docx_bytes)).core_properties
+        self.assertEqual(props.title, "Smith & Sons <North> report")
+        self.assertEqual(props.author, "O'Brien & Co")
+        with zipfile.ZipFile(io.BytesIO(docx_bytes)) as zf:
+            core = zf.read("docProps/core.xml").decode("utf-8")
+        self.assertIn("Smith &amp; Sons &lt;North&gt; report", core)
+        self.assertNotIn("&amp;amp;", core)
+        # Body text is still escaped once.
+        self.assertIn("Smith &amp; Sons &lt;North&gt;", _document_xml(docx_bytes))
+
+    def test_appendix_core_properties_not_double_escaped(self) -> None:
+        from appendix_generator import _render_appendix_docx
+
+        out = _render_appendix_docx(
+            self._template_with_properties(), {"site_name": "A & B", "client_name": "<C>"}
+        )
+        props = Document(io.BytesIO(out)).core_properties
+        self.assertEqual(props.title, "A & B report")
+        self.assertEqual(props.author, "<C>")
+
 
 class TestSandboxLimits(unittest.TestCase):
     """Defect 2: template expressions cannot exhaust memory/CPU."""
@@ -804,7 +845,7 @@ class TestLinkMatching(unittest.TestCase):
             {
                 "ProjectData": [["site_name", "client_name"], ["Site A", "C"], ["Site B", "C"]],
                 "LabResults": [["site_name"] + LAB_HDR]
-                + [[link] + row for link, row in zip(lab_links, rows)],
+                + [[link] + row for link, row in zip(lab_links, rows, strict=True)],
             }
         )
 
@@ -836,7 +877,10 @@ class TestLinkMatching(unittest.TestCase):
         self.assertTrue(any("LabResults" in w for w in warnings), warnings)
 
     def test_groundwater_remediation_phase1_narratives_respect_link_issues(self) -> None:
-        from groundwater_narrative import build_groundwater_executive_summary, enrich_groundwater_context
+        from groundwater_narrative import (
+            build_groundwater_executive_summary,
+            enrich_groundwater_context,
+        )
         from phase1_narrative import build_phase1_executive_summary
         from remediation_narrative import build_remediation_executive_summary
 
