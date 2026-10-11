@@ -75,13 +75,16 @@ Cell strings starting with `=+-@\t\r` get leading `'` in `_cell_str` (engine mer
 |----------|--------|
 | `ESA_VALIDATION_BYPASS=1` | Skip upload validation (tests only) |
 | `ESA_SKIP_VALIDATION=1` | Alias of `ESA_VALIDATION_BYPASS` (tests only) |
-| `ESA_HOSTED_MODE=1` / `ESA_DISABLE_FOLDER_WORKFLOW=1` | Disable local project-folder workflow on shared hosts (set as **env** so `resolve_project_folder` / agent CLI block; UI also reads Streamlit secrets) |
+| `ESA_HOSTED_MODE=1` / `ESA_DISABLE_FOLDER_WORKFLOW=1` | Truthy = `1`/`true`/`yes`/`on` (case-insensitive). Disable local project-folder workflow on shared hosts and refuse the validation bypass (set as **env** so `resolve_project_folder` / agent CLI block; UI also reads Streamlit secrets) |
 | `ESA_AUDIT_ENABLED=1` | Enable append-only audit trail |
 | `ESA_AUDIT_LOG` | Audit JSONL path (default `.esa_audit/audit.jsonl`) |
-| `ESA_API_KEY` | Required for non-localhost HTTP bind; validates `X-ESA-API-Key` |
+| `ESA_API_KEY` | Required for non-localhost HTTP bind; validates `X-ESA-API-Key`. Its presence (even empty) refuses the validation bypass; keys under 24 chars log a warning |
 | `ESA_REQUIRE_API_KEY=1` | Force API-key auth even on localhost |
 | `ESA_DEFAULT_ROLES` | Comma-separated roles for API key context (default `author`) |
-| `ESA_RATE_LIMIT_MAX` / `ESA_RATE_LIMIT_WINDOW_SEC` | HTTP sliding-window rate limit |
+| `ESA_RATE_LIMIT_MAX` / `ESA_RATE_LIMIT_WINDOW_SEC` | Per-API-key render quota, checked **after** auth (429 + `Retry-After`) |
+| `ESA_AUTH_FAIL_MAX` / `ESA_AUTH_FAIL_WINDOW_SEC` | Per-IP failed-auth limiter (default 10 / 60 s); over the cap → 429, connection closed |
+| `ESA_HTTP_SOCKET_TIMEOUT_SEC` | Per-connection socket timeout for the threaded HTTP server (default 30; slowloris guard) |
+| `ESA_HTTP_MAX_CONCURRENT_RENDERS` | Concurrent `/render` cap (default 4); busy → 503 + `Retry-After` |
 | `ESA_DISABLE_RATE_LIMIT=1` | **Dev/tests only** — disables rate limiting (never set in production) |
 | `ESA_QP_SIGNING_SECRET` | HMAC secret for QP signature helpers (`qp_signature.py`) |
 | `ESA_RETENTION_POLICY` | Path to retention JSON (default `schemas/records_retention_policy.json`) |

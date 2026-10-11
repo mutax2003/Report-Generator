@@ -146,7 +146,7 @@ The Docker image and compose file include baseline production controls:
 | HTTP API auth (optional) | `ESA_API_KEY` + `X-ESA-API-Key` | [`esa_auth.py`](../esa_auth.py); roles from `ESA_DEFAULT_ROLES` (client `X-ESA-Roles` ignored) |
 | Pin HTTP actor | `ESA_API_SERVICE_USER` | Server-side identity for shared automation keys |
 | Require key on localhost | `ESA_REQUIRE_API_KEY=1` | Forces auth even when binding `127.0.0.1` |
-| Rate limiting | `ESA_RATE_LIMIT_MAX` | [`esa_rate_limit.py`](../esa_rate_limit.py) — IP + API-key digest buckets |
+| Rate limiting | `ESA_RATE_LIMIT_MAX` | [`esa_rate_limit.py`](../esa_rate_limit.py) — auth first, then per-API-key render quota; separate per-IP failed-auth limiter (`ESA_AUTH_FAIL_MAX`) |
 
 The Docker [`docker-entrypoint.sh`](../docker-entrypoint.sh) briefly runs as root to **chown** the audit volume (`.esa_audit`) for the non-root `esa` user, then drops privileges.
 
