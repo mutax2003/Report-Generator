@@ -82,7 +82,7 @@ Summary: workflow picker → uploads or project folder → **Report** tab (next 
 - Shared `_JINJA_ENV` (Sandboxed + StrictUndefined); batch uses `tables_prefiltered` to skip double table filter; digests cached via `excel_sha256` / `template_sha256`
 - `seed_input_digests(excel_sha256=, template_sha256=)` lets callers (UI cache, folder render) skip re-hashing bytes already digested upstream
 - Template ZIP scan after ctor validation: `scan_template_trusted` (skips re-inspect)
-- Formula injection: `_cell_str` prefixes `=+-@\t\r` (also used by draft apply / excel_builder)
+- Formula injection: `_excel_cell_str` prefixes `=+-@\t\r` (non-numeric text) for draft apply / excel_builder / OneStop CSV; Word values use `_cell_str` (no prefix)
 - **No LLM / AI inside `ReportEngine`** — drafts stay in `ai/*` and UI apply paths (`ai/apply_drafts.py`); never auto-inject into merge/render
 
 ### Architecture

@@ -199,7 +199,7 @@ python scripts\create_samples.py
 
 ## Formula injection mitigation
 
-Cell values starting with `=`, `+`, `-`, `@`, or tab are prefixed with `'` when converted to strings (reduces formula injection if Word tables are re-opened in Excel).
+Word output shows cell values exactly as typed (a negative number such as `-5` stays `-5`). When values are written back to spreadsheet/CSV outputs (AI draft apply into ProjectData, AI-built workbooks, OneStop CSV export), text starting with `=`, `+`, `-`, `@`, tab, or carriage return is prefixed with `'` so it cannot run as a formula; plain numeric text such as `-5` or `+1.2` is left unchanged.
 
 ## Limits
 
