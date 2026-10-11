@@ -66,6 +66,46 @@ class RateLimitTests(unittest.TestCase):
             else:
                 os.environ["ESA_AUTH_FAIL_MAX"] = prev
 
+    def test_failed_auth_map_has_hard_cap_and_constant_time_inserts(self) -> None:
+        """Many distinct IPs must not grow the map unbounded or make inserts O(n)."""
+        import time
+
+        import esa_rate_limit
+        from esa_rate_limit import record_failed_auth
+
+        cap = esa_rate_limit._AUTH_FAIL_MAX_TRACKED
+        total = cap * 2 + 500
+        started = time.perf_counter()
+        for i in range(total):
+            record_failed_auth(f"ip:10.{i // 65536}.{(i // 256) % 256}.{i % 256}")
+        elapsed = time.perf_counter() - started
+        self.assertLessEqual(len(esa_rate_limit._auth_failures), cap)
+        # O(n) scans under the lock took ~45 s for 8k IPs; O(1) amortized is well under this.
+        self.assertLess(elapsed, 10.0, f"{total} inserts took {elapsed:.1f}s")
+        # Oldest entries are evicted first; the newest are still tracked.
+        self.assertNotIn("ip:10.0.0.0", esa_rate_limit._auth_failures)
+        last = total - 1
+        newest = f"ip:10.{last // 65536}.{(last // 256) % 256}.{last % 256}"
+        self.assertIn(newest, esa_rate_limit._auth_failures)
+
+    def test_failed_auth_limit_survives_other_traffic_within_cap(self) -> None:
+        from esa_rate_limit import record_failed_auth
+
+        prev = os.environ.get("ESA_AUTH_FAIL_MAX")
+        os.environ["ESA_AUTH_FAIL_MAX"] = "2"
+        try:
+            record_failed_auth("ip:192.0.2.1")
+            record_failed_auth("ip:192.0.2.1")
+            for i in range(200):
+                record_failed_auth(f"ip:198.51.100.{i}")
+            with self.assertRaises(RateLimitExceeded):
+                record_failed_auth("ip:192.0.2.1")
+        finally:
+            if prev is None:
+                os.environ.pop("ESA_AUTH_FAIL_MAX", None)
+            else:
+                os.environ["ESA_AUTH_FAIL_MAX"] = prev
+
 
 if __name__ == "__main__":
     unittest.main()
