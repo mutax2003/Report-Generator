@@ -230,12 +230,12 @@ def validate_appendix_pdf_upload(data: bytes, filename: str = "") -> None:
         reader = PdfReader(io.BytesIO(data))
     except Exception as e:
         raise SecurityError("Could not read appendix PDF.") from e
-    if getattr(reader, "is_encrypted", False):
-        try:
-            if reader.is_encrypted:
-                raise SecurityError("Encrypted appendix PDFs are not supported.")
-        except Exception:
-            raise SecurityError("Encrypted appendix PDFs are not supported.") from e
+    try:
+        encrypted = bool(getattr(reader, "is_encrypted", False))
+    except Exception as exc:
+        raise SecurityError("Encrypted appendix PDFs are not supported.") from exc
+    if encrypted:
+        raise SecurityError("Encrypted appendix PDFs are not supported.")
     pages = len(reader.pages)
     if pages == 0:
         raise SecurityError("Appendix PDF has no pages.")
@@ -263,12 +263,12 @@ def validate_pdf_template_upload(data: bytes, filename: str = "") -> None:
         reader = PdfReader(io.BytesIO(data))
     except Exception as e:
         raise SecurityError("Could not read PDF template.") from e
-    if getattr(reader, "is_encrypted", False):
-        try:
-            if reader.is_encrypted:
-                raise SecurityError("Encrypted PDF templates are not supported.")
-        except Exception:
-            raise SecurityError("Encrypted PDF templates are not supported.") from e
+    try:
+        encrypted = bool(getattr(reader, "is_encrypted", False))
+    except Exception as exc:
+        raise SecurityError("Encrypted PDF templates are not supported.") from exc
+    if encrypted:
+        raise SecurityError("Encrypted PDF templates are not supported.")
     pages = len(reader.pages)
     if pages == 0:
         raise SecurityError("PDF template has no pages.")
@@ -374,6 +374,29 @@ def read_docx_xml_member(zf: zipfile.ZipFile, name: str, budget: ZipReadBudget) 
     return raw.decode("utf-8", errors="ignore")
 
 
+_TRUTHY_FLAG_VALUES = frozenset({"1", "true", "yes", "on"})
+
+
+def flag_value_enabled(value: Any) -> bool:
+    """Parse an operator flag (env var or Streamlit secret) as a boolean.
+
+    Accepts ``1`` / ``true`` / ``yes`` / ``on`` (case-insensitive, whitespace-trimmed).
+    Use for every security-relevant switch (hosted mode, require-auth) so all readers
+    agree on what "enabled" means.
+    """
+    if value is None:
+        return False
+    return str(value).strip().lower() in _TRUTHY_FLAG_VALUES
+
+
+def env_flag_enabled(name: str) -> bool:
+    """True when environment variable ``name`` holds a truthy flag value."""
+    return flag_value_enabled(os.environ.get(name))
+
+
+HOSTED_MODE_FLAGS = ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW")
+
+
 def folder_workflow_disabled() -> bool:
     """True when local project-folder paths must not be used (shared/hosted hosts).
 
@@ -381,18 +404,16 @@ def folder_workflow_disabled() -> bool:
     ``ui.workflow_mode.hosted_mode_enabled`` — set the same keys in secrets **and**
     env on Cloud for defense-in-depth at ``resolve_project_folder``.
     """
-    for key in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW"):
-        if os.environ.get(key, "").strip().lower() in ("1", "true", "yes"):
-            return True
-    return False
+    return any(env_flag_enabled(key) for key in HOSTED_MODE_FLAGS)
 
 
 def validation_bypass_enabled() -> bool:
     """Only for local tests: set ESA_SKIP_VALIDATION=1 or ESA_VALIDATION_BYPASS=1.
 
-    Ignored when hosted mode or ESA_API_KEY is configured (production/shared hosts).
+    Ignored when hosted mode is on or ESA_API_KEY is present in the environment at all
+    (even empty / whitespace-only — a mis-set key still marks a shared/production host).
     """
-    if os.environ.get("ESA_API_KEY", "").strip():
+    if os.environ.get("ESA_API_KEY") is not None:
         return False
     if folder_workflow_disabled():
         return False

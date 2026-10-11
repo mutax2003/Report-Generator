@@ -21,17 +21,13 @@ _LABELS = {
 
 def hosted_mode_enabled() -> bool:
     """True on shared/docker/Streamlit Cloud hosts where local folder paths are unavailable."""
-    from security import folder_workflow_disabled
+    from security import HOSTED_MODE_FLAGS, flag_value_enabled, folder_workflow_disabled
 
     if folder_workflow_disabled():
         return True
-    for key in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW"):
+    for key in HOSTED_MODE_FLAGS:
         try:
-            if key in st.secrets and str(st.secrets[key]).strip().lower() in (
-                "1",
-                "true",
-                "yes",
-            ):
+            if key in st.secrets and flag_value_enabled(st.secrets[key]):
                 return True
         except Exception:
             # No secrets.toml / Streamlit secrets not configured
