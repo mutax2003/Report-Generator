@@ -15,7 +15,9 @@ import hashlib
 import json
 import os
 import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -32,12 +34,63 @@ from automate.render import render_report_from_bytes  # noqa: E402
 from esa_auth import AuthContext, AuthError, Role, auth_from_headers, require_role  # noqa: E402
 from esa_logging import get_logger, log_event  # noqa: E402
 from esa_observability import capture_exception, increment, observe_duration  # noqa: E402
-from esa_rate_limit import RateLimitExceeded, check_rate_limit  # noqa: E402
+from esa_rate_limit import RateLimitExceeded, check_rate_limit, record_failed_auth  # noqa: E402
 from security import MAX_HTTP_POST_BYTES, sanitize_download_filename, user_safe_error  # noqa: E402
 
 logger = get_logger(__name__)
 
 _LOCALHOST_BINDS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+_DEFAULT_SOCKET_TIMEOUT_SEC = 30.0
+_DEFAULT_MAX_CONCURRENT_RENDERS = 4
+# Early-reject paths read (and discard) the request body so the client can finish
+# sending before we respond -- closing with unread data makes Windows send a TCP RST
+# (WinError 10053/10054 on the client). Bounded by size cap and wall-clock deadline.
+_DRAIN_DEADLINE_SEC = 10.0
+_DRAIN_CHUNK = 64 * 1024
+_MIN_RECOMMENDED_API_KEY_LEN = 24
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        value = float(os.environ.get(name, "") or default)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        value = int(os.environ.get(name, "") or default)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def socket_timeout_sec() -> float:
+    """Per-connection socket timeout (``ESA_HTTP_SOCKET_TIMEOUT_SEC``, default 30 s)."""
+    return _env_float("ESA_HTTP_SOCKET_TIMEOUT_SEC", _DEFAULT_SOCKET_TIMEOUT_SEC)
+
+
+_render_slots_lock = threading.Lock()
+_render_slots: threading.BoundedSemaphore | None = None
+
+
+def _render_semaphore() -> threading.BoundedSemaphore:
+    """Cap concurrent renders (``ESA_HTTP_MAX_CONCURRENT_RENDERS``, default 4)."""
+    global _render_slots
+    with _render_slots_lock:
+        if _render_slots is None:
+            _render_slots = threading.BoundedSemaphore(
+                _env_int("ESA_HTTP_MAX_CONCURRENT_RENDERS", _DEFAULT_MAX_CONCURRENT_RENDERS)
+            )
+        return _render_slots
+
+
+class RenderHTTPServer(ThreadingHTTPServer):
+    """Thread-per-connection server so one stalled client cannot block every render."""
+
+    daemon_threads = True
 
 
 def _is_localhost_bind(host: str) -> bool:
@@ -60,6 +113,18 @@ def _require_api_key_for_remote_bind(host: str) -> None:
         raise SystemExit(2)
 
 
+def _warn_on_weak_api_key() -> None:
+    key = os.environ.get("ESA_API_KEY", "").strip()
+    if key and len(key) < _MIN_RECOMMENDED_API_KEY_LEN:
+        print(
+            "WARNING: ESA_API_KEY is shorter than "
+            f"{_MIN_RECOMMENDED_API_KEY_LEN} characters. Failed-auth throttling is per IP "
+            "and never blocks a valid key, so use a long random key "
+            "(python -c 'import secrets; print(secrets.token_urlsafe(32))').",
+            file=sys.stderr,
+        )
+
+
 def _api_key_rate_bucket(headers: dict[str, str]) -> str | None:
     hdrs = {k.lower(): v for k, v in headers.items()}
     api_key = hdrs.get("x-esa-api-key", "").strip()
@@ -70,7 +135,11 @@ def _api_key_rate_bucket(headers: dict[str, str]) -> str | None:
 
 
 def _rate_limit_key(ctx: AuthContext | None, headers: dict[str, str], peer: str) -> str:
-    """Bucket by API-key digest (not spoofable user_id), else peer IP."""
+    """Authenticated render-quota bucket: API-key digest (not spoofable user_id), else IP.
+
+    Only called after successful auth; unauthenticated failures are throttled separately
+    per IP by ``record_failed_auth`` so they never consume a valid client's quota.
+    """
     key_bucket = _api_key_rate_bucket(headers)
     if key_bucket:
         return key_bucket
@@ -99,6 +168,14 @@ def _security_headers(handler: BaseHTTPRequestHandler) -> None:
 
 
 class RenderHandler(BaseHTTPRequestHandler):
+    # StreamRequestHandler.setup() applies this as the socket timeout, so a slowloris
+    # client (partial headers / stalled body) is dropped instead of pinning a thread.
+    timeout: float | None = _DEFAULT_SOCKET_TIMEOUT_SEC
+
+    def setup(self) -> None:
+        self.timeout = socket_timeout_sec()
+        super().setup()
+
     def log_message(self, format: str, *args: Any) -> None:
         sys.stderr.write(f"{self.address_string()} - {format % args}\n")
 
@@ -116,6 +193,12 @@ class RenderHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         if self.path != "/render":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = 0
+            if 0 < length <= MAX_HTTP_POST_BYTES:
+                self._drain_request_body(length)
             self.send_error(404)
             return
 
@@ -127,41 +210,51 @@ class RenderHandler(BaseHTTPRequestHandler):
         except ValueError:
             self._json_error(400, "Invalid Content-Length", close=True)
             return
+        if content_length < 0:
+            self._json_error(400, "Invalid Content-Length", close=True)
+            return
         if content_length > MAX_HTTP_POST_BYTES:
             self._json_error(413, "Request body too large", close=True)
             return
 
-        # Brute-force / flood protection before auth (shared IP bucket).
-        try:
-            check_rate_limit(f"ip:{peer}")
-        except RateLimitExceeded as exc:
-            self._json_error(429, str(exc), close=True)
-            return
-
+        # Auth first: valid credentials are never blocked by someone else's garbage
+        # from the same IP / NAT. Failed attempts are throttled per IP separately.
         try:
             ctx = auth_from_headers(header_map)
             require_role(ctx, Role.AUTHOR)
         except AuthError as exc:
-            self._json_error(401, user_safe_error(exc), close=True)
+            try:
+                record_failed_auth(f"ip:{peer}")
+            except RateLimitExceeded as limited:
+                # Flooding client: reject cheaply without reading the body.
+                self._json_error(429, str(limited), close=True, retry_after=True)
+                return
+            self._reject_before_body(401, user_safe_error(exc), content_length)
             return
 
-        # Per-credential bucket after successful auth.
+        # Authenticated render quota: per API-key digest (or IP when auth is off).
         try:
             check_rate_limit(_rate_limit_key(ctx, header_map, peer))
         except RateLimitExceeded as exc:
-            self._json_error(429, str(exc), close=True)
+            self._reject_before_body(429, str(exc), content_length, retry_after=True)
             return
 
         ctype = self.headers.get("Content-Type", "")
         if "multipart/form-data" not in ctype:
-            self._json_error(400, "Expected multipart/form-data with excel and template files")
+            self._reject_before_body(
+                400, "Expected multipart/form-data with excel and template files", content_length
+            )
             return
 
         try:
             body = read_limited_body(self.rfile, content_length, max_bytes=MAX_HTTP_POST_BYTES)
             form = parse_multipart_form(body, ctype)
         except MultipartParseError as exc:
-            self._json_error(400, user_safe_error(exc))
+            self._json_error(400, user_safe_error(exc), close=True)
+            return
+        except OSError:
+            # Client stalled past the socket timeout or vanished mid-body; drop quietly.
+            self.close_connection = True
             return
 
         excel_field = form.get("excel")
@@ -192,6 +285,10 @@ class RenderHandler(BaseHTTPRequestHandler):
 
         meta = _meta_with_audit_identity(meta, ctx)
 
+        slots = _render_semaphore()
+        if not slots.acquire(blocking=False):
+            self._json_error(503, "Server busy; retry later.", retry_after=True)
+            return
         try:
             with observe_duration("http.render"):
                 docx_bytes, warnings, _ctx, _record, _appendices = render_report_from_bytes(
@@ -207,6 +304,8 @@ class RenderHandler(BaseHTTPRequestHandler):
             capture_exception(e, context={"path": self.path})
             self._json_error(500, user_safe_error(e))
             return
+        finally:
+            slots.release()
 
         filename = sanitize_download_filename("esa_report.docx")
         self.send_response(200)
@@ -222,16 +321,60 @@ class RenderHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(docx_bytes)
 
-    def _json_error(self, code: int, message: str, *, close: bool = False) -> None:
+    def _drain_request_body(self, content_length: int) -> None:
+        """Read and discard up to content_length bytes (size cap + wall-clock deadline)."""
+        remaining = min(max(content_length, 0), MAX_HTTP_POST_BYTES)
+        deadline = time.monotonic() + _DRAIN_DEADLINE_SEC
+        read_some = getattr(self.rfile, "read1", self.rfile.read)
+        try:
+            while remaining > 0 and time.monotonic() < deadline:
+                chunk = read_some(min(_DRAIN_CHUNK, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+        except OSError:
+            pass
+
+    def _reject_before_body(
+        self,
+        code: int,
+        message: str,
+        content_length: int,
+        *,
+        retry_after: bool = False,
+    ) -> None:
+        """Error response before the body was read: drain it, then close the connection.
+
+        Draining lets clients that send the whole body before reading the response
+        (http.client, Power Automate) see the status instead of a connection reset, and
+        closing prevents leftover body bytes being parsed as a pipelined request.
+        """
+        self._drain_request_body(content_length)
+        self._json_error(code, message, close=True, retry_after=retry_after)
+
+    def _json_error(
+        self,
+        code: int,
+        message: str,
+        *,
+        close: bool = False,
+        retry_after: bool = False,
+    ) -> None:
         body = json.dumps({"error": message}).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        if retry_after:
+            self.send_header("Retry-After", "60")
         if close:
             self.send_header("Connection", "close")
+            self.close_connection = True
         _security_headers(self)
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except OSError:
+            self.close_connection = True
 
 
 def main() -> int:
@@ -240,7 +383,8 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     _require_api_key_for_remote_bind(args.host)
-    server = HTTPServer((args.host, args.port), RenderHandler)
+    _warn_on_weak_api_key()
+    server = RenderHTTPServer((args.host, args.port), RenderHandler)
     print(f"ESA render service http://{args.host}:{args.port}/render (health: /health)")
     try:
         server.serve_forever()

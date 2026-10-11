@@ -45,6 +45,27 @@ class RateLimitTests(unittest.TestCase):
                 os.environ["ESA_DISABLE_RATE_LIMIT"] = prev
             reset_rate_limits()
 
+    def test_failed_auth_bucket_is_separate_from_render_quota(self) -> None:
+        from esa_rate_limit import record_failed_auth
+
+        prev = os.environ.get("ESA_AUTH_FAIL_MAX")
+        os.environ["ESA_AUTH_FAIL_MAX"] = "2"
+        try:
+            record_failed_auth("ip:10.0.0.5")
+            record_failed_auth("ip:10.0.0.5")
+            with self.assertRaises(RateLimitExceeded):
+                record_failed_auth("ip:10.0.0.5")
+            # Failures never consume the authenticated render quota (MAX=2 here).
+            check_rate_limit("key:abc")
+            check_rate_limit("key:abc")
+            # Another IP is unaffected.
+            record_failed_auth("ip:10.0.0.6")
+        finally:
+            if prev is None:
+                os.environ.pop("ESA_AUTH_FAIL_MAX", None)
+            else:
+                os.environ["ESA_AUTH_FAIL_MAX"] = prev
+
 
 if __name__ == "__main__":
     unittest.main()
