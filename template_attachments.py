@@ -175,7 +175,12 @@ def prepare_template_upload_cached(data: bytes, filename: str = "") -> PreparedT
     if hit is not None:
         return hit
     result = prepare_template_upload(data, filename)
-    if len(_prepared_template_cache) >= _PREPARED_CACHE_MAX:
-        _prepared_template_cache.pop(next(iter(_prepared_template_cache)))
+    while len(_prepared_template_cache) >= _PREPARED_CACHE_MAX:
+        try:  # threaded HTTP server: concurrent evictions may remove the key first
+            _prepared_template_cache.pop(next(iter(_prepared_template_cache)), None)
+        except StopIteration:
+            break
+        except RuntimeError:
+            continue
     _prepared_template_cache[key] = result
     return result

@@ -1,5 +1,6 @@
 #!/bin/sh
-# Ensure named audit volume is writable by the non-root esa user.
+# Image runs as the non-root esa user (Dockerfile USER). The root branch only applies
+# when an operator overrides --user root: fix legacy volume ownership, then drop to esa.
 set -e
 mkdir -p /app/.esa_audit
 if [ "$(id -u)" = "0" ]; then

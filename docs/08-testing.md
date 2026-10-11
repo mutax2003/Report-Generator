@@ -61,10 +61,10 @@ Framework: Python `unittest` (stdlib).
 | `test_dwda_edge_cases.py` | DWDA / Ecoventure ingest edge cases |
 | `test_audit_trail.py` | Audit event append / file lock |
 | `test_esa_auth.py` | API key auth; client `X-ESA-Roles` ignored |
-| `test_esa_tenant.py` | Tenant isolation helpers |
-| `test_esa_rate_limit.py` | IP + key-digest rate limits |
+| `test_esa_tenant.py` | Tenant isolation helpers; traversal ids/categories rejected |
+| `test_esa_rate_limit.py` | Per-key render quota + separate, hard-capped failed-auth bucket |
 | `test_esa_observability.py` | Metrics / tracing hooks |
-| `test_http_server.py` | Automate HTTP server auth, headers, multipart |
+| `test_http_server.py` | Automate HTTP server auth, headers, multipart; threading, socket timeout, request deadline (trickle), connection cap, render slot before body, auth-first rate limiting, early-reject drain |
 | `test_job_queue.py` | Async job queue |
 | `test_qp_signature.py` | QP signature attestation |
 | `test_records_retention.py` | Retention policy + purge helpers |
@@ -89,7 +89,7 @@ python scripts\create_samples.py
 python -m unittest discover -s tests -v
 ```
 
-Expected: **438 tests OK** (4 may skip; includes verify_tier/pre-commit, render-path batch parity, onboarding UX, AppTest sample load/welcome/next-steps, AI provider config, render-path parity, phase2 triggers, reclamation compliance, schema parity, compliance helpers, DWDA/Ecoventure calc + ingest, upload cache helpers, Streamlit AppTest smoke, folder picker, source PDF ingest, project folder, Phase I appendix generator, automate package smoke, Phase II/remediation verticals, SED 002 compliance, groundwater monitoring, phrase resolver, batch render, deliverable pack, smoke integration, production modules: audit trail, QP signature, auth/tenant/job queue/rate limit/observability, HTTP multipart parser).
+Expected: **477 tests OK** (4 may skip; includes verify_tier/pre-commit, render-path batch parity, onboarding UX, AppTest sample load/welcome/next-steps, AI provider config, render-path parity, phase2 triggers, reclamation compliance, schema parity, compliance helpers, DWDA/Ecoventure calc + ingest, upload cache helpers, Streamlit AppTest smoke, folder picker, source PDF ingest, project folder, Phase I appendix generator, automate package smoke, Phase II/remediation verticals, SED 002 compliance, groundwater monitoring, phrase resolver, batch render, deliverable pack, smoke integration, production modules: audit trail, QP signature, auth/tenant/job queue/rate limit/observability, HTTP multipart parser).
 
 Run `python scripts\count_tests.py` to verify the documented count matches `unittest discover`.
 

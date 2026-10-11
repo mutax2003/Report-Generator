@@ -201,14 +201,27 @@ def clear_excel_meta_cache() -> None:
     _excel_meta_cache.clear()
 
 
+def _make_room_in_excel_meta_cache() -> None:
+    # Threaded HTTP server: another thread may evict or insert concurrently, so the
+    # oldest key can vanish (KeyError) or the dict can change mid-iteration. Loop until
+    # below the cap so racing evictions cannot let the cache grow without bound.
+    while len(_excel_meta_cache) >= _EXCEL_META_CACHE_MAX:
+        try:
+            _excel_meta_cache.pop(next(iter(_excel_meta_cache)), None)
+        except StopIteration:
+            break
+        except RuntimeError:
+            continue
+
+
 def seed_excel_meta_cache(
     digest: str, result: tuple[list[str], dict[str, str]]
 ) -> None:
     """Seed meta cache when the workbook was already opened elsewhere."""
     if not digest:
         return
-    if len(_excel_meta_cache) >= _EXCEL_META_CACHE_MAX and digest not in _excel_meta_cache:
-        _excel_meta_cache.pop(next(iter(_excel_meta_cache)))
+    if digest not in _excel_meta_cache:
+        _make_room_in_excel_meta_cache()
     _excel_meta_cache[digest] = result
 
 
@@ -224,8 +237,7 @@ def read_excel_meta(
     if hit is not None:
         return hit
     result = _read_excel_meta_uncached(excel_bytes)
-    if len(_excel_meta_cache) >= _EXCEL_META_CACHE_MAX:
-        _excel_meta_cache.pop(next(iter(_excel_meta_cache)))
+    _make_room_in_excel_meta_cache()
     _excel_meta_cache[key] = result
     return result
 

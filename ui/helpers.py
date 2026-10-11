@@ -178,29 +178,32 @@ def show_upload_status(label: str, uploaded: Any, *, extra: str = "") -> None:
     )
 
 
-def _upload_content_fingerprint(data: bytes) -> tuple[int, bytes, bytes]:
-    """Size plus head/tail bytes — catches same-size file swaps without full re-read."""
-    n = len(data)
-    if n == 0:
-        return (0, b"", b"")
-    head = data[:8]
-    tail = data[-8:] if n > 8 else data
-    return (n, head, tail)
+def _upload_content_fingerprint(data: bytes) -> tuple[int, str]:
+    """Size plus a full-content BLAKE2b digest.
+
+    Every byte is hashed so an edited workbook of the same size (and same head/tail)
+    never reuses stale cached bytes. Uploads are size-capped in ``security`` so the
+    hash stays cheap.
+    """
+    return (len(data), hashlib.blake2b(data, digest_size=32).hexdigest())
 
 
 def stable_upload_digest(slot: str, filename: str, data: bytes) -> str:
     """
-    SHA-256 of upload bytes, cached in Streamlit session by (slot, name, fingerprint).
+    SHA-256 of upload bytes, cached in Streamlit session per slot.
 
-    Avoids re-hashing large templates on every rerun when the upload is unchanged.
+    The cache only short-circuits when the *same* ``bytes`` object is passed again
+    (reruns reuse the object from ``cached_upload_bytes`` / session state). ``bytes``
+    are immutable and the entry keeps a reference, so identity implies identical
+    content; any other object is fully re-hashed.
     """
-    sig = (filename or "", _upload_content_fingerprint(data))
+    name = filename or ""
     box = st.session_state.setdefault("_upload_digest_cache", {})
     entry = box.get(slot)
-    if entry and entry[0] == sig:
-        return entry[1]
+    if entry and len(entry) == 3 and entry[0] == name and entry[1] is data:
+        return entry[2]
     digest = hashlib.sha256(data).hexdigest()
-    box[slot] = (sig, digest)
+    box[slot] = (name, data, digest)
     return digest
 
 
@@ -226,7 +229,7 @@ def cached_upload_bytes(uploaded: Any, *, slot: str = "default") -> bytes | None
         if stored_sig == (name, file_id):
             return stored_data
     data = uploaded.getvalue()
-    sig: tuple[str, str] | tuple[str, tuple[int, bytes, bytes]]
+    sig: tuple[str, str] | tuple[str, tuple[int, str]]
     if file_id:
         sig = (name, str(file_id))
     else:
@@ -297,13 +300,43 @@ def get_cached_report_engine(excel_bytes: bytes, template_bytes: bytes) -> Repor
         eco_sig,
     )
     cache = st.session_state.setdefault("_report_engine_cache", {})
-    if cache.get("key") != key:
-        cache["key"] = key
-        engine = ReportEngine(excel_bytes, template_bytes, inputs_validated=True)
+    if cache.get("key") != key or cache.get("engine") is None:
+        # Drop the previous engine first so a rejected upload can never fall back to it.
+        cache.pop("key", None)
+        cache.pop("engine", None)
+        # Full upload validation (zip-bomb / OOXML checks) runs once per distinct input
+        # pair — never trust that an upstream UI step already validated these bytes.
+        engine = ReportEngine(excel_bytes, template_bytes)
         # Cache key digests are full SHA-256 of the same bytes — seed to skip re-hash.
         engine.seed_input_digests(excel_sha256=key[0], template_sha256=key[1])
         cache["engine"] = engine
+        cache["key"] = key
     return cache["engine"]
+
+
+def validated_excel_upload_bytes(data: bytes | None, filename: str = "") -> bytes | None:
+    """Run upload validation on Excel bytes before they reach preflight / render.
+
+    Shows ``st.error`` with a user-safe message and returns ``None`` when rejected.
+    Successful checks are remembered per content digest so reruns stay cheap.
+    """
+    if not data:
+        return None
+    from security import SecurityError, user_safe_error, validate_excel_upload
+
+    digest = stable_upload_digest("excel_validation", filename, data)
+    ok_digests = st.session_state.setdefault("_validated_excel_digests", set())
+    if digest in ok_digests:
+        return data
+    try:
+        validate_excel_upload(data, filename)
+    except SecurityError as exc:
+        st.error(user_safe_error(exc))
+        return None
+    if len(ok_digests) >= 16:
+        ok_digests.clear()
+    ok_digests.add(digest)
+    return data
 
 
 def prepare_uploaded_template(
