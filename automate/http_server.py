@@ -92,6 +92,14 @@ class RenderHTTPServer(ThreadingHTTPServer):
 
     daemon_threads = True
 
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        """Log client disconnects (WinError 10053/10054, EPIPE) without a stderr traceback."""
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)):
+            logger.info("Client %s disconnected: %s", client_address, type(exc).__name__)
+            return
+        super().handle_error(request, client_address)
+
 
 def _is_localhost_bind(host: str) -> bool:
     normalized = host.strip().lower()

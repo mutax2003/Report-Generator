@@ -376,6 +376,36 @@ class HttpServerHardeningTests(unittest.TestCase):
             first_line = sock.recv(200).split(b"\r\n")[0]
         self.assertIn(b"400", first_line)
 
+    def test_client_disconnect_is_logged_without_traceback(self) -> None:
+        import contextlib
+
+        from automate.http_server import RenderHandler, RenderHTTPServer
+
+        server = RenderHTTPServer(("127.0.0.1", 0), RenderHandler)
+        try:
+            for exc in (
+                ConnectionAbortedError(10053, "aborted"),
+                ConnectionResetError(10054, "reset"),
+                BrokenPipeError(32, "broken pipe"),
+            ):
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr):
+                    try:
+                        raise exc
+                    except OSError:
+                        server.handle_error(None, ("127.0.0.1", 1))  # type: ignore[arg-type]
+                self.assertEqual(stderr.getvalue(), "", msg=type(exc).__name__)
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                try:
+                    raise RuntimeError("real bug")
+                except RuntimeError:
+                    server.handle_error(None, ("127.0.0.1", 1))  # type: ignore[arg-type]
+            self.assertIn("RuntimeError", stderr.getvalue())
+        finally:
+            server.server_close()
+
 
 if __name__ == "__main__":
     unittest.main()
