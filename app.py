@@ -27,6 +27,7 @@ from ui.helpers import (
     resolve_session_excel_file,
     resolve_session_template_file,
     session_loaded_file_names,
+    validated_excel_upload_bytes,
 )
 from ui.onboarding import (
     compute_next_actions,
@@ -187,10 +188,14 @@ def main() -> None:
     excel_bytes = folder_excel_bytes or (
         cached_upload_bytes(excel_file, slot="excel") if excel_file else None
     )
+    # Uploaded / session Excel is untrusted: size + zip-bomb + OOXML checks before use.
+    excel_bytes = validated_excel_upload_bytes(
+        excel_bytes, getattr(excel_file, "name", "") or "upload.xlsx"
+    )
     excel_bytes = effective_excel_bytes(excel_bytes)
+    # Only a template that passed prepare/validation may render. A rejected upload
+    # (prepared_tpl is None after st.error) must stop here — never fall back to raw bytes.
     template_bytes = folder_template_bytes or (prepared_tpl.docx_bytes if prepared_tpl else None)
-    if not template_bytes and template_file:
-        template_bytes = cached_upload_bytes(template_file, slot="template")
 
     has_excel = bool(excel_bytes)
     has_template = bool(template_bytes)
