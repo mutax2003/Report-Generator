@@ -30,13 +30,21 @@ alwaysApply: false
 - Pin actor with **`ESA_API_SERVICE_USER`** on shared automation keys (ignores client user id).
 - Order: **auth first**, then the per-API-key-digest render quota (`check_rate_limit`). Failed auth is
   counted in a separate per-IP bucket (`record_failed_auth`, `ESA_AUTH_FAIL_MAX`); a valid key is
-  never blocked by that bucket. Early rejects (401/400/429) drain or close so clients don't see resets.
-- Server is `RenderHTTPServer` (threaded, daemon threads) with a per-socket timeout
-  (`ESA_HTTP_SOCKET_TIMEOUT_SEC`) and a render concurrency cap (`ESA_HTTP_MAX_CONCURRENT_RENDERS` → 503).
+  never blocked by that bucket (hard-capped at 4,096 tracked IPs, oldest evicted). Early rejects
+  (400/401/429/503) drain the body (bounded) and close so clients see the status, not a reset.
+- Server is `RenderHTTPServer` (threaded, daemon threads): per-read socket timeout
+  (`ESA_HTTP_SOCKET_TIMEOUT_SEC`), overall per-request read deadline (`ESA_HTTP_REQUEST_DEADLINE_SEC`),
+  open-connection cap (`ESA_HTTP_MAX_CONNECTIONS` → immediate 503 + close), and render concurrency cap
+  (`ESA_HTTP_MAX_CONCURRENT_RENDERS` → 503). The render slot is taken right after auth, **before** the
+  quota check and body read, so a 503 costs no quota and no body memory.
+- Module-level caches hit by handler threads must evict without `KeyError` races
+  (`pop(key, None)` in a bounded loop; see `report_profile` / `template_attachments`).
 - Responses: `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`.
 - Auth failures raise `AuthError`; surface via `user_safe_error`.
 - Validation bypass is **refused** when `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` is truthy
   (`1`/`true`/`yes`/`on`, via `security.flag_value_enabled`) or `ESA_API_KEY` is present at all (even empty).
+  `folder_workflow_disabled()` reads env **and** `st.secrets` when Streamlit is loaded (TOML booleans
+  never reach env); `security.py` must never import Streamlit itself.
 - Multipart parsing stays in `automate/multipart.py` — do not trust client filenames/paths.
 
 ## AI provider secrets (`ai/config.py`)
@@ -51,17 +59,19 @@ Align with [docs/07-security-and-deployment.md](docs/07-security-and-deployment.
 |----------|--------|
 | `ESA_AUDIT_ENABLED=1` | Append-only audit trail (`audit_trail.py`) |
 | `ESA_AUDIT_LOG` | Audit JSONL path (default `.esa_audit/audit.jsonl`) |
-| `ESA_TENANT_DATA_ROOT` | Tenant isolation root (`esa_tenant.py`; default `.esa_tenants`); ids must match `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$` after normalization, resolved paths are checked |
+| `ESA_TENANT_DATA_ROOT` | Tenant isolation root (`esa_tenant.py`; default `.esa_tenants`); ids must match `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$` after normalization, Windows device names (`con`, `nul`, `com1`…) are rejected, resolved paths are checked |
 | `ESA_QP_SIGNING_SECRET` | HMAC secret for QP signature helpers (`qp_signature.py`) |
 | `ESA_RETENTION_POLICY` | Retention JSON path (default `schemas/records_retention_policy.json`) |
 | `ESA_RATE_LIMIT_MAX` / `ESA_RATE_LIMIT_WINDOW_SEC` | HTTP sliding-window rate limit |
 | `ESA_DISABLE_RATE_LIMIT=1` | **Dev/tests only** — never set in production |
 | `ESA_AUTH_FAIL_MAX` / `ESA_AUTH_FAIL_WINDOW_SEC` | Per-IP failed-auth limiter (default 10 / 60 s) → 429 |
-| `ESA_HTTP_SOCKET_TIMEOUT_SEC` | HTTP per-connection socket timeout (default 30) |
+| `ESA_HTTP_SOCKET_TIMEOUT_SEC` | HTTP per-read socket timeout (default 30) |
+| `ESA_HTTP_REQUEST_DEADLINE_SEC` | Overall read deadline per request — line + headers + body (default 60) |
+| `ESA_HTTP_MAX_CONNECTIONS` | Open-connection cap (default 32); over it → immediate 503 + close |
 | `ESA_HTTP_MAX_CONCURRENT_RENDERS` | Concurrent `/render` cap (default 4) → 503 + `Retry-After` |
 | `ESA_JSON_LOG=1` | Structured JSON logs (`esa_logging.py`; Docker default) |
 | `ESA_LOG_LEVEL` | Log level (default `INFO`) |
-| `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` | Disable local project-folder workflow via `folder_workflow_disabled()` (env). UI also reads Streamlit secrets via `hosted_mode_enabled()` — set **env** on Cloud so resolve/CLI stay blocked ([esa-streamlit-ui.mdc](esa-streamlit-ui.mdc)) |
+| `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` | Disable local project-folder workflow via `folder_workflow_disabled()` (env, plus `st.secrets` incl. booleans when Streamlit is loaded). UI also uses `hosted_mode_enabled()` — still set **env** on Cloud so CLI / HTTP processes stay blocked ([esa-streamlit-ui.mdc](esa-streamlit-ui.mdc)) |
 | `ESA_API_SERVICE_USER` | Server-side audit/actor identity for shared API keys |
 | `ESA_DEFAULT_ROLES` | Server-side roles (comma-separated); client roles ignored |
 | `ESA_REQUIRE_API_KEY` | Require API key even on localhost bind |
