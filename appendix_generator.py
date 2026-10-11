@@ -47,8 +47,21 @@ def _no_waste_on_site(context: dict[str, Any]) -> bool:
     return val in ("y", "yes", "true", "1")
 
 
-def _report_type(meta: dict[str, str] | None, report_type: str = "") -> str:
-    return str((meta or {}).get("report_type") or report_type or "phase1_alberta").strip()
+def _report_type(
+    meta: dict[str, str] | None,
+    report_type: str = "",
+    context: dict[str, Any] | None = None,
+) -> str:
+    """Profile for appendix selection: explicit arg, then the engine-resolved
+    ``_report_type`` in context (covers inferred profiles, e.g. Phase II via the
+    automate path with no sidebar report_type), then meta. Bare calls with none of
+    these keep the legacy ``phase1_alberta`` default."""
+    return str(
+        report_type
+        or (context or {}).get("_report_type")
+        or (meta or {}).get("report_type")
+        or "phase1_alberta"
+    ).strip()
 
 
 def get_appendix_templates(report_type: str) -> dict[str, str]:
@@ -136,7 +149,7 @@ def predicted_appendix_labels(
     report_type: str = "",
 ) -> set[str]:
     """Labels that would be auto-generated (for pre-flight before render)."""
-    rt = _report_type(meta, report_type)
+    rt = _report_type(meta, report_type, context)
     if rt not in PHASE1_APPENDIX_PROFILES:
         return set()
     catalog = get_appendix_templates(rt)
@@ -174,7 +187,7 @@ def _appendix_render_context(
 ) -> dict[str, Any]:
     """Merge context with sidebar meta keys required by appendix templates."""
     out = _render_ctx(context)
-    rt = _report_type(meta, report_type)
+    rt = _report_type(meta, report_type, context)
     for key in _recommended_fields(rt):
         if not _has_value(out.get(key)):
             val = (meta or {}).get(key)
@@ -215,7 +228,7 @@ def render_phase1_appendices(
 ) -> tuple[list[AppendixFile], list[str]]:
     """Render appendix Word docs; returns (appendix files, warnings)."""
     meta = meta or {}
-    rt = _report_type(meta, report_type)
+    rt = _report_type(meta, report_type, context)
     if rt not in PHASE1_APPENDIX_PROFILES:
         return [], []
 
@@ -274,14 +287,14 @@ def attach_appendices_to_record(
     """Render A/D/G, merge with uploads, write manifest fields. Returns (generated, merged, warnings)."""
     from dwda_compliance import enrich_dwda_context, resolve_dwda_appendix_labels
 
-    rt = _report_type(meta, "")
+    rt = _report_type(meta, "", context)
     uploaded_labels = {ap.label.upper() for ap in uploaded}
     labels = resolve_dwda_appendix_labels(
         context, meta, extra_labels=uploaded_labels, report_type=rt
     )
     if context.get("_dwda_appendix_labels_evaluated") != labels:
         context = enrich_dwda_context(context, meta, appendix_labels_present=set(labels))
-    generated, warnings = render_phase1_appendices(context, meta)
+    generated, warnings = render_phase1_appendices(context, meta, report_type=rt)
     merged = merge_appendix_lists(generated, uploaded)
     if merged:
         record.appendix_files = appendix_manifest_entries(merged)

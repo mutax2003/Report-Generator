@@ -432,5 +432,74 @@ class TestBlankLabRows(unittest.TestCase):
         self.assertEqual(_dataframe_to_records(df), [{"apec_id": "APEC-1", "description": "Tank"}])
 
 
+class TestAppendixAndOnestopByProfile(unittest.TestCase):
+    """Defects 8 + 9: Phase I extras (A/D/G, OneStop) follow the resolved profile."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.xlsx = ROOT / "samples" / "phase2_alberta_data.xlsx"
+        cls.tpl = ROOT / "samples" / "phase2_alberta_template.docx"
+        if not cls.xlsx.is_file() or not cls.tpl.is_file():
+            raise unittest.SkipTest("Run scripts/create_samples.py first")
+
+    def test_phase2_automate_render_has_no_phase1_appendices(self) -> None:
+        from automate.render import render_report_from_bytes
+
+        for meta in ({"report_phase": "Phase 2", "prepared_by": "QA"}, None):
+            _docx, _w, ctx, record, appendices = render_report_from_bytes(
+                self.xlsx.read_bytes(), self.tpl.read_bytes(), meta=meta
+            )
+            self.assertNotIn(ctx["_report_type"], ("phase1_alberta", "phase1_devon"))
+            self.assertEqual(appendices, [], f"meta={meta}")
+            self.assertEqual(record.appendix_files, [])
+            self.assertEqual(record.report_type, ctx["_report_type"])
+
+    def test_phase2_deliverable_zip_has_no_onestop_and_manifest_has_type(self) -> None:
+        import json
+
+        from automate.render import render_deliverable_zip_from_bytes
+
+        zip_bytes, _w, record = render_deliverable_zip_from_bytes(
+            self.xlsx.read_bytes(),
+            self.tpl.read_bytes(),
+            meta={"report_phase": "Phase 2", "prepared_by": "QA"},
+            report_filename="report.docx",
+        )
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            names = zf.namelist()
+            manifest = json.loads(zf.read("report_manifest.json").decode("utf-8"))
+        self.assertFalse([n for n in names if n.startswith("onestop/")], names)
+        self.assertFalse([n for n in names if n.startswith("appendices/")], names)
+        self.assertTrue(record.report_type)
+        self.assertEqual(manifest["report_type"], record.report_type)
+
+    def test_onestop_export_applies(self) -> None:
+        from deliverable_pack import onestop_export_applies
+
+        self.assertTrue(onestop_export_applies({"_report_type": "phase1_alberta"}))
+        self.assertTrue(onestop_export_applies({}, {"report_type": "phase1_devon"}))
+        self.assertTrue(onestop_export_applies({"_report_type": "reclamation_certificate"}))
+        self.assertFalse(onestop_export_applies({"_report_type": "phase2_esa"}))
+        self.assertFalse(onestop_export_applies({"_report_type": "groundwater_monitoring"}))
+        self.assertFalse(onestop_export_applies({}, {"report_phase": "Phase 2"}))
+        self.assertTrue(onestop_export_applies({}, {"report_phase": "Phase 1"}))
+
+    def test_batch_packages_skip_onestop_for_phase2(self) -> None:
+        from deliverable_pack import build_batch_deliverable_packages_zip
+        from render_service import RenderRequest, render_batch_reports
+
+        meta = {"report_phase": "Phase 2", "prepared_by": "QA"}
+        batch = render_batch_reports(
+            RenderRequest(
+                excel_bytes=self.xlsx.read_bytes(), template_bytes=self.tpl.read_bytes(), meta=meta
+            )
+        )
+        zip_bytes = build_batch_deliverable_packages_zip(batch, meta)
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            names = zf.namelist()
+        self.assertFalse([n for n in names if "/onestop/" in n], names)
+        self.assertFalse([n for n in names if "/appendices/" in n], names)
+
+
 if __name__ == "__main__":
     unittest.main()
