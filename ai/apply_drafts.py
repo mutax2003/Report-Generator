@@ -13,7 +13,8 @@ from typing import Any
 
 import pandas as pd
 
-from engine import PROJECT_SHEET, _excel_cell_str, _norm_key
+from ai.excel_builder import read_sheets, sheets_to_xlsx_bytes
+from engine import PROJECT_SHEET, _cell_str, _norm_key
 from security import MAX_CONTEXT_STRING_LEN, MAX_PROJECT_COLUMNS
 
 # Narrative draft section → ProjectData field key
@@ -60,7 +61,8 @@ def _load_json_object(path_or_data: Path | dict[str, Any] | str) -> dict[str, An
 
 
 def _sanitize_field_map(fields: dict[str, Any]) -> dict[str, str]:
-    """Cap field count/key/value length; neutralize Excel formula injection."""
+    """Cap field count/key/value length. Text is kept as written (no ``'`` prefix);
+    formula-looking values are stored as text cells by ``sheets_to_xlsx_bytes``."""
     if len(fields) > MAX_PROJECT_COLUMNS:
         raise ValueError(f"Too many draft fields (max {MAX_PROJECT_COLUMNS})")
     out: dict[str, str] = {}
@@ -68,7 +70,7 @@ def _sanitize_field_map(fields: dict[str, Any]) -> dict[str, str]:
         nk = _norm_key(str(key))
         if not nk or len(nk) > MAX_FIELD_KEY_LEN:
             continue
-        val = _excel_cell_str(value)
+        val = _cell_str(value)
         if not val:
             continue
         if len(val) > MAX_CONTEXT_STRING_LEN:
@@ -140,7 +142,7 @@ def preview_project_data_patch(
     with pd.ExcelFile(bio, engine="openpyxl") as xl:
         if PROJECT_SHEET not in xl.sheet_names:
             return [], [], list(fields.keys())
-        df = xl.parse(PROJECT_SHEET)
+        df = xl.parse(PROJECT_SHEET, dtype=object)
     if df.empty:
         df = pd.DataFrame([{}])
     if row_index < 0 or row_index >= max(len(df), 1):
@@ -182,15 +184,14 @@ def patch_project_data_fields(
     """Patch ProjectData row with field values.
 
     Returns (new_excel_bytes, applied_keys, skipped_keys).
-    Values are formula-injection neutralized via ``_excel_cell_str``.
+    Values are written as text; formula-looking text is stored as a text cell
+    (``sheets_to_xlsx_bytes``), so it never runs as a formula in Excel.
     """
     fields = _sanitize_field_map(fields) if fields else {}
     if not fields:
         return excel_bytes, [], []
 
-    bio = io.BytesIO(excel_bytes)
-    with pd.ExcelFile(bio, engine="openpyxl") as xl:
-        sheets = {name: xl.parse(name) for name in xl.sheet_names}
+    sheets = read_sheets(excel_bytes)
 
     if PROJECT_SHEET not in sheets:
         sheets[PROJECT_SHEET] = pd.DataFrame([{}])
@@ -208,7 +209,7 @@ def patch_project_data_fields(
 
     for key, value in fields.items():
         nk = _norm_key(key)
-        val = _excel_cell_str(value)
+        val = _cell_str(value)
         if not nk or not val:
             continue
         if nk not in col_by_key:
@@ -226,11 +227,7 @@ def patch_project_data_fields(
         applied.append(nk)
 
     sheets[PROJECT_SHEET] = df
-    out = io.BytesIO()
-    with pd.ExcelWriter(out, engine="openpyxl") as w:
-        for name, sdf in sheets.items():
-            sdf.to_excel(w, sheet_name=name, index=False)
-    return out.getvalue(), applied, skipped
+    return sheets_to_xlsx_bytes(sheets), applied, skipped
 
 
 def load_appendix_manifest_labels(drafts_dir: Path) -> dict[str, str]:

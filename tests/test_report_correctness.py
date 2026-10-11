@@ -647,6 +647,60 @@ class TestEncryptedPdf(unittest.TestCase):
         self.assertEqual(extract_pdf_text(_pdf(user_password="")), "")
 
 
+class TestAiDraftsKeepText(unittest.TestCase):
+    """Review follow-up 3: AI drafts written to .xlsx keep their text (no visible ')."""
+
+    def _project_xlsx(self) -> bytes:
+        return _xlsx(
+            {
+                "ProjectData": [["site_name", "project_number", "notes"], ["S", "007", None]],
+                "LabResults": [LAB_HDR, ["Benzene", "0.50", "mg/kg", "1.0", "N"]],
+            }
+        )
+
+    def test_narrative_bullets_round_trip_into_word_without_apostrophe(self) -> None:
+        from ai.apply_drafts import load_narratives_payload, patch_project_data_fields
+
+        text = "- Item one\n- Item two"
+        fields = load_narratives_payload({"sections": [{"section": "executive_summary", "text": text}]})
+        self.assertEqual(fields["executive_summary"], text)
+        patched, applied, _ = patch_project_data_fields(self._project_xlsx(), fields)
+        self.assertIn("executive_summary", applied)
+        ws = openpyxl.load_workbook(io.BytesIO(patched))["ProjectData"]
+        cols = [c.value for c in ws[1]]
+        self.assertEqual(ws.cell(row=2, column=cols.index("executive_summary") + 1).value, text)
+        # Other text cells survive the rewrite as typed.
+        self.assertEqual(ws.cell(row=2, column=cols.index("project_number") + 1).value, "007")
+        self.assertEqual(openpyxl.load_workbook(io.BytesIO(patched))["LabResults"]["B2"].value, "0.50")
+        tb = _template(["SUMMARY: {{ executive_summary }}"], lab_table=True)
+        _d, _w, ctx, _r = ReportEngine(patched, tb).render(META)
+        self.assertEqual(ctx["executive_summary"], text)
+
+    def test_formula_text_is_stored_as_text_cell_not_formula(self) -> None:
+        from ai.apply_drafts import patch_project_data_fields
+
+        patched, _applied, _ = patch_project_data_fields(
+            self._project_xlsx(), {"notes": '=HYPERLINK("http://x","y")'}, overwrite_filled=True
+        )
+        ws = openpyxl.load_workbook(io.BytesIO(patched))["ProjectData"]
+        cell = ws["C2"]
+        self.assertEqual(cell.value, '=HYPERLINK("http://x","y")')
+        self.assertEqual(cell.data_type, "s")
+        self.assertTrue(cell.quotePrefix)
+
+    def test_excel_builder_keeps_dash_text_and_blocks_formulas(self) -> None:
+        from ai.excel_builder import lab_rows_to_xlsx_bytes
+        from ai.models import LabExtractRow
+
+        rows = [
+            LabExtractRow(analyte="=cmd|' /C calc'!A0", result="-ND", unit="mg/kg", criteria="1", exceedance="N")
+        ]
+        ws = openpyxl.load_workbook(io.BytesIO(lab_rows_to_xlsx_bytes(rows)))["LabResults"]
+        self.assertEqual(ws["B2"].value, "-ND")
+        self.assertEqual(ws["A2"].value, "=cmd|' /C calc'!A0")
+        self.assertEqual(ws["A2"].data_type, "s")
+
+
 PHASE2_SITE = "Example 4D Windy 4-4-49-4"
 NO_EXC_PHASE2 = "No analytical results exceeded"
 
