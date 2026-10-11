@@ -7,16 +7,17 @@ from __future__ import annotations
 import io
 import re
 from dataclasses import dataclass, field
+from datetime import date, datetime, time
 from typing import Any
 
 import pandas as pd
 from docx import Document
 from docxtpl import DocxTemplate, RichText
-from jinja2 import StrictUndefined
 from jinja2.exceptions import TemplateError
-from jinja2.sandbox import SandboxedEnvironment
+from jinja2.sandbox import SecurityError as TemplateSecurityError
 
 from phase1_narrative import build_phase1_executive_summary
+from report_jinja import make_report_jinja_env
 from report_profile import (
     ReportRuntimeConfig,
     list_keys_from_context,
@@ -50,8 +51,6 @@ APECS_SHEET = "Apecs"
 DRILLING_WASTE_SHEET = "DrillingWaste"
 STORAGE_TANKS_SHEET = "StorageTanks"
 
-# Shared Jinja sandbox for main-report merge (appendices use a lenient env).
-_JINJA_ENV = SandboxedEnvironment(undefined=StrictUndefined, autoescape=False)
 DWDA_CHECKLIST_SHEET = "DwdaChecklist"
 DWDA_CALCULATIONS_SHEET = "DwdaCalculations"
 
@@ -95,14 +94,47 @@ def _merge_dwda_calc_sheet(ctx: dict[str, Any]) -> None:
 
 
 def _cell_str(v: Any) -> str:
-    if v is None or (isinstance(v, float) and pd.isna(v)):
+    """Excel cell → display text for the Word context (no value is altered).
+
+    Blank/NaN/NaT → ``""``; integral floats → ``710`` (not ``710.0``);
+    midnight datetimes → ``2026-05-20`` (not ``2026-05-20 00:00:00``).
+    Text cells pass through unchanged (``007`` and ``0.50`` keep their digits).
+    """
+    if v is None:
+        return ""
+    if isinstance(v, float):
+        if pd.isna(v):
+            return ""
+        if v.is_integer() and abs(v) < 1e15:
+            return str(int(v))
+    elif isinstance(v, (datetime, date)):
+        if pd.isna(v):
+            return ""
+        if isinstance(v, datetime):
+            if v.time() == time(0) and v.tzinfo is None:
+                return v.date().isoformat()
+            return v.isoformat(sep=" ")
+        return v.isoformat()
+    elif v is pd.NaT:
         return ""
     s = str(v).strip()
-    # Mitigate formula injection when values are opened in Excel from Word tables
-    if s and s[0] in "=+-@\t\r":
-        s = "'" + s
     if len(s) > 32_768:
         s = s[:32_768]
+    return s
+
+
+# Plain numbers ("-114.5", "+1e3") are never formulas — leave them untouched.
+_NUMERIC_TEXT_RE = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$")
+
+
+def _excel_cell_str(v: Any) -> str:
+    """``_cell_str`` plus formula-injection neutralization for Excel/CSV writers only.
+
+    Word output must use ``_cell_str`` (a leading ``'`` would print in the report).
+    """
+    s = _cell_str(v)
+    if s and s[0] in "=+-@\t\r" and not _NUMERIC_TEXT_RE.match(s):
+        s = "'" + s
     return s
 
 
@@ -228,19 +260,27 @@ def _project_row_to_dict(df: pd.DataFrame) -> dict[str, Any]:
 def _filter_records_for_project(
     records: list[dict[str, Any]], project: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    """When table sheets include a link column, keep rows matching this project."""
+    """When table sheets include a link column, keep rows matching this project.
+
+    A link column counts only when the sheet fills it in and the project row has
+    a value for it. If such a column exists but no row matches, the project gets
+    no rows (never another site's rows). Sheets without a usable link column
+    (single-project workbooks) keep all rows.
+    """
     if not records:
         return []
+    has_link = False
     for col in _TABLE_LINK_COLUMNS:
         project_val = _s(project.get(col))
         if not project_val:
             continue
-        if col not in records[0]:
+        if col not in records[0] or not any(_s(r.get(col)) for r in records):
             continue
+        has_link = True
         matched = [r for r in records if _s(r.get(col)) == project_val]
         if matched:
             return matched
-    return records
+    return [] if has_link else records
 
 
 def _index_records_by_link_columns(
@@ -271,6 +311,7 @@ def _filter_records_for_project_indexed(
     """Same semantics as ``_filter_records_for_project`` using prebuilt indexes."""
     if not records:
         return []
+    has_link = False
     for col in _TABLE_LINK_COLUMNS:
         project_val = _s(project.get(col))
         if not project_val:
@@ -278,10 +319,19 @@ def _filter_records_for_project_indexed(
         by_val = indexes.get(col)
         if not by_val:
             continue
+        has_link = True
         matched = by_val.get(project_val)
         if matched:
             return matched
-    return records
+    return [] if has_link else records
+
+
+def _unmatched_table_warning(loop_var: str, project: dict[str, Any]) -> str:
+    label = _s(project.get("site_name") or project.get("project_number") or project.get("uwi"))
+    return (
+        f"Table '{loop_var}' links rows to sites, but none match this ProjectData row"
+        f"{f' ({label})' if label else ''}; the table is empty in this report."
+    )
 
 
 @dataclass
@@ -684,11 +734,14 @@ class ReportEngine:
         )
         if phrase_warnings:
             ctx["_phrase_warnings"] = phrase_warnings
+        table_warnings: list[str] = []
         for loop_var, rows in list_data.items():
             if tables_prefiltered:
                 ctx[loop_var] = rows
             else:
                 ctx[loop_var] = _filter_records_for_project(rows, project)
+                if rows and not ctx[loop_var]:
+                    table_warnings.append(_unmatched_table_warning(loop_var, project))
         for loop_var in runtime.template_loops:
             ctx.setdefault(loop_var, [])
         for legacy in (
@@ -757,6 +810,8 @@ class ReportEngine:
             if not _s(ctx.get("executive_summary")):
                 ctx["executive_summary"] = build_phase1_executive_summary(ctx)
                 ctx["_executive_summary_auto_generated"] = True
+        if table_warnings:
+            ctx["_table_filter_warnings"] = table_warnings
         return ctx
 
     def missing_template_vars(self, context: dict[str, Any]) -> list[str]:
@@ -781,11 +836,14 @@ class ReportEngine:
         context = self.build_context(meta, project_row_index=project_row_index)
         auto_exec = context.pop("_executive_summary_auto_generated", False)
         phrase_warnings = context.pop("_phrase_warnings", [])
+        table_warnings = context.pop("_table_filter_warnings", [])
         row_count = int(context.pop("_project_row_count", 1))
         context.pop("_project_row_index", None)
         excel_row = int(context.pop("_excel_row_number", _excel_row_number(project_row_index)))
         context, clamp_warnings = clamp_context(context)
-        warnings: list[str] = list(clamp_warnings) + list(phrase_warnings)
+        warnings: list[str] = (
+            list(clamp_warnings) + list(phrase_warnings) + list(table_warnings)
+        )
         if row_count > 1:
             warnings.append(
                 f"ProjectData has {row_count} site row(s) (Excel rows 2+); "
@@ -840,11 +898,13 @@ class ReportEngine:
         include_coverage: bool = True,
         appendix_labels_present: set[str] | None = None,
         tables_prefiltered: bool = False,
+        table_filter_warnings: list[str] | None = None,
     ) -> tuple[bytes, list[str], dict[str, Any], "GenerationRecord"]:
         """
         Returns (docx_bytes, warnings, context).
         Warnings include template variables not supplied by Excel/meta
-        (filled with empty string for render).
+        (filled with empty string for render). ``table_filter_warnings`` carries
+        link-column warnings when the caller pre-filtered tables (batch).
         """
         context = self.build_context(
             meta,
@@ -855,11 +915,16 @@ class ReportEngine:
         )
         auto_exec = context.pop("_executive_summary_auto_generated", False)
         phrase_warnings = context.pop("_phrase_warnings", [])
+        table_warnings = context.pop("_table_filter_warnings", []) + list(
+            table_filter_warnings or []
+        )
         context.pop("_project_row_count", None)
         context.pop("_project_row_index", None)
         context.pop("_excel_row_number", None)
         context, clamp_warnings = clamp_context(context, skip_table_cell_clamp=True)
-        warnings: list[str] = list(clamp_warnings) + list(phrase_warnings)
+        warnings: list[str] = (
+            list(clamp_warnings) + list(phrase_warnings) + list(table_warnings)
+        )
         if auto_exec:
             warnings.append(
                 "Executive summary auto-generated from ProjectData (Signum-style structure). "
@@ -878,7 +943,10 @@ class ReportEngine:
         tpl_bio = io.BytesIO(self.template_bytes)
         doc = DocxTemplate(tpl_bio)
         try:
-            doc.render(render_ctx, jinja_env=_JINJA_ENV)
+            # Per-render sandbox: autoescape (Excel text is XML-escaped) + resource limits.
+            doc.render(render_ctx, jinja_env=make_report_jinja_env(strict=True))
+        except TemplateSecurityError as e:
+            raise ValueError(f"Template rendering stopped: {e}") from e
         except TemplateError as e:
             raise ValueError(
                 "Template rendering failed. Check Jinja2 tags and table loops "
@@ -958,6 +1026,11 @@ class ReportEngine:
                 include_coverage=(i == n - 1),
                 appendix_labels_present=appendix_labels_present,
                 tables_prefiltered=True,
+                table_filter_warnings=[
+                    _unmatched_table_warning(loop_var, project_rows[i])
+                    for loop_var, rows in list_data.items()
+                    if rows and not filtered_per_row[i][loop_var]
+                ],
             )
             filename = suggested_download_name(
                 context, meta or {}, project_row_index=i, batch_size=n

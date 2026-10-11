@@ -11,11 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from docxtpl import DocxTemplate
-from jinja2 import Undefined
 from jinja2.exceptions import TemplateError
-from jinja2.sandbox import SandboxedEnvironment
 
 from deliverable_pack import AppendixFile, appendix_manifest_entries
+from report_jinja import make_report_jinja_env
 from report_profile import get_profile_spec
 from security import validate_rendered_output
 
@@ -25,8 +24,6 @@ DEFAULT_APPENDIX_DIR = ROOT / "samples" / "appendices"
 PHASE1_APPENDIX_PROFILES = frozenset({"phase1_alberta", "phase1_devon", "reclamation_certificate"})
 
 DEFAULT_LABELS: tuple[str, ...] | None = None
-
-_JINJA_ENV = SandboxedEnvironment(undefined=Undefined, autoescape=False)
 
 _META_SIDEBAR_KEYS = ("prepared_by", "date_of_issue", "template_version", "report_phase")
 
@@ -196,7 +193,8 @@ def _render_appendix_docx(
 ) -> bytes:
     doc = DocxTemplate(io.BytesIO(template_bytes))
     try:
-        doc.render(render_context, jinja_env=_JINJA_ENV)
+        # Lenient undefined; same autoescape + resource limits as the main report.
+        doc.render(render_context, jinja_env=make_report_jinja_env(strict=False))
     except TemplateError as e:
         raise ValueError(f"Appendix template rendering failed: {e}") from e
     out = io.BytesIO()

@@ -149,13 +149,16 @@ def build_onestop_export_bytes(
     meta: dict[str, str] | None = None,
 ) -> tuple[bytes, bytes, bytes]:
     """Return (summary.json, summary.csv, readme.txt) for OneStop upload prep."""
+    from engine import _excel_cell_str
+
     summary = build_onestop_phase1_summary(context, meta)
     json_bytes = json.dumps(summary, indent=2, sort_keys=True).encode("utf-8")
     csv_buf = io.StringIO()
     writer = csv.writer(csv_buf)
     writer.writerow(["field", "value"])
     for k, v in sorted(summary.items()):
-        writer.writerow([k, v])
+        # CSV opens in Excel: neutralize formula injection here (not in Word context).
+        writer.writerow([k, _excel_cell_str(v)])
     csv_bytes = csv_buf.getvalue().encode("utf-8")
     readme = """OneStop submission folder (manual upload)
 ============================================
