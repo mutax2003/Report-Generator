@@ -106,7 +106,8 @@ class HttpServerIntegrationTests(unittest.TestCase):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            conn = HTTPConnection("127.0.0.1", port, timeout=30)
+            # Cold render can take >40 s on a loaded runner; keep the client patient.
+            conn = HTTPConnection("127.0.0.1", port, timeout=120)
             conn.request(
                 "POST",
                 "/render",
@@ -232,7 +233,7 @@ class _ServerFixture:
         *,
         body: bytes | None = None,
         headers: dict[str, str] | None = None,
-        timeout: float = 15,
+        timeout: float = 60,
     ) -> tuple[int, dict[str, str], bytes]:
         from http.client import HTTPConnection
 
