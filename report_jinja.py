@@ -20,15 +20,23 @@ environment, and ``make_report_jinja_env`` builds one environment per render):
   ``ljust`` / ``rjust`` / ``zfill`` widths, ``%`` and ``str.format`` field widths
   and precisions, ``replace``, ``join``, ``indent``, ``wordwrap``, ``expandtabs``,
   ``batch`` / ``slice`` fill counts and ``sum`` of sequences.
-- ``**`` result size (``MAX_POW_BITS``) and rendered XML per document part
-  (``MAX_RENDERED_PART_CHARS``).
+- ``**`` result size (``MAX_POW_BITS``), integers built by ``*`` / ``+``
+  (``MAX_INT_BITS``), ``lipsum()`` words (``MAX_LIPSUM_WORDS``) and rendered XML
+  per document part (``MAX_RENDERED_PART_CHARS``). ``bytes`` count like ``str``.
+- Text built from containers (``{{ value }}`` output, ``~``, ``string`` /
+  ``pprint`` / ``tojson`` / ``join``) is size-estimated *before* ``str()`` runs,
+  so a list of large lists can't expand to ``MAX_SEQUENCE_LEN`` squared.
+- Wall clock per render (``MAX_RENDER_SECONDS``), checked at every call, filter,
+  operator, unsized loop item and output value: repeated CPU-heavy work (sorting
+  a 1M-item list in a loop) stops at the deadline.
+- ``RecursionError`` / ``OverflowError`` / ``MemoryError`` from a template are
+  reported as ``SecurityError`` (a template problem, not an app crash).
 
-Residual risk: a single pre-checked operation may still transiently allocate up
-to about ``MAX_SEQUENCE_LEN`` x a small factor before its result is checked, and
-CPU-heavy builtins on capped inputs (e.g. sorting a 1M-item list) are bounded by
-input size, not time. Templates are uploaded only by authenticated consultants
-(trusted authors); these limits stop runaway or careless templates, not a
-determined attacker with unlimited template uploads.
+Residual risk: one capped operation can still run for a few seconds or
+transiently allocate about ``MAX_SEQUENCE_LEN`` x a small factor before the next
+check. Templates are uploaded only by authenticated consultants (trusted
+authors); these limits stop runaway or careless templates, not a determined
+attacker with unlimited template uploads.
 """
 
 from __future__ import annotations
@@ -39,6 +47,7 @@ import math
 import operator
 import re
 import string
+import time
 from collections.abc import Callable, Iterator, Sized
 from typing import Any
 
@@ -46,6 +55,7 @@ from docxtpl import DocxTemplate
 from jinja2 import Environment, StrictUndefined, Template, Undefined, nodes
 from jinja2.runtime import LoopContext
 from jinja2.sandbox import SandboxedEnvironment, SecurityError
+from jinja2.utils import generate_lorem_ipsum
 from jinja2.visitor import NodeTransformer
 
 # Total range() items a single render may create (all parts, nested loops included).
@@ -59,11 +69,18 @@ MAX_CALLS = 100_000
 MAX_SEQUENCE_LEN = 1_000_000
 # Largest integer (in bits) a template may build via **.
 MAX_POW_BITS = 4_096
+# Largest integer (in bits) a template may build via * or + (repeated squaring).
+MAX_INT_BITS = 65_536
+# lipsum(n, max=...) words: n paragraphs x up to max words each.
+MAX_LIPSUM_WORDS = 100_000
+# Wall-clock seconds per render (one environment per render).
+MAX_RENDER_SECONDS = 120.0
 # Rendered XML characters per docx part (mirrors MAX_ZIP_UNCOMPRESSED_BYTES).
 MAX_RENDERED_PART_CHARS = 120 * 1024 * 1024
 
-_SEQUENCE_TYPES = (str, list, tuple)
-_SIZED_TYPES = (str, list, tuple, dict, set, frozenset)
+_SEQUENCE_TYPES = (str, bytes, bytearray, list, tuple)
+_SIZED_TYPES = (str, bytes, bytearray, list, tuple, dict, set, frozenset)
+_TEXT_TYPES = (str, bytes, bytearray)
 _MUTABLE_TYPES = (list, dict, set, bytearray)
 
 
@@ -80,6 +97,49 @@ def _check_size(value: Any, what: str = "value") -> Any:
 def _check_width(width: Any, what: str) -> None:
     if isinstance(width, int) and width > MAX_SEQUENCE_LEN:
         raise _too_large(what)
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _text_size_exceeds(value: Any, limit: int = MAX_SEQUENCE_LEN) -> bool:
+    """True when ``str(value)`` would be longer than ``limit`` (estimated, early exit).
+
+    Walks containers without building text; each visited item adds at least one
+    character, so the walk stops after at most ``limit`` steps (shared or
+    self-referencing containers included).
+    """
+    total = 0
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, _TEXT_TYPES):
+            total += len(item) + 1
+        elif isinstance(item, dict):
+            total += 2 + 4 * len(item)
+            if total > limit:
+                return True
+            stack.extend(item.keys())
+            stack.extend(item.values())
+        elif isinstance(item, (list, tuple, set, frozenset)):
+            total += 2 + 2 * len(item)
+            if total > limit:
+                return True
+            stack.extend(item)
+        elif _is_int(item):
+            total += item.bit_length() // 3 + 1
+        else:
+            total += 8
+        if total > limit:
+            return True
+    return False
+
+
+def _check_text_size(value: Any, what: str = "text") -> Any:
+    if isinstance(value, (list, tuple, dict, set, frozenset)) and _text_size_exceeds(value):
+        raise _too_large(what)
+    return value
 
 
 def _check_product(count: int, size: int, what: str) -> None:
@@ -100,6 +160,17 @@ def _check_replace(s: Any, old: Any, new: Any, count: Any = None) -> None:
 def _check_join(sep: Any, items: Any) -> None:
     if isinstance(items, Sized):
         _check_product(len(items) - 1, len(str(sep)), "join() result")
+        _check_text_size(items, "join() result")
+
+
+def _as_width(value: Any) -> int | None:
+    """Int width/precision, including digit strings (``str.format`` nests them as text)."""
+    if _is_int(value):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        digits = value.strip()
+        return MAX_SEQUENCE_LEN + 1 if len(digits) > 18 else int(digits)
+    return None
 
 
 def _int_values(values: Any) -> list[int]:
@@ -107,7 +178,7 @@ def _int_values(values: Any) -> list[int]:
         values = list(values.values())
     elif not isinstance(values, (list, tuple)):
         values = [values]
-    return [v for v in values if isinstance(v, int) and not isinstance(v, bool)]
+    return [w for w in (_as_width(v) for v in values) if w is not None]
 
 
 _PERCENT_SPEC = re.compile(r"%(?:\([^)]*\))?[#0\- +]*(\*|\d+)?(?:\.(\*|\d+))?")
@@ -216,6 +287,12 @@ def _pre_format(a: dict[str, Any]) -> None:
     _check_percent_format(a.get("value"), a.get("args") or a.get("kwargs"))
 
 
+def _pre_stringify(a: dict[str, Any]) -> None:
+    for key in ("s", "value"):
+        if key in a:
+            _check_text_size(a[key], "string conversion")
+
+
 _FILTER_PRECHECKS: dict[str, Callable[[dict[str, Any]], None]] = {
     "center": _pre_center,
     "indent": _pre_indent,
@@ -226,10 +303,15 @@ _FILTER_PRECHECKS: dict[str, Callable[[dict[str, Any]], None]] = {
     "slice": _pre_slice,
     "sum": _pre_sum,
     "format": _pre_format,
+    "string": _pre_stringify,
+    "pprint": _pre_stringify,
+    "tojson": _pre_stringify,
 }
 
 
-def _limit_filter(name: str, func: Callable[..., Any]) -> Callable[..., Any]:
+def _limit_filter(
+    name: str, func: Callable[..., Any], tick: Callable[[], None]
+) -> Callable[..., Any]:
     precheck = _FILTER_PRECHECKS.get(name)
     try:
         sig = inspect.signature(func) if precheck else None
@@ -238,6 +320,7 @@ def _limit_filter(name: str, func: Callable[..., Any]) -> Callable[..., Any]:
 
     @functools.wraps(func)  # keeps jinja_pass_arg (pass_context / eval_ctx / environment)
     def limited(*args: Any, **kwargs: Any) -> Any:
+        tick()
         if precheck is not None and sig is not None:
             try:
                 bound = sig.bind(*args, **kwargs)
@@ -262,8 +345,10 @@ class _BudgetedIterable:
 
     def __iter__(self) -> Iterator[Any]:
         charge = self._env._charge_loop_item
+        tick = self._env._tick
         for item in self._src:
             charge()
+            tick()
             yield item
 
     def __len__(self) -> int:  # loop.length / revindex; TypeError if unsized
@@ -284,6 +369,8 @@ class _LimitTransformer(NodeTransformer):
 
     def visit_Concat(self, node: nodes.Concat) -> nodes.Call:
         self.generic_visit(node)
+        # Each operand is size-estimated before ``~`` turns it into text.
+        node.nodes = [_env_call("check_text_size", n, node.lineno) for n in node.nodes]
         return _env_call("check_value_size", node, node.lineno)
 
 
@@ -293,14 +380,21 @@ class _CappedTemplate(Template):
     def render(self, *args: Any, **kwargs: Any) -> str:
         chunks: list[str] = []
         total = 0
-        for chunk in self.generate(*args, **kwargs):
-            total += len(chunk)
-            if total > MAX_RENDERED_PART_CHARS:
-                raise SecurityError(
-                    "Template output too large "
-                    f"(over {MAX_RENDERED_PART_CHARS:,} characters in one document part)."
-                )
-            chunks.append(chunk)
+        try:
+            for chunk in self.generate(*args, **kwargs):
+                total += len(chunk)
+                if total > MAX_RENDERED_PART_CHARS:
+                    raise SecurityError(
+                        "Template output too large "
+                        f"(over {MAX_RENDERED_PART_CHARS:,} characters in one document part)."
+                    )
+                chunks.append(chunk)
+        except RecursionError as e:
+            raise SecurityError("Template recursion too deep (macro or recursive loop).") from e
+        except OverflowError as e:
+            raise SecurityError("Template number too large.") from e
+        except MemoryError as e:
+            raise SecurityError("Template needs too much memory.") from e
         return "".join(chunks)
 
 
@@ -315,11 +409,18 @@ class LimitedSandboxedEnvironment(SandboxedEnvironment):
         self._range_used = 0
         self._loop_items = 0
         self._calls = 0
+        self._deadline = time.monotonic() + MAX_RENDER_SECONDS
         self.globals["range"] = self._budgeted_range
-        self.filters = {name: _limit_filter(name, f) for name, f in self.filters.items()}
+        self.globals["lipsum"] = self._lipsum
+        self.filters = {
+            name: _limit_filter(name, f, self._tick) for name, f in self.filters.items()
+        }
+        # ``{{ value }}`` output: estimate text size before str() / escaping.
+        self.finalize = self._finalize
         # Stored once so ``call`` can recognise them by identity (not budgeted as calls).
         self.budget_loop_iterable = self._budget_loop_iterable
         self.check_value_size = self._check_value_size
+        self.check_text_size = self._check_operand_text
 
     # -- parse-time rewrite ---------------------------------------------------
     def _parse(self, source: str, name: str | None, filename: str | None) -> nodes.Template:
@@ -337,6 +438,29 @@ class LimitedSandboxedEnvironment(SandboxedEnvironment):
                 f"Template loops too large (range() budget of {MAX_RANGE_BUDGET:,} items exceeded)."
             )
         return rng
+
+    def _tick(self) -> None:
+        if time.monotonic() > self._deadline:
+            raise SecurityError(
+                f"Template rendering took too long (over {MAX_RENDER_SECONDS:.0f} s)."
+            )
+
+    def _lipsum(
+        self, n: int = 5, html: bool = True, min: int = 20, max: int = 100  # noqa: A002
+    ) -> str:
+        if _is_int(n) and _is_int(max) and n * max > MAX_LIPSUM_WORDS:
+            raise SecurityError(
+                f"Template lipsum() too large (limit {MAX_LIPSUM_WORDS:,} words)."
+            )
+        return generate_lorem_ipsum(n=n, html=html, min=min, max=max)
+
+    def _finalize(self, value: Any) -> Any:
+        self._tick()
+        return _check_text_size(value, "output value")
+
+    def _check_operand_text(self, value: Any) -> Any:
+        self._tick()
+        return _check_text_size(value, "concatenation")
 
     def _charge_loop_item(self) -> None:
         self._loop_items += 1
@@ -364,8 +488,13 @@ class LimitedSandboxedEnvironment(SandboxedEnvironment):
 
     # -- sandbox hooks --------------------------------------------------------
     def call(__self, __context: Any, __obj: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: N805
-        if __obj is __self.budget_loop_iterable or __obj is __self.check_value_size:
+        if (
+            __obj is __self.budget_loop_iterable
+            or __obj is __self.check_value_size
+            or __obj is __self.check_text_size
+        ):
             return __obj(*args)
+        __self._tick()
         __self._calls += 1
         if __self._calls > MAX_CALLS:
             raise SecurityError(f"Template makes too many calls (over {MAX_CALLS:,}).")
@@ -374,7 +503,7 @@ class LimitedSandboxedEnvironment(SandboxedEnvironment):
             args = (__self._budget_loop_iterable(args[0]), *args[1:])
         target = getattr(__obj, "__wrapped__", __obj)  # sandbox wraps str.format
         owner = getattr(target, "__self__", None)
-        if isinstance(owner, str):
+        if isinstance(owner, _TEXT_TYPES):
             _check_str_method(owner, getattr(target, "__name__", ""), args, kwargs)
         result = super().call(__context, __obj, *args, **kwargs)
         _check_size(result, "call result")
@@ -383,6 +512,15 @@ class LimitedSandboxedEnvironment(SandboxedEnvironment):
         return result
 
     def call_binop(self, context: Any, operator_: str, left: Any, right: Any) -> Any:
+        self._tick()
+        if operator_ in ("*", "+") and _is_int(left) and _is_int(right):
+            bits = (
+                left.bit_length() + right.bit_length()
+                if operator_ == "*"
+                else max(left.bit_length(), right.bit_length()) + 1
+            )
+            if bits > MAX_INT_BITS:
+                raise SecurityError("Template number too large.")
         if operator_ == "*":
             for seq, n in ((left, right), (right, left)):
                 if isinstance(seq, _SEQUENCE_TYPES) and isinstance(n, int):

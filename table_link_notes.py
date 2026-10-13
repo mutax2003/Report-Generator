@@ -2,11 +2,13 @@
 Narrative caveats for tables whose rows could not be linked to the current site.
 
 ``engine`` records link-filter problems in ``ctx["_table_link_issues"]`` as
-``{loop_var: {"status": "unmatched" | "partial", "sheet": str, "column": str}}``:
+``{loop_var: {"status": "unmatched" | "partial" | "fallback", "sheet": str, "column": str}}``:
 
 - ``unmatched`` — a multi-site workbook links table rows to sites, but no row
   matches this site, so the table is empty in this report.
 - ``partial`` — some rows matched, but rows with a blank link cell were left out.
+- ``fallback`` — single-site workbook whose rows are labelled for a different
+  site; all rows were kept, but they may not belong to this site.
 
 Auto-generated narrative must then not state that nothing exceeded criteria; it
 uses :func:`link_caveat` instead.
@@ -17,7 +19,7 @@ from __future__ import annotations
 from typing import Any
 
 LINK_ISSUES_KEY = "_table_link_issues"
-_NARRATIVE_STATUSES = ("unmatched", "partial")
+_NARRATIVE_STATUSES = ("unmatched", "partial", "fallback")
 
 
 def link_issue(ctx: dict[str, Any], *loop_vars: str) -> dict[str, Any] | None:
@@ -36,6 +38,12 @@ def link_caveat(info: dict[str, Any], what: str = "Laboratory results") -> str:
     """Sentence (no trailing period) replacing an absence-of-exceedance statement."""
     sheet = str(info.get("sheet") or "the linked sheet")
     column = str(info.get("column") or "link")
+    if info.get("status") == "fallback":
+        return (
+            f"{what} in {sheet} are labelled for a different site ({column} does not "
+            "match this site) — all rows were used, so no conclusion about exceedances "
+            "has been drawn until the QP confirms they belong to this site"
+        )
     if info.get("status") == "partial":
         return (
             f"Some {what[:1].lower() + what[1:]} could not be matched to this site "

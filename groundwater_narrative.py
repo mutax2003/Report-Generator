@@ -61,10 +61,15 @@ def enrich_groundwater_context(ctx: dict[str, Any]) -> None:
             + ", ".join(unique_exc[:8])
             + ("..." if len(unique_exc) > 8 else "")
         )
-    else:
+    elif gw_lab:
         ctx["exceedance_summary"] = (
             "No groundwater analytical results exceeded applicable screening guidelines "
             "for the parameters evaluated."
+        )
+    else:
+        ctx["exceedance_summary"] = (
+            "No groundwater analytical results were provided for this site; "
+            "no conclusion about exceedances has been drawn."
         )
     issue = link_issue(ctx, "groundwater_results", "lab_results")
     if issue:

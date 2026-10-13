@@ -245,6 +245,20 @@ class TestSandboxBypasses(unittest.TestCase):
             "{% for x in [1, 1] recursive %}{% if loop.depth < 40 %}{{ loop([1, 1]) }}"
             "{% endif %}{% endfor %}"
         ),
+        # QA round 2: integer growth, bytes, lipsum, string widths, containers -> text
+        "int_squaring": (
+            "{% set ns = namespace(x=3) %}{% for i in range(30) %}"
+            "{% set ns.x = ns.x * ns.x %}{% endfor %}"
+        ),
+        "bytes_repetition": "{{ ('a'.encode() * 300000000)|length }}",
+        "bytes_center": "{{ 'x'.encode().center(300000000)|length }}",
+        "lipsum_huge": "{{ lipsum(200000, false, 50, 100)|length }}",
+        "format_string_width": "{{ '{:>{}}'.format('x', '300000000') }}",
+        "nested_list_output": "{% set l = [0] * 1000000 %}{{ [l] * 600 }}",
+        "nested_list_string_filter": "{% set l = [0] * 1000000 %}{{ ([l] * 600)|string|length }}",
+        "nested_list_tilde": "{% set l = [0] * 1000000 %}{{ 'x' ~ ([l] * 600) }}",
+        "unbounded_macro_recursion": "{% macro f(n) %}{{ f(n + 1) }}{% endmacro %}{{ f(0) }}",
+        "float_overflow": "{{ 10.0 ** 400 }}",
     }
 
     def test_each_bypass_is_blocked_quickly(self) -> None:
@@ -277,6 +291,26 @@ class TestSandboxBypasses(unittest.TestCase):
         with self.assertRaises(SecurityError):
             env.from_string(self.BLOCKED["macro_fanout"]).render()
         self.assertEqual(env._calls, MAX_CALLS + 1)
+
+    def test_render_deadline_stops_repeated_heavy_work(self) -> None:
+        import time
+        from unittest import mock
+
+        from jinja2.sandbox import SecurityError
+
+        import report_jinja
+        from report_jinja import make_report_jinja_env
+
+        src = (
+            "{% set l = range(50000)|list|reverse|list %}"
+            "{% for i in range(1000) %}{{ l|sort|length }}{% endfor %}"
+        )
+        with mock.patch.object(report_jinja, "MAX_RENDER_SECONDS", 0.2):
+            start = time.monotonic()
+            with self.assertRaises(SecurityError) as cm:
+                make_report_jinja_env().from_string(src).render()
+        self.assertIn("took too long", str(cm.exception))
+        self.assertLess(time.monotonic() - start, 5.0)
 
     def test_bypass_through_engine_is_a_clean_error(self) -> None:
         xb = _xlsx({"ProjectData": [["site_name"], ["S"]], "LabResults": [LAB_HDR]})
@@ -612,6 +646,7 @@ class TestAppendixAndOnestopByProfile(unittest.TestCase):
             manifest = json.loads(zf.read("report_manifest.json").decode("utf-8"))
         self.assertFalse([n for n in names if n.startswith("onestop/")], names)
         self.assertFalse([n for n in names if n.startswith("appendices/")], names)
+        self.assertFalse([n for n in names if n.startswith("qp_templates/")], names)
         self.assertTrue(record.report_type)
         self.assertEqual(manifest["report_type"], record.report_type)
 
@@ -781,7 +816,32 @@ class TestLinkMatching(unittest.TestCase):
         _d, warnings, ctx, _r = _phase2_render(xb)
         self.assertEqual(len(ctx["lab_results"]), 3)
         self.assertIn("Benzene", ctx["exceedance_summary"])
+        self.assertIn("labelled for a different site", ctx["exceedance_summary"])
         self.assertTrue(any("one site" in w and "LabResults" in w for w in warnings), warnings)
+
+    def test_fallback_without_exceedances_does_not_claim_none(self) -> None:
+        xb = _xlsx(
+            {
+                "ProjectData": [["site_name"], ["Site A"]],
+                "LabResults": [
+                    ["site_name", *LAB_HDR],
+                    ["Other Site", "Benzene", 0.001, "mg/kg", 0.005, "N"],
+                ],
+            }
+        )
+        tb = _template(["SUMMARY: {{ exceedance_summary }}"], lab_table=True)
+        _d, _w, ctx, _r = ReportEngine(xb, tb).render({**META, "report_type": "phase2_esa"})
+        self.assertEqual(len(ctx["lab_results"]), 1)
+        self.assertNotIn(NO_EXC_PHASE2, ctx["exceedance_summary"])
+        self.assertIn("labelled for a different site", ctx["exceedance_summary"])
+
+    def test_empty_lab_sheet_does_not_claim_no_exceedances(self) -> None:
+        xb = _xlsx({"ProjectData": [["site_name"], ["Site A"]], "LabResults": [LAB_HDR]})
+        tb = _template(["SUMMARY: {{ exceedance_summary }}"], lab_table=True)
+        docx, _w, ctx, _r = ReportEngine(xb, tb).render({**META, "report_type": "phase2_esa"})
+        self.assertEqual(ctx["lab_results"], [])
+        self.assertNotIn(NO_EXC_PHASE2, _plain_text(docx))
+        self.assertIn("No laboratory analytical results were provided", ctx["exceedance_summary"])
 
     def test_licence_well_name_vs_monitoring_well_single_site(self) -> None:
         xb = _xlsx(

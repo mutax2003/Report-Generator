@@ -54,10 +54,16 @@ def enrich_phase2_context(ctx: dict[str, Any]) -> None:
             + ", ".join(unique_exc[:10])
             + ("..." if len(unique_exc) > 10 else "")
         )
-    else:
+    elif rows:
         ctx["exceedance_summary"] = (
             "No analytical results exceeded applicable screening criteria "
             "for the parameters evaluated."
+        )
+    else:
+        # Empty LabResults: nothing was evaluated, so nothing can be said to comply.
+        ctx["exceedance_summary"] = (
+            "No laboratory analytical results were provided for this site; "
+            "no conclusion about exceedances has been drawn."
         )
     issue = link_issue(ctx, "lab_results")
     if issue:

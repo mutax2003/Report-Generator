@@ -308,7 +308,11 @@ def write_deliverable_to_zip(
             _zip_path(path_prefix, "onestop/SUBMISSION_LAYOUT.txt"),
             build_submission_folder_readme(labels),
         )
-    _write_qp_templates(zf, path_prefix=path_prefix)
+    # Ecoventure Phase I workbook / letter / DWDA form: Phase I deliverables only.
+    if package.render_context is None or onestop_export_applies(
+        package.render_context, package.render_meta
+    ):
+        _write_qp_templates(zf, path_prefix=path_prefix)
     _write_qp_checklists(zf, package, path_prefix=path_prefix)
 
 
