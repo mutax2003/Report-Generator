@@ -26,7 +26,7 @@ The application accepts **untrusted uploads** (Excel and Word) from internal use
 - Magic bytes `PK\x03\x04` required.
 - Excel must contain spreadsheet-related parts.
 - Template must contain `word/document.xml`.
-- Max 5,000 ZIP members; decompressed total capped (120 MB read budget).
+- Max 5,000 ZIP members; decompressed total capped at 120 MB, checked against every member's declared size before any reader opens the file.
 - Rejects `..` and absolute paths in member names.
 - Rejects encrypted ZIP entries.
 - Compression ratio check (ratio > 80 flagged as bomb).

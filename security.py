@@ -161,8 +161,16 @@ def inspect_zip_archive(data: bytes, *, purpose: str) -> list[str]:
                 f"Archive has too many entries ({len(names)}; max {MAX_ZIP_MEMBERS})."
             )
 
+        declared_total = 0
         for info in zf.infolist():
             _check_zip_member_metadata(info)
+            declared_total += info.file_size
+        # Readers (openpyxl, docxtpl) extract every member, not just the ones
+        # checked below, so cap the declared total up front.
+        if declared_total > _zip_uncompressed_limit():
+            raise SecurityError(
+                "Archive decompressed size exceeds limit (possible zip bomb)."
+            )
 
         if purpose == "docx":
             if not any(n.lower() == _DOCX_REQUIRED_PART for n in names):
