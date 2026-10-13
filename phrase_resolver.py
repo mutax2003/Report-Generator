@@ -73,11 +73,18 @@ def phrase_rows_from_dataframe(df: pd.DataFrame) -> tuple[tuple[str, str, str], 
     """Parse PhraseCatalog columns phrase_key, option_id, text from an open sheet."""
     if df.empty or len(df.columns) < 3:
         return ()
+    def cell(v: Any) -> str:
+        # Blank cells arrive as NaN; str(NaN) would put a literal "nan" in the report.
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return ""
+        return str(v).strip()
+
     rows: list[tuple[str, str, str]] = []
     for row in df.itertuples(index=False, name=None):
-        key = _norm_key(row[0])
-        opt = str(row[1]).strip() if row[1] is not None else ""
-        text = str(row[2]).strip() if row[2] is not None else ""
+        raw_key = cell(row[0])
+        key = _norm_key(raw_key) if raw_key else ""
+        opt = cell(row[1])
+        text = cell(row[2])
         if key and opt and text:
             rows.append((key, opt, text))
     return tuple(rows)
@@ -94,7 +101,7 @@ def _parse_phrase_catalog_rows(excel_bytes: bytes) -> tuple[tuple[str, str, str]
     with xl:
         if PHRASE_CATALOG_SHEET not in xl.sheet_names:
             return ()
-        df = xl.parse(PHRASE_CATALOG_SHEET, header=0)
+        df = xl.parse(PHRASE_CATALOG_SHEET, header=0, dtype=object)
     return phrase_rows_from_dataframe(df)
 
 

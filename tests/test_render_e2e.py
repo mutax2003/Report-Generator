@@ -52,12 +52,20 @@ class TestRenderE2E(unittest.TestCase):
         self.assertEqual(text.count("Analyte"), 1)
         self.assertEqual(text.count("Exceedance"), 1)
 
-    def test_formula_prefix_in_cell_str(self) -> None:
-        from engine import _cell_str
+    def test_formula_prefix_only_for_excel_writers(self) -> None:
+        from engine import _cell_str, _excel_cell_str
 
-        self.assertEqual(_cell_str("=cmd|'/c calc'!A0"), "'=cmd|'/c calc'!A0")
-        self.assertEqual(_cell_str("+1"), "'+1")
-        self.assertEqual(_cell_str("normal"), "normal")
+        self.assertEqual(_excel_cell_str("=cmd|'/c calc'!A0"), "'=cmd|'/c calc'!A0")
+        self.assertEqual(_excel_cell_str("+1+cmd|' /C calc'!A0"), "'+1+cmd|' /C calc'!A0")
+        self.assertEqual(_excel_cell_str("@SUM(A1)"), "'@SUM(A1)")
+        self.assertEqual(_excel_cell_str("normal"), "normal")
+        # Plain numbers are never formulas — never altered.
+        self.assertEqual(_excel_cell_str("-114.5"), "-114.5")
+        self.assertEqual(_excel_cell_str(-0.3), "-0.3")
+        # Word context never gets the apostrophe prefix.
+        self.assertEqual(_cell_str("-114.5"), "-114.5")
+        self.assertEqual(_cell_str(-114.5), "-114.5")
+        self.assertEqual(_cell_str("=1+1"), "=1+1")
 
 
 if __name__ == "__main__":
