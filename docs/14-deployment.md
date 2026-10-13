@@ -154,7 +154,7 @@ Streamlit has no built-in Entra SSO. Use one of these patterns:
 1. Install Git, Python 3.11+, or Docker Desktop.
 2. Clone `https://github.com/mutax2003/Report-Generator.git` to `C:\Apps\Report-Generator`.
 3. Follow [17-server-update-runbook.md](17-server-update-runbook.md) for venv + `streamlit run`.
-4. Run Streamlit as a **Windows Service** (NSSM) or scheduled task at logon.
+4. Run Streamlit as a **Windows Service** (NSSM) or scheduled task at logon, with **`ESA_HOSTED_MODE=1`** in the service environment. This hides the local-folder workflow and the personal **Claude subscription** AI provider, so one Claude sign-in on the server never serves every user.
 5. IIS or Application Proxy in front for HTTPS + Entra.
 
 ## Streamlit Community Cloud (tester share URL)

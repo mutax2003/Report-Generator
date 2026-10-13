@@ -97,14 +97,14 @@ Anthropic's terms let a subscription be used by third-party tools **only through
 
    Type `/login`, choose **Claude account**, finish Anthropic's sign-in page, then `/exit`. Check it with `claude auth status`: you should see `"loggedIn": true` and your plan.
 3. In the app, open sidebar **AI options** → **AI provider** → **My Claude account (via Claude Code)**. The caption shows your plan (e.g. *Claude Team*) and `LLM ready`.
-4. **Claude Pro / Max only.** These are consumer plans. Before using client data, turn off **Help improve Claude** at claude.ai → Settings → Privacy, then tick **I've checked my Claude Max privacy settings**. Team / Enterprise seats are under commercial terms and skip this step.
-5. Keep **Use LLM when available** on and use the AI tab as usual. Each AI action runs one Claude Code turn and counts toward your plan's usage limits. If a call fails (limit reached, signed out, timeout), the app falls back to offline heuristics and shows **Last Claude Code error** in AI options. Use **Re-check sign-in** after `/login`.
+4. **Anything but Team / Enterprise** (Pro, Max, or a plan Claude Code doesn't report). These are consumer plans. Before using client data, turn off **Help improve Claude** at claude.ai → Settings → Privacy, then tick **I've checked my Claude Max privacy settings**. Team / Enterprise seats are under commercial terms and skip this step. The provider only runs when Claude Code is signed in with a **Claude account** directly with Anthropic. An API-key, Bedrock or Vertex sign-in is refused; use `AI_PROVIDER=anthropic` for API billing.
+5. Keep **Use LLM when available** on and use the AI tab as usual. Each LLM call runs one Claude Code turn and counts toward your plan's usage limits. Batch features such as **Analyze folder** make several calls. If a call fails (limit reached, signed out, timeout), the app falls back to offline heuristics, skips further Claude calls for 2 minutes, and shows **Last Claude Code error** in AI options. Use **Re-check sign-in** after `/login` to retry straight away.
 
 How it runs: `claude -p --output-format json --no-session-persistence --safe-mode --tools ""` with a system-prompt file, the prompt on stdin, and an empty temp folder as the working directory.
 - No tools, MCP servers, plugins, hooks or skills.
 - Your personal `CLAUDE.md` and memory are not loaded.
 - No session is saved.
-- `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` are removed from the child environment so the call bills your subscription, not an API key.
+- `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_CODE_USE_BEDROCK` / `_VERTEX` / `_FOUNDRY` are removed from the child environment. The call therefore uses your own `/login`, never a key or token the app could pass along.
 
 | Setting (env or secrets) | Default | Purpose |
 |--------------------------|---------|---------|
@@ -114,7 +114,13 @@ How it runs: `claude -p --output-format json --no-session-persistence --safe-mod
 | `ESA_CLAUDE_CONSUMER_ACK = "1"` | off | Scripts: confirms the Pro / Max privacy step above |
 | `ESA_CLAUDE_CODE_TIMEOUT_SEC` | `180` | Per-call limit (10–900 s); the whole process tree is killed on timeout |
 
-**Blocked on shared hosts.** When `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` is set, or the app runs in a container, the picker is hidden and `claude_code` refuses to run. One person's sign-in must never serve other users. Use `AI_PROVIDER=anthropic` with an API key there.
+**Blocked on shared hosts.** The picker is hidden and `claude_code` refuses to run when any of these hold:
+- `ESA_HOSTED_MODE`, `ESA_DISABLE_FOLDER_WORKFLOW` or `ESA_BIND_ALL` is set;
+- `ESA_API_KEY` is set (the HTTP render server);
+- the app runs in a container;
+- the browser is not on the same PC, e.g. a colleague opens `http://<your-pc>:8501` over the LAN.
+
+One person's sign-in must never serve other users. Use `AI_PROVIDER=anthropic` with an API key there. A reverse proxy on the same machine looks local, so always set `ESA_HOSTED_MODE=1` on any shared server.
 
 ### CLI without LLM
 

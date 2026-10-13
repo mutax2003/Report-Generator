@@ -10,7 +10,15 @@ import streamlit as st
 
 from ai import ai_status_message
 from ai import claude_code
-from ai.config import PROVIDER_CHOICE_AUTO, LlmSettings, ai_available, resolve_llm_settings
+from ai.config import (
+    PROVIDER_CHOICE_AUTO,
+    SESSION_CONSUMER_ACK_KEY,
+    SESSION_PROVIDER_KEY,
+    LlmSettings,
+    ai_available,
+    claude_code_blocked,
+    resolve_llm_settings,
+)
 from ai.consistency import check_consistency
 from ai.copilot import explain_preflight
 from ai.exceedance_notes import notes_for_lab_rows
@@ -213,20 +221,47 @@ def _reset_llm_toggle() -> None:
     st.session_state.pop("ai_use_llm", None)
 
 
+def _save_provider_choice() -> None:
+    st.session_state[SESSION_PROVIDER_KEY] = st.session_state.get("ai_provider_choice")
+    _reset_llm_toggle()
+
+
+def _save_consumer_ack() -> None:
+    st.session_state[SESSION_CONSUMER_ACK_KEY] = bool(
+        st.session_state.get("claude_code_consumer_ack")
+    )
+    _reset_llm_toggle()
+
+
+def _seed_widget(widget_key: str, saved_key: str, default: object) -> None:
+    """Streamlit drops widget state on runs that skip the widget — restore it."""
+    if widget_key not in st.session_state:
+        st.session_state[widget_key] = st.session_state.get(saved_key, default)
+
+
 def _render_provider_picker() -> None:
     """Local PCs only: let a consultant use their own Claude Max / Team plan."""
     from ui.workflow_mode import hosted_mode_enabled
 
-    if hosted_mode_enabled():
-        # Shared hosts must never run one person's Claude sign-in for everyone.
-        st.session_state.pop("ai_provider_choice", None)
+    if hosted_mode_enabled() or claude_code_blocked():
+        # Shared hosts / remote viewers must never drive one person's Claude sign-in.
+        for key in (
+            "ai_provider_choice",
+            SESSION_PROVIDER_KEY,
+            "claude_code_consumer_ack",
+            SESSION_CONSUMER_ACK_KEY,
+        ):
+            st.session_state.pop(key, None)
         return
+    _seed_widget("ai_provider_choice", SESSION_PROVIDER_KEY, PROVIDER_CHOICE_AUTO)
+    if st.session_state["ai_provider_choice"] not in _PROVIDER_CHOICES:
+        st.session_state["ai_provider_choice"] = PROVIDER_CHOICE_AUTO
     st.selectbox(
         "AI provider",
         options=list(_PROVIDER_CHOICES),
         format_func=_PROVIDER_CHOICES.__getitem__,
         key="ai_provider_choice",
-        on_change=_reset_llm_toggle,
+        on_change=_save_provider_choice,
         help=(
             "**My Claude account** runs Claude Code on this PC with your own Claude "
             "Max / Team sign-in — the app never sees a password or token. "
@@ -237,11 +272,11 @@ def _render_provider_picker() -> None:
 
 def _render_claude_code_controls(settings: LlmSettings) -> None:
     if settings.consumer_plan:
-        # Always rendered for consumer plans so the widget keeps its ticked state.
+        _seed_widget("claude_code_consumer_ack", SESSION_CONSUMER_ACK_KEY, False)
         st.checkbox(
             f"I've checked my {settings.account} privacy settings",
             key="claude_code_consumer_ack",
-            on_change=_reset_llm_toggle,
+            on_change=_save_consumer_ack,
             help=(
                 "Claude Pro / Max are consumer plans. Before sending client project data, "
                 "turn off **Help improve Claude** at claude.ai → Settings → Privacy (or use "

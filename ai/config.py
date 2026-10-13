@@ -12,6 +12,8 @@ consultant's own signed-in Claude Code CLI — see ai/claude_code.py. LLM stays 
 
 from __future__ import annotations
 
+import ipaddress
+import math
 import os
 import urllib.error
 import urllib.request
@@ -48,10 +50,14 @@ _SECRET_KEYS = (
     "ESA_CLAUDE_CODE_TIMEOUT_SEC",
     "ESA_HOSTED_MODE",
     "ESA_DISABLE_FOLDER_WORKFLOW",
+    "ESA_BIND_ALL",
 )
 
-# Sidebar picker values (session_state["ai_provider_choice"]); "auto" = secrets/env.
+# Sidebar picker values; "auto" = secrets/env. The UI mirrors its widgets into these
+# non-widget keys so the choice survives runs where the sidebar is not rendered.
 PROVIDER_CHOICE_AUTO = "auto"
+SESSION_PROVIDER_KEY = "ai_provider_selected"
+SESSION_CONSUMER_ACK_KEY = "claude_code_ack_selected"
 _TRUTHY = ("1", "true", "yes")
 
 # AI_PROVIDER=ollama|groq|gemini|together|anthropic|claude_code|openai|azure|offline
@@ -183,12 +189,36 @@ def _secrets_snapshot() -> dict[str, str]:
     snap = {key: _secret(key) for key in _SECRET_KEYS}
     state = _session_state()
     if state is not None:
-        choice = str(state.get("ai_provider_choice") or "").strip().lower()
+        choice = str(state.get(SESSION_PROVIDER_KEY) or "").strip().lower()
         if choice and choice != PROVIDER_CHOICE_AUTO:
             snap["AI_PROVIDER"] = choice
-        if state.get("claude_code_consumer_ack"):
+        if state.get(SESSION_CONSUMER_ACK_KEY):
             snap["ESA_CLAUDE_CONSUMER_ACK"] = "1"
     return snap
+
+
+def remote_browser_session() -> bool:
+    """True when the current Streamlit viewer is not on this machine (LAN / proxy / cloud).
+
+    ``st.context.ip_address`` is None for localhost connections; anything else means
+    someone else's browser would be driving this PC's Claude sign-in.
+    """
+    if _session_state() is None:
+        return False
+    try:
+        import streamlit as st
+
+        ip = st.context.ip_address
+    except Exception:
+        return False
+    if not isinstance(ip, str) or not ip:
+        return False
+    try:
+        addr = ipaddress.ip_address(ip.split("%")[0])
+    except ValueError:
+        return True
+    mapped = getattr(addr, "ipv4_mapped", None)
+    return not (mapped or addr).is_loopback
 
 
 def _snap(snap: dict[str, str], name: str) -> str:
@@ -260,21 +290,31 @@ def _resolve_api_key(provider: str, preset: dict[str, str | bool], snap: dict[st
     return ""
 
 
-def _hosted_snapshot(snap: dict[str, str]) -> bool:
+def _shared_host_snapshot(snap: dict[str, str]) -> bool:
+    """Hosted mode, LAN binding, HTTP API key or a container: a shared server."""
     from security import folder_workflow_disabled
 
-    if folder_workflow_disabled():
+    if folder_workflow_disabled() or os.environ.get("ESA_API_KEY", "").strip():
+        return True
+    if claude_code.running_in_container():
         return True
     return any(
         _snap(snap, key).lower() in _TRUTHY
-        for key in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW")
+        for key in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW", "ESA_BIND_ALL")
     )
+
+
+def claude_code_blocked() -> bool:
+    """Personal Claude sign-in must never serve a shared host or a remote browser."""
+    return _shared_host_snapshot(_secrets_snapshot()) or remote_browser_session()
 
 
 def _timeout_from_snapshot(snap: dict[str, str]) -> float:
     try:
         value = float(_snap(snap, "ESA_CLAUDE_CODE_TIMEOUT_SEC") or claude_code.DEFAULT_TIMEOUT_SEC)
     except ValueError:
+        value = claude_code.DEFAULT_TIMEOUT_SEC
+    if not math.isfinite(value):
         value = claude_code.DEFAULT_TIMEOUT_SEC
     return min(max(value, 10.0), 900.0)
 
@@ -291,13 +331,14 @@ def _claude_code_settings(snap: dict[str, str]) -> LlmSettings:
         free=False,
         timeout_sec=_timeout_from_snapshot(snap),
     )
-    if _hosted_snapshot(snap) or claude_code.running_in_container():
+    if _shared_host_snapshot(snap) or remote_browser_session():
         return LlmSettings(
             **base,
             unavailable_reason=(
-                "Claude subscription works only on a consultant's own PC — it is disabled "
-                "on hosted / shared servers and containers, where one sign-in would serve "
-                "everyone. Use `AI_PROVIDER=anthropic` with an Anthropic API key there."
+                "Claude subscription works only on a consultant's own PC, opened from that "
+                "PC's browser — it is disabled on hosted / shared servers, containers and "
+                "for remote viewers, where one sign-in would serve everyone. Use "
+                "`AI_PROVIDER=anthropic` with an Anthropic API key there."
             ),
         )
     cli = claude_code.find_cli(_snap(snap, "CLAUDE_CLI_PATH"))
@@ -313,6 +354,16 @@ def _claude_code_settings(snap: dict[str, str]) -> LlmSettings:
             cli_path=cli,
             unavailable_reason=f"Claude Code is not signed in{detail}. {claude_code.INSTALL_HINT}",
         )
+    if not status.claude_account:
+        return LlmSettings(
+            **base,
+            cli_path=cli,
+            unavailable_reason=(
+                "Claude Code is signed in with an API key or cloud provider, not a Claude "
+                f"account. Run `claude` → `/login` and choose **Claude account**. "
+                "For API-key billing use `AI_PROVIDER=anthropic` instead."
+            ),
+        )
     if status.consumer_plan and _snap(snap, "ESA_CLAUDE_CONSUMER_ACK").lower() not in _TRUTHY:
         return LlmSettings(
             **base,
@@ -320,7 +371,7 @@ def _claude_code_settings(snap: dict[str, str]) -> LlmSettings:
             account=status.plan_label,
             consumer_plan=True,
             unavailable_reason=(
-                f"{status.plan_label} is a consumer plan. Confirm the privacy note in "
+                f"{status.plan_label} is not a Team / Enterprise seat. Confirm the privacy note in "
                 "**AI options** (or set `ESA_CLAUDE_CONSUMER_ACK=1` for scripts) before "
                 "sending project data."
             ),
