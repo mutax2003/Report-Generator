@@ -58,6 +58,8 @@ _STRIPPED_ENV = frozenset(
         "CLAUDE_CODE_USE_FOUNDRY",
     }
 )
+# Machine setup the CLI needs to start (Windows looks up Git Bash with it).
+_KEPT_CLAUDE_CODE_ENV = frozenset({"CLAUDE_CODE_GIT_BASH_PATH"})
 
 PROMPT_FILE = "prompt.txt"
 SYSTEM_PROMPT_FILE = "system_prompt.txt"
@@ -155,7 +157,18 @@ def running_in_container() -> bool:
 
 
 def _child_env() -> dict[str, str]:
-    env = {k: v for k, v in os.environ.items() if k.upper() not in _STRIPPED_ENV}
+    env = {}
+    for key, value in os.environ.items():
+        upper = key.upper()
+        if upper in _STRIPPED_ENV:
+            continue
+        # Started from inside a Claude Code session: don't hand its session id,
+        # messaging token or host-auth hooks to the child.
+        if upper == "CLAUDECODE" or (
+            upper.startswith("CLAUDE_CODE_") and upper not in _KEPT_CLAUDE_CODE_ENV
+        ):
+            continue
+        env[key] = value
     # The consultant's personal CLAUDE.md / memory must not steer report drafting.
     env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] = "1"
     env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
@@ -310,7 +323,7 @@ def run_prompt(
         logger.warning("Claude Code call timed out after %ss", timeout)
         return None
     except Exception as exc:  # never let a CLI problem break the UI — fall back offline
-        _set_last_error(f"Could not run Claude Code: {exc}")
+        _set_last_error(f"Could not run Claude Code: {exc}", cooldown=True)
         logger.warning("Claude Code could not run: %s", exc)
         return None
 
@@ -320,7 +333,7 @@ def run_prompt(
         detail = ((proc.stderr or proc.stdout or "").strip().splitlines()[-1:] or [""])[0][:300]
         if "unknown option" in detail:
             detail += " — update Claude Code (`claude update`)"
-        _set_last_error(f"Claude Code exited with code {proc.returncode}: {detail}")
+        _set_last_error(f"Claude Code exited with code {proc.returncode}: {detail}", cooldown=True)
         logger.warning("Claude Code returned non-JSON output (exit %s)", proc.returncode)
         return None
 

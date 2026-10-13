@@ -263,15 +263,25 @@ class ClaudeCodeRunTests(unittest.TestCase):
             "ANTHROPIC_BASE_URL": "https://proxy",
             "CLAUDE_CODE_OAUTH_TOKEN": "oat",
             "CLAUDE_CODE_USE_BEDROCK": "1",
+            # Host Claude Code session (app started from inside Claude Code)
+            "CLAUDECODE": "1",
+            "CLAUDE_CODE_SESSION_ID": "sess",
+            "CLAUDE_CODE_MESSAGING_TOKEN": "msg",
+            "CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH": "1",
+            "CLAUDE_CODE_DISABLE_CLAUDE_MDS": "0",
             "PATH": "x",
+            "CLAUDE_CODE_GIT_BASH_PATH": "C:/Git/bin/bash.exe",
         }
+        kept = {"PATH", "CLAUDE_CODE_GIT_BASH_PATH", "CLAUDE_CODE_DISABLE_CLAUDE_MDS"}
         with patch.dict(os.environ, injected):
             env = claude_code._child_env()
         for key in injected:
-            if key != "PATH":
+            if key not in kept:
                 self.assertNotIn(key, env)
         self.assertEqual(env["PATH"], "x")
+        self.assertEqual(env["CLAUDE_CODE_GIT_BASH_PATH"], "C:/Git/bin/bash.exe")
         self.assertEqual(env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"], "1")
+        self.assertEqual(env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"], "1")
 
     def test_success_returns_result_text_and_prompt_goes_via_file(self) -> None:
         out = json.dumps({"type": "result", "is_error": False, "result": '  {"a": 1}\n'})
@@ -301,8 +311,10 @@ class ClaudeCodeRunTests(unittest.TestCase):
 
     def test_old_cli_gets_update_hint(self) -> None:
         proc = _completed("", returncode=1, stderr="error: unknown option '--safe-mode'")
-        with patch("ai.claude_code._run", return_value=proc):
+        with patch("ai.claude_code._run", return_value=proc) as run:
             self.assertIsNone(claude_code.run_prompt(cli=CLI, system="s", user="u"))
+            self.assertIsNone(claude_code.run_prompt(cli=CLI, system="s", user="u"))
+        self.assertEqual(run.call_count, 1, "a broken CLI should not be respawned during cooldown")
         self.assertIn("claude update", claude_code.last_error())
 
     def test_timeout_returns_none(self) -> None:
@@ -311,8 +323,10 @@ class ClaudeCodeRunTests(unittest.TestCase):
         self.assertIn("within 3 s", claude_code.last_error())
 
     def test_unexpected_exception_falls_back(self) -> None:
-        with patch("ai.claude_code._run", side_effect=ValueError("bad")):
+        with patch("ai.claude_code._run", side_effect=ValueError("bad")) as run:
             self.assertIsNone(claude_code.run_prompt(cli=CLI, system="s", user="u"))
+            self.assertIsNone(claude_code.run_prompt(cli=CLI, system="s", user="u"))
+        self.assertEqual(run.call_count, 1)
         self.assertIn("bad", claude_code.last_error())
 
     def test_missing_cli_returns_none(self) -> None:

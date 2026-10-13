@@ -104,7 +104,7 @@ How it runs: `claude -p --output-format json --no-session-persistence --safe-mod
 - No tools, MCP servers, plugins, hooks or skills.
 - Your personal `CLAUDE.md` and memory are not loaded.
 - No session is saved.
-- `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_CODE_USE_BEDROCK` / `_VERTEX` / `_FOUNDRY` are removed from the child environment. The call therefore uses your own `/login`, never a key or token the app could pass along.
+- `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_CODE_USE_BEDROCK` / `_VERTEX` / `_FOUNDRY` are removed from the child environment. The call therefore uses your own `/login`, never a key or token the app could pass along. Session variables from a Claude Code window you launched the app from (`CLAUDECODE`, `CLAUDE_CODE_*` except `CLAUDE_CODE_GIT_BASH_PATH`) are dropped too.
 
 | Setting (env or secrets) | Default | Purpose |
 |--------------------------|---------|---------|

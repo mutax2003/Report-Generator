@@ -756,7 +756,7 @@ ANTHROPIC_API_KEY = &quot;sk-ant-...&quot;
 <li>No tools, MCP servers, plugins, hooks or skills.</li>
 <li>Your personal `CLAUDE.md` and memory are not loaded.</li>
 <li>No session is saved.</li>
-<li>`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_CODE_USE_BEDROCK` / `_VERTEX` / `_FOUNDRY` are removed from the child environment. The call therefore uses your own `/login`, never a key or token the app could pass along.</li>
+<li>`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_CODE_USE_BEDROCK` / `_VERTEX` / `_FOUNDRY` are removed from the child environment. The call therefore uses your own `/login`, never a key or token the app could pass along. Session variables from a Claude Code window you launched the app from (`CLAUDECODE`, `CLAUDE_CODE_*` except `CLAUDE_CODE_GIT_BASH_PATH`) are dropped too.</li>
 </ul>
 <p>**Blocked on shared hosts.** The picker is hidden and `claude_code` refuses to run when any of these hold:</p>
 <ul>
