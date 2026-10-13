@@ -7,6 +7,7 @@ import logging
 import re
 from typing import Any
 
+from ai import claude_code
 from ai.config import AI_PROMPT_VERSION, MAX_AI_OUTPUT_TOKENS, LlmSettings, resolve_llm_settings
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,15 @@ def _chat_completion_with_settings(
     user: str,
     json_mode: bool,
 ) -> str | None:
+    if settings.provider == claude_code.PROVIDER_ID:
+        return claude_code.run_prompt(
+            cli=settings.cli_path,
+            system=system,
+            user=user[:120_000],
+            model=settings.model,
+            timeout=settings.timeout_sec or claude_code.DEFAULT_TIMEOUT_SEC,
+        )
+
     client = _create_client(settings)
     if client is None:
         return None

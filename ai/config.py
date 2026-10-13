@@ -4,7 +4,9 @@ AI configuration — keys via environment or Streamlit secrets only (never commi
 Default preference (when AI_PROVIDER is unset): local Ollama if reachable, then free-tier
 cloud keys (Gemini → Groq → Together), then paid OpenAI. Anthropic is never auto-selected
 from a bare ANTHROPIC_API_KEY (the key is often present in the environment for other
-tools) — set AI_PROVIDER=anthropic to opt in. LLM stays in the AI side-car
+tools) — set AI_PROVIDER=anthropic to opt in. The Claude subscription provider
+(AI_PROVIDER=claude_code, or the sidebar picker) is likewise opt-in only and runs the
+consultant's own signed-in Claude Code CLI — see ai/claude_code.py. LLM stays in the AI side-car
 (ai/* + UI Apply) — never inside ReportEngine merge.
 """
 
@@ -16,6 +18,8 @@ import urllib.request
 from dataclasses import dataclass
 from functools import lru_cache
 from urllib.parse import urlparse
+
+from ai import claude_code
 
 AI_PROMPT_VERSION = "1.0.0"
 MAX_PDF_BYTES = 10 * 1024 * 1024
@@ -38,9 +42,19 @@ _SECRET_KEYS = (
     "GROQ_API_KEY",
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_MODEL",
+    "CLAUDE_CODE_MODEL",
+    "CLAUDE_CLI_PATH",
+    "ESA_CLAUDE_CONSUMER_ACK",
+    "ESA_CLAUDE_CODE_TIMEOUT_SEC",
+    "ESA_HOSTED_MODE",
+    "ESA_DISABLE_FOLDER_WORKFLOW",
 )
 
-# AI_PROVIDER=ollama|groq|gemini|together|anthropic|openai|azure|offline
+# Sidebar picker values (session_state["ai_provider_choice"]); "auto" = secrets/env.
+PROVIDER_CHOICE_AUTO = "auto"
+_TRUTHY = ("1", "true", "yes")
+
+# AI_PROVIDER=ollama|groq|gemini|together|anthropic|claude_code|openai|azure|offline
 PROVIDER_PRESETS: dict[str, dict[str, str | bool]] = {
     "ollama": {
         "label": "Ollama (local, free)",
@@ -76,6 +90,13 @@ PROVIDER_PRESETS: dict[str, dict[str, str | bool]] = {
         "base_url": "https://api.anthropic.com/v1",
         "model": ANTHROPIC_DEFAULT_MODEL,
         # Anthropic's OpenAI-compatible endpoint ignores response_format.
+        "supports_json_mode": False,
+        "free": False,
+    },
+    claude_code.PROVIDER_ID: {
+        "label": claude_code.PROVIDER_LABEL,
+        "base_url": "",
+        "model": claude_code.DEFAULT_MODEL,
         "supports_json_mode": False,
         "free": False,
     },
@@ -115,10 +136,22 @@ class LlmSettings:
     model: str
     supports_json_mode: bool
     free: bool = False
+    # Why an explicitly chosen provider cannot run (shown in the sidebar instead of a key hint).
+    unavailable_reason: str = ""
+    # Plan shown for the Claude subscription provider, e.g. "Claude Max".
+    account: str = ""
+    # Claude Free / Pro / Max (Consumer Terms) — sidebar shows the privacy acknowledgement.
+    consumer_plan: bool = False
+    cli_path: str = ""
+    timeout_sec: float = 0.0
 
     @property
     def available(self) -> bool:
-        return bool(self.api_key) and self.provider != "offline"
+        if self.provider == "offline" or self.unavailable_reason:
+            return False
+        if self.provider == claude_code.PROVIDER_ID:
+            return bool(self.cli_path)
+        return bool(self.api_key)
 
 
 def _secret(name: str) -> str:
@@ -132,8 +165,30 @@ def _secret(name: str) -> str:
     return os.environ.get(name, "").strip()
 
 
+def _session_state():
+    """Streamlit session_state during a script run, else None (CLI, tests, threads)."""
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+        if get_script_run_ctx(suppress_warning=True) is None:
+            return None
+        import streamlit as st
+
+        return st.session_state
+    except Exception:
+        return None
+
+
 def _secrets_snapshot() -> dict[str, str]:
-    return {key: _secret(key) for key in _SECRET_KEYS}
+    snap = {key: _secret(key) for key in _SECRET_KEYS}
+    state = _session_state()
+    if state is not None:
+        choice = str(state.get("ai_provider_choice") or "").strip().lower()
+        if choice and choice != PROVIDER_CHOICE_AUTO:
+            snap["AI_PROVIDER"] = choice
+        if state.get("claude_code_consumer_ack"):
+            snap["ESA_CLAUDE_CONSUMER_ACK"] = "1"
+    return snap
 
 
 def _snap(snap: dict[str, str], name: str) -> str:
@@ -205,9 +260,81 @@ def _resolve_api_key(provider: str, preset: dict[str, str | bool], snap: dict[st
     return ""
 
 
+def _hosted_snapshot(snap: dict[str, str]) -> bool:
+    from security import folder_workflow_disabled
+
+    if folder_workflow_disabled():
+        return True
+    return any(
+        _snap(snap, key).lower() in _TRUTHY
+        for key in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW")
+    )
+
+
+def _timeout_from_snapshot(snap: dict[str, str]) -> float:
+    try:
+        value = float(_snap(snap, "ESA_CLAUDE_CODE_TIMEOUT_SEC") or claude_code.DEFAULT_TIMEOUT_SEC)
+    except ValueError:
+        value = claude_code.DEFAULT_TIMEOUT_SEC
+    return min(max(value, 10.0), 900.0)
+
+
+def _claude_code_settings(snap: dict[str, str]) -> LlmSettings:
+    """Claude subscription via the local, user-signed-in Claude Code CLI (no keys, no tokens)."""
+    base = dict(
+        provider=claude_code.PROVIDER_ID,
+        label=claude_code.PROVIDER_LABEL,
+        api_key="",
+        base_url="",
+        model=_snap(snap, "CLAUDE_CODE_MODEL") or claude_code.DEFAULT_MODEL,
+        supports_json_mode=False,
+        free=False,
+        timeout_sec=_timeout_from_snapshot(snap),
+    )
+    if _hosted_snapshot(snap) or claude_code.running_in_container():
+        return LlmSettings(
+            **base,
+            unavailable_reason=(
+                "Claude subscription works only on a consultant's own PC — it is disabled "
+                "on hosted / shared servers and containers, where one sign-in would serve "
+                "everyone. Use `AI_PROVIDER=anthropic` with an Anthropic API key there."
+            ),
+        )
+    cli = claude_code.find_cli(_snap(snap, "CLAUDE_CLI_PATH"))
+    if not cli:
+        return LlmSettings(
+            **base, unavailable_reason=f"Claude Code is not installed. {claude_code.INSTALL_HINT}"
+        )
+    status = claude_code.auth_status(cli)
+    if status.error or not status.logged_in:
+        detail = f" ({status.error})" if status.error else ""
+        return LlmSettings(
+            **base,
+            cli_path=cli,
+            unavailable_reason=f"Claude Code is not signed in{detail}. {claude_code.INSTALL_HINT}",
+        )
+    if status.consumer_plan and _snap(snap, "ESA_CLAUDE_CONSUMER_ACK").lower() not in _TRUTHY:
+        return LlmSettings(
+            **base,
+            cli_path=cli,
+            account=status.plan_label,
+            consumer_plan=True,
+            unavailable_reason=(
+                f"{status.plan_label} is a consumer plan. Confirm the privacy note in "
+                "**AI options** (or set `ESA_CLAUDE_CONSUMER_ACK=1` for scripts) before "
+                "sending project data."
+            ),
+        )
+    return LlmSettings(
+        **base, cli_path=cli, account=status.plan_label, consumer_plan=status.consumer_plan
+    )
+
+
 def resolve_llm_settings() -> LlmSettings:
     snap = _secrets_snapshot()
     provider = _infer_provider_from_snapshot(snap)
+    if provider == claude_code.PROVIDER_ID:
+        return _claude_code_settings(snap)
     if provider == "offline":
         return LlmSettings(
             provider="offline",
@@ -278,14 +405,23 @@ def _host_label(base_url: str) -> str:
 
 def ai_status_message(settings: LlmSettings | None = None) -> str:
     settings = settings or resolve_llm_settings()
+    if settings.provider == claude_code.PROVIDER_ID:
+        if not settings.available:
+            return f"**{settings.label}** not ready — {settings.unavailable_reason}"
+        return (
+            f"LLM ready — **{settings.label}** · {settings.account} · model "
+            f"`{settings.model}` · runs on this PC through your own Claude Code sign-in "
+            "(usage counts toward your plan limits)."
+        )
     if not settings.available:
         return (
             "AI running in **offline mode** (rule-based). For a free LLM: install "
             "[Ollama](https://ollama.com) (`ollama pull qwen2.5:7b`) or set "
             "`GEMINI_API_KEY` / `GROQ_API_KEY` in `.streamlit/secrets.toml`. "
             "For **Claude in Streamlit**, set `AI_PROVIDER=anthropic` and "
-            "`ANTHROPIC_API_KEY` (Anthropic Console API key — Claude Max login "
-            "cannot be shared with the app)."
+            "`ANTHROPIC_API_KEY` (Anthropic Console API key). To use your own "
+            "**Claude Max / Team** plan on this PC, pick **My Claude account** in "
+            "AI options (requires Claude Code signed in with `/login`)."
         )
     cost = "free" if settings.free else "paid"
     return (

@@ -102,7 +102,7 @@ The Docker image and compose file include baseline production controls:
 | Structured JSON logs | `ESA_JSON_LOG=1` | [`esa_logging.py`](../esa_logging.py) |
 | Append-only audit trail | `ESA_AUDIT_ENABLED=1` | [`audit_trail.py`](../audit_trail.py) → `.esa_audit/` volume |
 | Audit log path | `ESA_AUDIT_LOG` | Default `.esa_audit/audit.jsonl` |
-| Hosted / no folder workflow | `ESA_HOSTED_MODE=1` or `ESA_DISABLE_FOLDER_WORKFLOW=1` | **Default in `docker-compose.yml`** — hides local project-folder path UI |
+| Hosted / no folder workflow | `ESA_HOSTED_MODE=1` or `ESA_DISABLE_FOLDER_WORKFLOW=1` | **Default in `docker-compose.yml`** — hides local project-folder path UI and the personal **Claude subscription** AI provider (use `AI_PROVIDER=anthropic` + API key on shared hosts) |
 | Pinned dependencies | [`requirements.txt`](../requirements.txt), [`requirements.lock`](../requirements.lock) | Reproducible installs |
 | CI quality gates | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | ruff, mypy, coverage, Python 3.11–3.13 matrix |
 | HTTP API auth (optional) | `ESA_API_KEY` + `X-ESA-API-Key` | [`esa_auth.py`](../esa_auth.py); roles from `ESA_DEFAULT_ROLES` (client `X-ESA-Roles` ignored) |

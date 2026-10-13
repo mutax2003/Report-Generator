@@ -704,11 +704,11 @@ print(system_prompt_for(&quot;groundwater_monitoring&quot;))
 <p>No API key required. Rule-based fallbacks power all features.</p>
 <h3>Cloud / free LLM mode</h3>
 <p>1. Copy <a href="../.streamlit/secrets.toml.example">`.streamlit/secrets.toml.example`</a> → `.streamlit/secrets.toml`, or set environment variables. 2. **Free default:** if <a href="https://ollama.com">Ollama</a> is running locally (`ollama pull qwen2.5:7b`), the app auto-selects it. Otherwise set `GEMINI_API_KEY` or `GROQ_API_KEY`, or set `AI_PROVIDER` explicitly. 3. Enable **Use LLM when available** in the sidebar (**AI options** expander).</p>
-<p>Provider resolution is in <a href="../ai/config.py">`ai/config.py`</a> (`resolve_llm_settings()`). Preference when `AI_PROVIDER` is unset: **Ollama (reachable) → Gemini → Groq → Together → Anthropic (if key set) → OpenAI**. Explicit `OPENAI_BASE_URL` / `OPENAI_MODEL` override preset defaults. LLM output is advisory until you **Apply** / **Merge** — it is never injected into `ReportEngine` merge automatically.</p>
+<p>Provider resolution is in <a href="../ai/config.py">`ai/config.py`</a> (`resolve_llm_settings()`). Preference when `AI_PROVIDER` is unset: **Ollama (reachable) → Gemini → Groq → Together → OpenAI**. Anthropic is **opt-in only** (`AI_PROVIDER=anthropic`); a bare `ANTHROPIC_API_KEY` is ignored because Claude Code / Claude Desktop often export one. The **Claude subscription** provider (`claude_code`) is also opt-in only — picked in sidebar **AI options** or with `AI_PROVIDER=claude_code` — and is never auto-selected. Explicit `OPENAI_BASE_URL` / `OPENAI_MODEL` override preset defaults. LLM output is advisory until you **Apply** / **Merge** — it is never injected into `ReportEngine` merge automatically.</p>
 <p>**Default paid model:** `gpt-4o-mini` when `AI_PROVIDER=openai` (~$0.01–0.05 per site for narrative drafts).</p>
 <h3>Free or cheap alternatives (OpenAI-compatible)</h3>
 <p>All use the same <a href="../ai/client.py">`ai/client.py`</a> via the OpenAI Python SDK:</p>
-<p>**Ecoventure recommendation:** **Ollama** on desktop for confidential site folders (auto-detected when running); **Gemini** or **Groq** for free cloud trials; **Anthropic Claude API** for Cowork-quality narratives inside Streamlit (requires Console API key — not Claude Max login); **gpt-4o-mini** when paid OpenAI quality matters most.</p>
+<p>**Ecoventure recommendation:** **Ollama** on desktop for confidential site folders (auto-detected when running); **Gemini** or **Groq** for free cloud trials; **Claude subscription** (your own Max / Team seat via Claude Code) or the **Anthropic Claude API** for Cowork-quality narratives inside Streamlit; **gpt-4o-mini** when paid OpenAI quality matters most.</p>
 <p>**JSON-mode note:** Lab PDF and template tagger use structured JSON when supported. Gemini, Together, and Ollama may fall back to text + heuristic JSON parse — quality varies; offline heuristics still run when LLM output is unusable.</p>
 <h3>Setup: Google Gemini (free tier)</h3>
 <p>1. Create an API key at <a href="https://aistudio.google.com/apikey">Google AI Studio</a>. 2. Add to `.streamlit/secrets.toml`:</p>
@@ -730,18 +730,35 @@ TOGETHER_API_KEY = &quot;your-key&quot;
 <p>3. Optional: override model with `OPENAI_MODEL = &quot;meta-llama/Llama-3.3-70B-Instruct-Turbo&quot;`.</p>
 <h3>Setup: Anthropic Claude (Streamlit in-app — API key)</h3>
 <p>Use this when you want **Claude inside the AI tab** (narratives, lab extract, copilot) without pasting into Cowork.</p>
-<p>**Important:** A **Claude Max subscription login cannot be wired into Streamlit**. You need an <a href="https://console.anthropic.com/settings/keys">Anthropic Console</a> **API key** (usage-based billing).</p>
+<p>This needs an <a href="https://console.anthropic.com/settings/keys">Anthropic Console</a> **API key** (usage-based billing). It is the only Claude option on hosted / Docker / shared servers. On your own PC you can use your Claude Max / Team plan instead — see the next section.</p>
 <p>1. Create an API key at <a href="https://console.anthropic.com/settings/keys">Anthropic Console</a>. 2. Add to `.streamlit/secrets.toml`:</p>
 <pre><code>
 AI_PROVIDER = &quot;anthropic&quot;
 
 ANTHROPIC_API_KEY = &quot;sk-ant-...&quot;
 
-OPENAI_MODEL = &quot;claude-sonnet-4-20250514&quot;
+# ANTHROPIC_MODEL = &quot;claude-sonnet-5-5&quot;
 
 </code></pre>
 <p>3. Restart Streamlit; sidebar **AI options** should show **Anthropic Claude (API)**. 4. Enable **Use LLM when available**; draft narratives on the **AI drafts &amp; tools** tab, then **Apply** → **Generate** on the Report tab.</p>
 <p>Same hard boundary: LLM output stays advisory until Apply; `ReportEngine` merge is unchanged. For folder workflow, you can still use Cowork brief + adversarial review — or use in-app **Draft narratives** with Claude API.</p>
+<h3>Setup: Claude subscription (Max / Team) via Claude Code — local PC only</h3>
+<p>Use your **own** Claude Max, Team Standard or Team Premium seat for AI drafting, with no API key.</p>
+<p>Anthropic&#x27;s terms let a subscription be used by third-party tools **only through Anthropic&#x27;s unmodified Claude Code**, with each person signing in themselves. Apps may not offer &quot;Sign in with Claude&quot; or handle Claude.ai tokens. So the app never shows a Claude login and never sees a password or token. It runs the `claude` command already signed in on your PC and reads back the text.</p>
+<p>1. Install <a href="https://code.claude.com/docs/en/setup">Claude Code</a>. A Team seat must include Claude Code access; your Team admin controls this. 2. Sign in once, in a terminal:</p>
+<pre><code>
+   claude
+
+</code></pre>
+<p>Type `/login`, choose **Claude account**, finish Anthropic&#x27;s sign-in page, then `/exit`. Check it with `claude auth status`: you should see `&quot;loggedIn&quot;: true` and your plan. 3. In the app, open sidebar **AI options** → **AI provider** → **My Claude account (via Claude Code)**. The caption shows your plan (e.g. *Claude Team*) and `LLM ready`. 4. **Claude Pro / Max only.** These are consumer plans. Before using client data, turn off **Help improve Claude** at claude.ai → Settings → Privacy, then tick **I&#x27;ve checked my Claude Max privacy settings**. Team / Enterprise seats are under commercial terms and skip this step. 5. Keep **Use LLM when available** on and use the AI tab as usual. Each AI action runs one Claude Code turn and counts toward your plan&#x27;s usage limits. If a call fails (limit reached, signed out, timeout), the app falls back to offline heuristics and shows **Last Claude Code error** in AI options. Use **Re-check sign-in** after `/login`.</p>
+<p>How it runs: `claude -p --output-format json --no-session-persistence --safe-mode --tools &quot;&quot;` with a system-prompt file, the prompt on stdin, and an empty temp folder as the working directory.</p>
+<ul>
+<li>No tools, MCP servers, plugins, hooks or skills.</li>
+<li>Your personal `CLAUDE.md` and memory are not loaded.</li>
+<li>No session is saved.</li>
+<li>`ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` are removed from the child environment so the call bills your subscription, not an API key.</li>
+</ul>
+<p>**Blocked on shared hosts.** When `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` is set, or the app runs in a container, the picker is hidden and `claude_code` refuses to run. One person&#x27;s sign-in must never serve other users. Use `AI_PROVIDER=anthropic` with an API key there.</p>
 <h3>CLI without LLM</h3>
 <p>For headless folder ingest with no external calls:</p>
 <pre><code>
@@ -774,6 +791,8 @@ ui/ai_panel.py
     └── ai/source_ingest.py     → source/ PDF text + summaries → ai_drafts/
 
          └── ai/client.py       → OpenAI-compatible API (OpenAI, Ollama, Groq, Gemini, Together, Anthropic, Azure)
+
+                                  or ai/claude_code.py → local signed-in `claude -p` (Claude subscription)
 
 </code></pre>
 <p>`ai/config.py` — `AI_PROVIDER` presets, `resolve_llm_settings()`. `ai/models.py` — `AiAudit` entries for session log.</p>

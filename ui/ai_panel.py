@@ -9,7 +9,8 @@ from typing import Any
 import streamlit as st
 
 from ai import ai_status_message
-from ai.config import ai_available, resolve_llm_settings
+from ai import claude_code
+from ai.config import PROVIDER_CHOICE_AUTO, LlmSettings, ai_available, resolve_llm_settings
 from ai.consistency import check_consistency
 from ai.copilot import explain_preflight
 from ai.exceedance_notes import notes_for_lab_rows
@@ -201,6 +202,61 @@ def _build_context_from_excel(excel_bytes: bytes, meta: dict[str, str]) -> dict[
                 pass
 
 
+_PROVIDER_CHOICES = {
+    PROVIDER_CHOICE_AUTO: "From settings / secrets (auto)",
+    claude_code.PROVIDER_ID: "My Claude account (via Claude Code)",
+}
+
+
+def _reset_llm_toggle() -> None:
+    """Re-derive 'Use LLM' from the newly selected provider on the next run."""
+    st.session_state.pop("ai_use_llm", None)
+
+
+def _render_provider_picker() -> None:
+    """Local PCs only: let a consultant use their own Claude Max / Team plan."""
+    from ui.workflow_mode import hosted_mode_enabled
+
+    if hosted_mode_enabled():
+        # Shared hosts must never run one person's Claude sign-in for everyone.
+        st.session_state.pop("ai_provider_choice", None)
+        return
+    st.selectbox(
+        "AI provider",
+        options=list(_PROVIDER_CHOICES),
+        format_func=_PROVIDER_CHOICES.__getitem__,
+        key="ai_provider_choice",
+        on_change=_reset_llm_toggle,
+        help=(
+            "**My Claude account** runs Claude Code on this PC with your own Claude "
+            "Max / Team sign-in — the app never sees a password or token. "
+            "**Auto** uses the provider configured in secrets / environment."
+        ),
+    )
+
+
+def _render_claude_code_controls(settings: LlmSettings) -> None:
+    if settings.consumer_plan:
+        # Always rendered for consumer plans so the widget keeps its ticked state.
+        st.checkbox(
+            f"I've checked my {settings.account} privacy settings",
+            key="claude_code_consumer_ack",
+            on_change=_reset_llm_toggle,
+            help=(
+                "Claude Pro / Max are consumer plans. Before sending client project data, "
+                "turn off **Help improve Claude** at claude.ai → Settings → Privacy (or use "
+                "a Claude Team / Enterprise seat, which falls under commercial terms)."
+            ),
+        )
+    if st.button("Re-check sign-in", key="claude_code_recheck"):
+        claude_code.clear_status_cache()
+        _reset_llm_toggle()
+        st.rerun()
+    error = claude_code.last_error()
+    if error:
+        st.caption(f"Last Claude Code error: {error}")
+
+
 def render_ai_settings_sidebar(*, folder_mode: bool = False) -> None:
     from ui.onboarding import is_simple_mode
 
@@ -208,15 +264,19 @@ def render_ai_settings_sidebar(*, folder_mode: bool = False) -> None:
     expanded = folder_mode and not simple
     label = "Advanced — AI options" if simple else "AI options"
     with st.sidebar.expander(label, expanded=expanded):
+        _render_provider_picker()
         settings = resolve_llm_settings()
         st.caption(ai_status_message(settings))
-        if settings.available:
+        if settings.provider == claude_code.PROVIDER_ID:
+            _render_claude_code_controls(settings)
+        elif settings.available:
             st.caption(f"Configured provider: **{settings.label}**")
         else:
             st.caption(
                 "Free options: **Ollama** (local) · **Gemini** / **Groq** (cloud free tier). "
                 "**Claude:** set `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` in secrets "
-                "(Console API key — not Claude Max login). "
+                "(Console API key), or — on a local PC — pick **My Claude account** to use your own "
+                "Claude Max / Team plan through Claude Code. "
                 "See [09-ai-assistant.md](docs/09-ai-assistant.md)."
             )
         st.session_state.setdefault("ai_use_llm", settings.available)

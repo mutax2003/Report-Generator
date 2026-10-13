@@ -14,7 +14,7 @@ No API key required. Rule-based fallbacks power all features.
 2. **Free default:** if [Ollama](https://ollama.com) is running locally (`ollama pull qwen2.5:7b`), the app auto-selects it. Otherwise set `GEMINI_API_KEY` or `GROQ_API_KEY`, or set `AI_PROVIDER` explicitly.
 3. Enable **Use LLM when available** in the sidebar (**AI options** expander).
 
-Provider resolution is in [`ai/config.py`](../ai/config.py) (`resolve_llm_settings()`). Preference when `AI_PROVIDER` is unset: **Ollama (reachable) → Gemini → Groq → Together → OpenAI**. Anthropic is **opt-in only** (`AI_PROVIDER=anthropic`); a bare `ANTHROPIC_API_KEY` is ignored because Claude Code / Claude Desktop often export one. Explicit `OPENAI_BASE_URL` / `OPENAI_MODEL` override preset defaults. LLM output is advisory until you **Apply** / **Merge** — it is never injected into `ReportEngine` merge automatically.
+Provider resolution is in [`ai/config.py`](../ai/config.py) (`resolve_llm_settings()`). Preference when `AI_PROVIDER` is unset: **Ollama (reachable) → Gemini → Groq → Together → OpenAI**. Anthropic is **opt-in only** (`AI_PROVIDER=anthropic`); a bare `ANTHROPIC_API_KEY` is ignored because Claude Code / Claude Desktop often export one. The **Claude subscription** provider (`claude_code`) is also opt-in only — picked in sidebar **AI options** or with `AI_PROVIDER=claude_code` — and is never auto-selected. Explicit `OPENAI_BASE_URL` / `OPENAI_MODEL` override preset defaults. LLM output is advisory until you **Apply** / **Merge** — it is never injected into `ReportEngine` merge automatically.
 
 **Default paid model:** `gpt-4o-mini` when `AI_PROVIDER=openai` (~$0.01–0.05 per site for narrative drafts).
 
@@ -30,9 +30,10 @@ All use the same [`ai/client.py`](../ai/client.py) via the OpenAI Python SDK:
 | **Google Gemini** | Free tier | Cloud | `gemini` | `GEMINI_API_KEY` | `gemini-2.0-flash` |
 | **Together AI** | Free credits | Cloud | `together` | `TOGETHER_API_KEY` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
 | **Anthropic Claude** | Paid (API) | Cloud | `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-5-5` (override with `ANTHROPIC_MODEL`) |
+| **Claude subscription** (Max / Team via Claude Code) | Plan limits | Local PC → Anthropic | `claude_code` | none — `claude` → `/login` | `sonnet` (override with `CLAUDE_CODE_MODEL`) |
 | **OpenAI** | Low | Cloud | `openai` | `OPENAI_API_KEY` | `gpt-4o-mini` |
 
-**Ecoventure recommendation:** **Ollama** on desktop for confidential site folders (auto-detected when running); **Gemini** or **Groq** for free cloud trials; **Anthropic Claude API** for Cowork-quality narratives inside Streamlit (requires Console API key — not Claude Max login); **gpt-4o-mini** when paid OpenAI quality matters most.
+**Ecoventure recommendation:** **Ollama** on desktop for confidential site folders (auto-detected when running); **Gemini** or **Groq** for free cloud trials; **Claude subscription** (your own Max / Team seat via Claude Code) or the **Anthropic Claude API** for Cowork-quality narratives inside Streamlit; **gpt-4o-mini** when paid OpenAI quality matters most.
 
 **JSON-mode note:** Lab PDF and template tagger use structured JSON when supported. Gemini, Together, and Ollama may fall back to text + heuristic JSON parse — quality varies; offline heuristics still run when LLM output is unusable.
 
@@ -65,7 +66,7 @@ TOGETHER_API_KEY = "your-key"
 
 Use this when you want **Claude inside the AI tab** (narratives, lab extract, copilot) without pasting into Cowork.
 
-**Important:** A **Claude Max subscription login cannot be wired into Streamlit**. You need an [Anthropic Console](https://console.anthropic.com/settings/keys) **API key** (usage-based billing).
+This needs an [Anthropic Console](https://console.anthropic.com/settings/keys) **API key** (usage-based billing). It is the only Claude option on hosted / Docker / shared servers. On your own PC you can use your Claude Max / Team plan instead — see the next section.
 
 1. Create an API key at [Anthropic Console](https://console.anthropic.com/settings/keys).
 2. Add to `.streamlit/secrets.toml`:
@@ -73,13 +74,47 @@ Use this when you want **Claude inside the AI tab** (narratives, lab extract, co
 ```toml
 AI_PROVIDER = "anthropic"
 ANTHROPIC_API_KEY = "sk-ant-..."
-OPENAI_MODEL = "claude-sonnet-4-20250514"
+# ANTHROPIC_MODEL = "claude-sonnet-5-5"
 ```
 
 3. Restart Streamlit; sidebar **AI options** should show **Anthropic Claude (API)**.
 4. Enable **Use LLM when available**; draft narratives on the **AI drafts & tools** tab, then **Apply** → **Generate** on the Report tab.
 
 Same hard boundary: LLM output stays advisory until Apply; `ReportEngine` merge is unchanged. For folder workflow, you can still use Cowork brief + adversarial review — or use in-app **Draft narratives** with Claude API.
+
+### Setup: Claude subscription (Max / Team) via Claude Code — local PC only
+
+Use your **own** Claude Max, Team Standard or Team Premium seat for AI drafting, with no API key.
+
+Anthropic's terms let a subscription be used by third-party tools **only through Anthropic's unmodified Claude Code**, with each person signing in themselves. Apps may not offer "Sign in with Claude" or handle Claude.ai tokens. So the app never shows a Claude login and never sees a password or token. It runs the `claude` command already signed in on your PC and reads back the text.
+
+1. Install [Claude Code](https://code.claude.com/docs/en/setup). A Team seat must include Claude Code access; your Team admin controls this.
+2. Sign in once, in a terminal:
+
+   ```powershell
+   claude
+   ```
+
+   Type `/login`, choose **Claude account**, finish Anthropic's sign-in page, then `/exit`. Check it with `claude auth status`: you should see `"loggedIn": true` and your plan.
+3. In the app, open sidebar **AI options** → **AI provider** → **My Claude account (via Claude Code)**. The caption shows your plan (e.g. *Claude Team*) and `LLM ready`.
+4. **Claude Pro / Max only.** These are consumer plans. Before using client data, turn off **Help improve Claude** at claude.ai → Settings → Privacy, then tick **I've checked my Claude Max privacy settings**. Team / Enterprise seats are under commercial terms and skip this step.
+5. Keep **Use LLM when available** on and use the AI tab as usual. Each AI action runs one Claude Code turn and counts toward your plan's usage limits. If a call fails (limit reached, signed out, timeout), the app falls back to offline heuristics and shows **Last Claude Code error** in AI options. Use **Re-check sign-in** after `/login`.
+
+How it runs: `claude -p --output-format json --no-session-persistence --safe-mode --tools ""` with a system-prompt file, the prompt on stdin, and an empty temp folder as the working directory.
+- No tools, MCP servers, plugins, hooks or skills.
+- Your personal `CLAUDE.md` and memory are not loaded.
+- No session is saved.
+- `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` are removed from the child environment so the call bills your subscription, not an API key.
+
+| Setting (env or secrets) | Default | Purpose |
+|--------------------------|---------|---------|
+| `AI_PROVIDER = "claude_code"` | — | Choose it without the sidebar (CLI scripts such as `ingest_project_folder.py --ai enrich`) |
+| `CLAUDE_CODE_MODEL` | `sonnet` | Claude Code model alias or full name (`opus` uses limits faster) |
+| `CLAUDE_CLI_PATH` | `claude` on `PATH` | Full path to the executable if it is not on `PATH` |
+| `ESA_CLAUDE_CONSUMER_ACK = "1"` | off | Scripts: confirms the Pro / Max privacy step above |
+| `ESA_CLAUDE_CODE_TIMEOUT_SEC` | `180` | Per-call limit (10–900 s); the whole process tree is killed on timeout |
+
+**Blocked on shared hosts.** When `ESA_HOSTED_MODE` / `ESA_DISABLE_FOLDER_WORKFLOW` is set, or the app runs in a container, the picker is hidden and `claude_code` refuses to run. One person's sign-in must never serve other users. Use `AI_PROVIDER=anthropic` with an API key there.
 
 ### CLI without LLM
 
@@ -106,6 +141,7 @@ ui/ai_panel.py
     └── ai/appendix_classifier.py → PDF → appendix label A–H (project folder)
     └── ai/source_ingest.py     → source/ PDF text + summaries → ai_drafts/
          └── ai/client.py       → OpenAI-compatible API (OpenAI, Ollama, Groq, Gemini, Together, Anthropic, Azure)
+                                  or ai/claude_code.py → local signed-in `claude -p` (Claude subscription)
 ```
 
 `ai/config.py` — `AI_PROVIDER` presets, `resolve_llm_settings()`. `ai/models.py` — `AiAudit` entries for session log.
@@ -205,6 +241,7 @@ One-line plain-language note per lab row for report narrative cross-reference.
 | Control | Detail |
 |---------|--------|
 | API keys | Env / secrets only — never in source |
+| Claude subscription | App never handles Claude.ai credentials; local `claude` CLI only; refused in hosted mode / containers |
 | PDF size | 10 MB cap |
 | Prompts | Bounded length |
 | Data retention | Streamlit session only; no server-side client DB |
