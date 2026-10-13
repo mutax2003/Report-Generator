@@ -553,6 +553,7 @@ def source_ingest_for_folder(
     if not pdfs:
         return []
     rag_dir = resolved.root / "rag"
+    ensure_under_project_root(resolved.root, rag_dir, allow_missing=True)
     rag_dir.mkdir(parents=True, exist_ok=True)
     written, _summaries, _audit = ingest_source_pdfs(
         pdfs,
@@ -560,6 +561,7 @@ def source_ingest_for_folder(
         use_llm=use_llm,
         write_rag_snippets=True,
         rag_dir=rag_dir,
+        project_root=resolved.root,
     )
     return written
 

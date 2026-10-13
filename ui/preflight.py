@@ -7,6 +7,7 @@ import streamlit as st
 from phrase_resolver import build_phrase_catalog_workbook_bytes
 from report_profile import build_report_config_workbook_bytes
 from sed002_compliance import build_qp_review_checklist_markdown, sed002_section_summary
+from security import SecurityError, user_safe_error
 from template_tools import PreflightResult, missing_fields_checklist, run_preflight
 from ui.appendix_panel import all_appendix_labels_from_session
 from ui.helpers import get_cached_report_engine, stable_upload_digest
@@ -47,7 +48,12 @@ def run_preflight_check(
     if cached is not None:
         return cached
 
-    engine = get_cached_report_engine(excel_bytes, template_bytes)
+    try:
+        engine = get_cached_report_engine(excel_bytes, template_bytes)
+    except SecurityError as exc:
+        # Upload rejected by validation (zip bomb, bad OOXML, size): block generation.
+        st.error(user_safe_error(exc))
+        return None
     result = run_preflight(
         excel_bytes,
         template_bytes,

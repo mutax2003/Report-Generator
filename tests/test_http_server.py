@@ -71,13 +71,17 @@ class HttpServerIntegrationTests(unittest.TestCase):
         if not cls.xlsx.is_file() or not cls.tpl.is_file():
             raise unittest.SkipTest("Run scripts/create_samples.py first")
 
+    def setUp(self) -> None:
+        from esa_rate_limit import reset_rate_limits
+
+        reset_rate_limits()
+
     def test_multipart_render_handler(self) -> None:
         import json
         import threading
         from http.client import HTTPConnection
 
-        from automate.http_server import RenderHandler
-        from http.server import HTTPServer
+        from automate.http_server import RenderHandler, RenderHTTPServer
 
         body, ctype = _encode_multipart(
             [
@@ -97,12 +101,13 @@ class HttpServerIntegrationTests(unittest.TestCase):
             ]
         )
 
-        server = HTTPServer(("127.0.0.1", 0), RenderHandler)
+        server = RenderHTTPServer(("127.0.0.1", 0), RenderHandler)
         port = server.server_address[1]
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            conn = HTTPConnection("127.0.0.1", port, timeout=30)
+            # Cold render can take >40 s on a loaded runner; keep the client patient.
+            conn = HTTPConnection("127.0.0.1", port, timeout=120)
             conn.request(
                 "POST",
                 "/render",
@@ -153,9 +158,7 @@ class HttpServerIntegrationTests(unittest.TestCase):
         import os
         import threading
         from http.client import HTTPConnection
-        from http.server import HTTPServer
-
-        from automate.http_server import RenderHandler
+        from automate.http_server import RenderHandler, RenderHTTPServer
 
         body, ctype = _encode_multipart(
             [
@@ -171,7 +174,7 @@ class HttpServerIntegrationTests(unittest.TestCase):
 
         prev = os.environ.get("ESA_API_KEY")
         os.environ["ESA_API_KEY"] = "test-secret-key"
-        server = HTTPServer(("127.0.0.1", 0), RenderHandler)
+        server = RenderHTTPServer(("127.0.0.1", 0), RenderHandler)
         port = server.server_address[1]
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -208,6 +211,316 @@ class HttpServerIntegrationTests(unittest.TestCase):
         self.assertEqual(meta["audit_actor"], "bob")
         self.assertEqual(meta["tenant_id"], "tenant-a")
         self.assertEqual(meta["prepared_by"], "spoofed")
+
+
+class _ServerFixture:
+    """Run RenderHTTPServer on an ephemeral localhost port for one test."""
+
+    def __init__(self) -> None:
+        import threading
+
+        from automate.http_server import RenderHandler, RenderHTTPServer
+
+        self.server = RenderHTTPServer(("127.0.0.1", 0), RenderHandler)
+        self.port = self.server.server_address[1]
+        self._thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self._thread.start()
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        body: bytes | None = None,
+        headers: dict[str, str] | None = None,
+        timeout: float = 60,
+    ) -> tuple[int, dict[str, str], bytes]:
+        from http.client import HTTPConnection
+
+        conn = HTTPConnection("127.0.0.1", self.port, timeout=timeout)
+        try:
+            conn.request(method, path, body=body, headers=headers or {})
+            resp = conn.getresponse()
+            return resp.status, dict(resp.getheaders()), resp.read()
+        finally:
+            conn.close()
+
+    def close(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+
+
+class HttpServerHardeningTests(unittest.TestCase):
+    """Slowloris resistance, clean early rejects, and auth-vs-quota rate limiting."""
+
+    _ENV_KEYS = (
+        "ESA_API_KEY",
+        "ESA_REQUIRE_API_KEY",
+        "ESA_DISABLE_RATE_LIMIT",
+        "ESA_RATE_LIMIT_MAX",
+        "ESA_RATE_LIMIT_WINDOW_SEC",
+        "ESA_AUTH_FAIL_MAX",
+        "ESA_AUTH_FAIL_WINDOW_SEC",
+        "ESA_HTTP_SOCKET_TIMEOUT_SEC",
+        "ESA_HTTP_REQUEST_DEADLINE_SEC",
+        "ESA_HTTP_MAX_CONNECTIONS",
+    )
+
+    def setUp(self) -> None:
+        import os
+
+        from esa_rate_limit import reset_rate_limits
+
+        self._prev_env = {k: os.environ.get(k) for k in self._ENV_KEYS}
+        for key in self._ENV_KEYS:
+            os.environ.pop(key, None)
+        reset_rate_limits()
+        self.fixture: _ServerFixture | None = None
+
+    def tearDown(self) -> None:
+        import os
+
+        from esa_rate_limit import reset_rate_limits
+
+        if self.fixture is not None:
+            self.fixture.close()
+        for key, val in self._prev_env.items():
+            if val is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = val
+        reset_rate_limits()
+
+    def _start(self, **env: str) -> _ServerFixture:
+        import os
+
+        os.environ.update(env)
+        self.fixture = _ServerFixture()
+        return self.fixture
+
+    def test_server_is_threaded_with_daemon_threads(self) -> None:
+        from http.server import ThreadingHTTPServer
+
+        from automate.http_server import RenderHandler, RenderHTTPServer, socket_timeout_sec
+
+        self.assertTrue(issubclass(RenderHTTPServer, ThreadingHTTPServer))
+        self.assertTrue(RenderHTTPServer.daemon_threads)
+        self.assertIsNotNone(RenderHandler.timeout)
+        self.assertGreater(socket_timeout_sec(), 0)
+
+    def test_stalled_connection_does_not_block_other_clients(self) -> None:
+        import socket
+        import time
+
+        fx = self._start(ESA_HTTP_SOCKET_TIMEOUT_SEC="2")
+        stall = socket.create_connection(("127.0.0.1", fx.port), timeout=10)
+        try:
+            stall.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\nX-Slow: ")  # never finished
+            t0 = time.monotonic()
+            status, _headers, _body = fx.request("GET", "/health", timeout=10)
+            self.assertEqual(status, 200)
+            self.assertLess(time.monotonic() - t0, 5.0)
+            # The server drops the stalled client after its socket timeout.
+            stall.settimeout(15)
+            try:
+                leftover = stall.recv(1024)
+            except (ConnectionResetError, ConnectionAbortedError):
+                leftover = b""
+            self.assertNotIn(b"200 OK", leftover)
+        finally:
+            stall.close()
+
+    def test_unauthenticated_flood_does_not_lock_out_valid_key(self) -> None:
+        key = "valid-test-key-0123456789abcdef"
+        fx = self._start(
+            ESA_API_KEY=key,
+            ESA_AUTH_FAIL_MAX="3",
+            ESA_RATE_LIMIT_MAX="2",
+        )
+        body = b"x" * 1024
+        bad = {"X-ESA-API-Key": "wrong", "Content-Type": "text/plain"}
+        statuses = [fx.request("POST", "/render", body=body, headers=bad)[0] for _ in range(5)]
+        self.assertEqual(statuses[:3], [401, 401, 401])
+        self.assertEqual(statuses[3:], [429, 429])
+
+        good = {"X-ESA-API-Key": key, "Content-Type": "text/plain"}
+        # Valid key from the same IP is not blocked by the failed-auth bucket; text/plain
+        # is rejected with 400 after auth, but it still counts against the render quota.
+        first = fx.request("POST", "/render", body=body, headers=good)[0]
+        second = fx.request("POST", "/render", body=body, headers=good)[0]
+        third, headers, _ = fx.request("POST", "/render", body=body, headers=good)
+        self.assertEqual((first, second), (400, 400))
+        self.assertEqual(third, 429)
+        self.assertIn("Retry-After", headers)
+
+    def test_early_reject_reads_body_and_closes_cleanly(self) -> None:
+        """401 with a sizeable body must be readable (no WinError 10053 reset)."""
+        fx = self._start(ESA_API_KEY="valid-test-key-0123456789abcdef")
+        body = b"y" * (512 * 1024)
+        for _ in range(5):
+            status, headers, payload = fx.request(
+                "POST",
+                "/render",
+                body=body,
+                headers={"Content-Type": "multipart/form-data; boundary=zzz"},
+            )
+            self.assertEqual(status, 401)
+            self.assertEqual(headers.get("Connection", "").lower(), "close")
+            self.assertIn(b"error", payload)
+
+    @staticmethod
+    def _closed_by_server(sock: object, wait: float) -> bool:
+        """True when the peer has closed (EOF / reset) within ``wait`` seconds."""
+        import select
+
+        readable, _, _ = select.select([sock], [], [], wait)
+        if not readable:
+            return False
+        try:
+            data = sock.recv(4096)  # type: ignore[attr-defined]
+        except OSError:
+            return True
+        return data == b"" or data.startswith(b"HTTP/1.")
+
+    def test_trickled_headers_hit_overall_request_deadline(self) -> None:
+        """One header byte per interval resets a per-read timeout; the total deadline must not."""
+        import socket
+        import time
+
+        fx = self._start(ESA_HTTP_SOCKET_TIMEOUT_SEC="5", ESA_HTTP_REQUEST_DEADLINE_SEC="2")
+        sock = socket.create_connection(("127.0.0.1", fx.port), timeout=10)
+        try:
+            sock.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\nX-Trickle: ")
+            t0 = time.monotonic()
+            closed_at = None
+            while time.monotonic() - t0 < 12:
+                if self._closed_by_server(sock, 0.3):
+                    closed_at = time.monotonic() - t0
+                    break
+                try:
+                    sock.send(b"a")
+                except OSError:
+                    closed_at = time.monotonic() - t0
+                    break
+            self.assertIsNotNone(closed_at, "trickling client was never dropped")
+            self.assertLess(closed_at, 8.0)
+        finally:
+            sock.close()
+
+    def test_open_connections_are_capped(self) -> None:
+        import socket
+        import time
+
+        fx = self._start(ESA_HTTP_MAX_CONNECTIONS="3", ESA_HTTP_SOCKET_TIMEOUT_SEC="30")
+        stalled = []
+        try:
+            for _ in range(3):
+                s = socket.create_connection(("127.0.0.1", fx.port), timeout=10)
+                s.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\nX-Slow: ")
+                stalled.append(s)
+            time.sleep(0.5)
+            extra = socket.create_connection(("127.0.0.1", fx.port), timeout=10)
+            try:
+                extra.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\n\r\n")
+                head = extra.recv(200)
+            except OSError:
+                head = b""
+            finally:
+                extra.close()
+            self.assertNotIn(b" 200 ", head.split(b"\r\n")[0])
+            if head:
+                self.assertIn(b" 503 ", head.split(b"\r\n")[0])
+        finally:
+            for s in stalled:
+                s.close()
+        # Slots are released when the stalled clients go away.
+        deadline = time.monotonic() + 10
+        status = None
+        while time.monotonic() < deadline:
+            try:
+                status = fx.request("GET", "/health", timeout=5)[0]
+            except OSError:
+                status = None
+            if status == 200:
+                break
+            time.sleep(0.2)
+        self.assertEqual(status, 200)
+
+    def test_busy_render_slots_reject_before_body_without_charging_quota(self) -> None:
+        from automate.http_server import _render_semaphore
+
+        key = "valid-test-key-0123456789abcdef"
+        fx = self._start(ESA_API_KEY=key, ESA_RATE_LIMIT_MAX="1")
+        slots = _render_semaphore()
+        held = 0
+        while slots.acquire(blocking=False):
+            held += 1
+        try:
+            good = {"X-ESA-API-Key": key, "Content-Type": "text/plain"}
+            for _ in range(3):
+                status, headers, _ = fx.request(
+                    "POST", "/render", body=b"z" * (256 * 1024), headers=good
+                )
+                self.assertEqual(status, 503)
+                self.assertIn("Retry-After", headers)
+        finally:
+            for _ in range(held):
+                slots.release()
+        # The 503s did not consume the one-request quota: the next call reaches validation.
+        status = fx.request("POST", "/render", body=b"z", headers=good)[0]
+        self.assertEqual(status, 400)
+
+    def test_failed_auth_429_drains_body(self) -> None:
+        fx = self._start(ESA_API_KEY="valid-test-key-0123456789abcdef", ESA_AUTH_FAIL_MAX="1")
+        body = b"q" * (8 * 1024 * 1024)
+        bad = {"X-ESA-API-Key": "wrong", "Content-Type": "multipart/form-data; boundary=zz"}
+        statuses = []
+        for _ in range(6):
+            status, headers, payload = fx.request("POST", "/render", body=body, headers=bad)
+            statuses.append(status)
+            self.assertIn(b"error", payload)
+        self.assertEqual(statuses, [401] + [429] * 5)
+
+    def test_negative_content_length_rejected(self) -> None:
+        import socket
+
+        fx = self._start()
+        with socket.create_connection(("127.0.0.1", fx.port), timeout=10) as sock:
+            sock.sendall(
+                b"POST /render HTTP/1.1\r\nHost: x\r\nContent-Length: -5\r\n\r\n"
+            )
+            first_line = sock.recv(200).split(b"\r\n")[0]
+        self.assertIn(b"400", first_line)
+
+    def test_client_disconnect_is_logged_without_traceback(self) -> None:
+        import contextlib
+
+        from automate.http_server import RenderHandler, RenderHTTPServer
+
+        server = RenderHTTPServer(("127.0.0.1", 0), RenderHandler)
+        try:
+            for exc in (
+                ConnectionAbortedError(10053, "aborted"),
+                ConnectionResetError(10054, "reset"),
+                BrokenPipeError(32, "broken pipe"),
+            ):
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr):
+                    try:
+                        raise exc
+                    except OSError:
+                        server.handle_error(None, ("127.0.0.1", 1))  # type: ignore[arg-type]
+                self.assertEqual(stderr.getvalue(), "", msg=type(exc).__name__)
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                try:
+                    raise RuntimeError("real bug")
+                except RuntimeError:
+                    server.handle_error(None, ("127.0.0.1", 1))  # type: ignore[arg-type]
+            self.assertIn("RuntimeError", stderr.getvalue())
+        finally:
+            server.server_close()
 
 
 if __name__ == "__main__":

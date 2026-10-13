@@ -166,6 +166,57 @@ class StreamlitSmokeTests(unittest.TestCase):
         self.assertEqual(at.session_state["project_folder_path"], folder)
         self.assertIsNotNone(at.session_state["project_folder_loaded"])
 
+    @staticmethod
+    def _high_ratio_zip(source: Path, member: str, pad: int = 4 * 1024 * 1024) -> bytes:
+        """Copy an OOXML package and pad (or add) one member so the ratio trips limits."""
+        import io
+        import zipfile
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(source) as src:
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as out:
+                names = set()
+                for info in src.infolist():
+                    names.add(info.filename)
+                    data = src.read(info.filename)
+                    if info.filename == member:
+                        data = data + b" " * pad
+                    out.writestr(info.filename, data)
+                if member not in names:
+                    out.writestr(member, b"\0" * pad)
+        return buf.getvalue()
+
+    def _assert_generate_blocked(self, at: object, expected_error: str) -> None:
+        errors = " ".join(str(e.value) for e in at.error)  # type: ignore[attr-defined]
+        self.assertIn(expected_error, errors)
+        self.assertTrue(at.button(key="generate_report_btn").disabled)  # type: ignore[attr-defined]
+        at.button(key="generate_report_btn").click().run()  # type: ignore[attr-defined]
+        self._assert_no_exceptions(at)
+        self.assertFalse(self._session_get(at, "generated_docx"))
+
+    def test_zip_bomb_excel_upload_blocked_in_ui(self) -> None:
+        """Uploaded Excel must pass validate_excel_upload before preflight / render."""
+        at = self._click_load_alberta_sample(self._upload_workflow_app(timeout=180))
+        bomb = self._high_ratio_zip(
+            ROOT / "samples" / "phase1_alberta_data.xlsx", "xl/worksheets/sheet1.xml"
+        )
+        at.session_state["session_excel_bytes"] = bomb
+        at.run()
+        self._assert_no_exceptions(at)
+        self._assert_generate_blocked(at, "zip bomb")
+
+    def test_rejected_template_does_not_fall_back_to_raw_bytes(self) -> None:
+        """A template rejected by validation must stop the render (no raw-bytes fallback)."""
+        at = self._click_load_alberta_sample(self._upload_workflow_app(timeout=180))
+        # High-ratio member that template scans never read — only upload validation sees it.
+        bad_tpl = self._high_ratio_zip(
+            ROOT / "samples" / "phase1_alberta_template.docx", "word/media/pad.bin"
+        )
+        at.session_state["session_template_bytes"] = bad_tpl
+        at.run()
+        self._assert_no_exceptions(at)
+        self._assert_generate_blocked(at, "zip bomb")
+
 
 if __name__ == "__main__":
     unittest.main()

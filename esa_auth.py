@@ -18,6 +18,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
 
+from security import env_flag_enabled
+
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9._@+=\-]{1,128}$")
 
 
@@ -92,7 +94,7 @@ def api_key_required() -> bool:
     """True when ESA_API_KEY is set or ESA_REQUIRE_API_KEY forces auth."""
     if os.environ.get("ESA_API_KEY", "").strip():
         return True
-    return os.environ.get("ESA_REQUIRE_API_KEY", "").strip().lower() in ("1", "true", "yes")
+    return env_flag_enabled("ESA_REQUIRE_API_KEY")
 
 
 def auth_from_headers(headers: dict[str, str] | None = None) -> AuthContext | None:
@@ -107,7 +109,7 @@ def auth_from_headers(headers: dict[str, str] | None = None) -> AuthContext | No
     """
     expected = os.environ.get("ESA_API_KEY", "").strip()
     if not expected:
-        if os.environ.get("ESA_REQUIRE_API_KEY", "").strip().lower() in ("1", "true", "yes"):
+        if env_flag_enabled("ESA_REQUIRE_API_KEY"):
             raise AuthError("Authentication required")
         return None
     hdrs = {k.lower(): v for k, v in (headers or {}).items()}

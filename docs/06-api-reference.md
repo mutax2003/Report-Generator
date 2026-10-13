@@ -152,6 +152,13 @@ python -m automate.http_server --host 127.0.0.1 --port 8765
 
 **Response:** Raw `.docx` bytes. Header `X-ESA-Warnings` may contain JSON array of warnings (truncated).
 
+**Errors:** `401` bad/missing API key · `429` per-key render quota or too many failed auth attempts from one IP
+(`Retry-After` set) · `413` body over the cap · `503` all render slots busy (`ESA_HTTP_MAX_CONCURRENT_RENDERS`;
+checked before the body is read and not charged against the quota) or too many open connections
+(`ESA_HTTP_MAX_CONNECTIONS`) — both set `Retry-After`; retry with back-off. The server is threaded with a
+per-read socket timeout (`ESA_HTTP_SOCKET_TIMEOUT_SEC`) and an overall per-request read deadline
+(`ESA_HTTP_REQUEST_DEADLINE_SEC`, default 60 s) covering headers + upload.
+
 **Example (curl):**
 
 ```bash

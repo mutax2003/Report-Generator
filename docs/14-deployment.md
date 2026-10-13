@@ -62,10 +62,13 @@ Skip sample regeneration (copy-only): `.\scripts\build_windows_deploy.ps1 -SkipS
 
 ```bash
 docker build -t esa-report-generator:latest .
-docker run -d --name esa-reports -p 8501:8501 \
+docker run -d --name esa-reports -p 127.0.0.1:8501:8501 \
   -e OPENAI_API_KEY=optional \
   esa-report-generator:latest
 ```
+
+Publish on **loopback only** (`127.0.0.1:8501`) and let the reverse proxy on the same host
+reach it. The image runs as the non-root `esa` user (`USER esa`).
 
 Or use Compose (includes restart policy and config mount):
 
@@ -77,9 +80,44 @@ docker compose up -d --build
 
 The repo includes [`docker-compose.yml`](../docker-compose.yml):
 
-- Port **8501** published to the host
-- Binds `0.0.0.0` inside the container — **must** sit behind firewall + HTTPS proxy with authentication
+- Port **8501** published on host **loopback only** (`127.0.0.1:8501:8501`) — not reachable from
+  other machines until you put a reverse proxy in front of it
+- Binds `0.0.0.0` *inside* the container (required for Docker port publishing); the host-side
+  `127.0.0.1` binding is what keeps it private
+- Runs as the non-root `esa` user with `no-new-privileges`; `/app/.esa_audit` and
+  `/app/.esa_tenants` are pre-created and owned by `esa` so named volumes inherit that ownership
 - Optional `.streamlit/secrets.toml` mount for `OPENAI_API_KEY`
+
+#### Exposing the app to the team (reverse proxy)
+
+Terminate TLS and authentication (Entra ID / OAuth2 proxy / VPN) on the host and proxy to
+`http://127.0.0.1:8501`. Minimal nginx sketch (Streamlit needs WebSocket upgrade):
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name esa-reports.internal.example;
+    # ssl_certificate / ssl_certificate_key ...; auth (oauth2-proxy / auth_request) here
+    client_max_body_size 50m;
+    location / {
+        proxy_pass http://127.0.0.1:8501;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 300s;
+    }
+}
+```
+
+If the proxy runs in another container or on another host, do **not** revert to `8501:8501`;
+put both containers on a private Docker network and proxy to the service name instead.
+
+**Upgrading from an older image:** containers previously ran the entrypoint as root and
+published `0.0.0.0:8501`. After upgrading, anything that reached `http://<host>:8501` directly
+must go through the proxy. Existing `esa-audit` volumes were already chowned to `esa` by the
+old entrypoint; if one is still root-owned, run once with `--user root` (the entrypoint fixes
+ownership and drops to `esa`).
 
 ## Production Streamlit settings
 
@@ -108,7 +146,7 @@ The Docker image and compose file include baseline production controls:
 | HTTP API auth (optional) | `ESA_API_KEY` + `X-ESA-API-Key` | [`esa_auth.py`](../esa_auth.py); roles from `ESA_DEFAULT_ROLES` (client `X-ESA-Roles` ignored) |
 | Pin HTTP actor | `ESA_API_SERVICE_USER` | Server-side identity for shared automation keys |
 | Require key on localhost | `ESA_REQUIRE_API_KEY=1` | Forces auth even when binding `127.0.0.1` |
-| Rate limiting | `ESA_RATE_LIMIT_MAX` | [`esa_rate_limit.py`](../esa_rate_limit.py) — IP + API-key digest buckets |
+| Rate limiting | `ESA_RATE_LIMIT_MAX` | [`esa_rate_limit.py`](../esa_rate_limit.py) — auth first, then per-API-key render quota; separate per-IP failed-auth limiter (`ESA_AUTH_FAIL_MAX`) |
 
 The Docker [`docker-entrypoint.sh`](../docker-entrypoint.sh) briefly runs as root to **chown** the audit volume (`.esa_audit`) for the non-root `esa` user, then drops privileges.
 
