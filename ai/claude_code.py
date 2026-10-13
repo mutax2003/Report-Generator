@@ -17,6 +17,7 @@ import json
 import logging
 import math
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -44,22 +45,19 @@ FAILURE_COOLDOWN_SEC = 120.0
 # (Free / Pro / Max, or an unknown value) needs the consultant's privacy acknowledgement.
 COMMERCIAL_PLANS = frozenset({"team", "enterprise"})
 
-# Child-env variables that would make Claude Code bill or authenticate with something
-# other than the consultant's own claude.ai sign-in (API keys, injected OAuth tokens,
-# gateways, Bedrock / Vertex / Foundry). The app never forwards credentials.
-_STRIPPED_ENV = frozenset(
-    {
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_AUTH_TOKEN",
-        "ANTHROPIC_BASE_URL",
-        "CLAUDE_CODE_OAUTH_TOKEN",
-        "CLAUDE_CODE_USE_BEDROCK",
-        "CLAUDE_CODE_USE_VERTEX",
-        "CLAUDE_CODE_USE_FOUNDRY",
-    }
-)
-# Machine setup the CLI needs to start (Windows looks up Git Bash with it).
-_KEPT_CLAUDE_CODE_ENV = frozenset({"CLAUDE_CODE_GIT_BASH_PATH"})
+# Child-env variables are dropped when they could make Claude Code bill or authenticate
+# with something other than the consultant's own claude.ai sign-in (API keys, injected
+# OAuth tokens, gateways, custom headers, Bedrock / Vertex / Foundry), carry the host
+# Claude Code session (CLAUDECODE, CLAUDE_CODE_SESSION_ID, ...), or are app secrets the
+# CLI has no use for (OPENAI_API_KEY, ESA_API_KEY, ...). The app never forwards credentials.
+_STRIPPED_ENV_PREFIXES = ("ANTHROPIC_", "AWS_", "CLAUDE")
+_STRIPPED_ENV_SUFFIXES = ("_KEY", "_TOKEN", "_SECRET", "_PASSWORD")
+# Machine setup the CLI needs: where the user's own sign-in lives, and (Windows) Git Bash.
+_KEPT_CLAUDE_ENV = frozenset({"CLAUDE_CONFIG_DIR", "CLAUDE_CODE_GIT_BASH_PATH"})
+
+# Model aliases / ids only. The value lands on the command line, which cmd.exe parses
+# when Claude Code is the npm ``claude.cmd`` shim, so shell metacharacters are refused.
+_MODEL_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:\[\]-]{0,99}")
 
 PROMPT_FILE = "prompt.txt"
 SYSTEM_PROMPT_FILE = "system_prompt.txt"
@@ -160,15 +158,13 @@ def _child_env() -> dict[str, str]:
     env = {}
     for key, value in os.environ.items():
         upper = key.upper()
-        if upper in _STRIPPED_ENV:
-            continue
-        # Started from inside a Claude Code session: don't hand its session id,
-        # messaging token or host-auth hooks to the child.
-        if upper == "CLAUDECODE" or (
-            upper.startswith("CLAUDE_CODE_") and upper not in _KEPT_CLAUDE_CODE_ENV
+        if upper in _KEPT_CLAUDE_ENV:
+            env[key] = value
+        elif not (
+            upper.startswith(_STRIPPED_ENV_PREFIXES)
+            or upper.endswith(_STRIPPED_ENV_SUFFIXES)
         ):
-            continue
-        env[key] = value
+            env[key] = value
     # The consultant's personal CLAUDE.md / memory must not steer report drafting.
     env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] = "1"
     env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
@@ -277,7 +273,13 @@ def auth_status(cli: str) -> ClaudeCodeStatus:
     return status
 
 
+def valid_model(model: str) -> bool:
+    return bool(_MODEL_RE.fullmatch(model or ""))
+
+
 def _command(cli: str, model: str) -> list[str]:
+    if model and not valid_model(model):
+        raise ValueError(f"invalid Claude model name {model!r}")
     cmd = [
         cli,
         "-p",

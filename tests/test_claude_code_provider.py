@@ -107,13 +107,38 @@ class ClaudeCodeSettingsTests(unittest.TestCase):
             {"ESA_HOSTED_MODE": "1"},
             {"ESA_DISABLE_FOLDER_WORKFLOW": "true"},
             {"ESA_BIND_ALL": "1"},
+            {"ESA_BIND_ALL": "on"},
+            {"ESA_HOSTED_MODE": "enabled"},
             {"ESA_API_KEY": "server-key"},
+            {"ESA_API_KEY": "  "},
         ):
             with self.subTest(env=env), patch.dict(os.environ, {"AI_PROVIDER": "claude_code", **env}):
                 settings = resolve_llm_settings()
                 self.assertFalse(settings.available)
                 self.assertIn("own PC", settings.unavailable_reason)
         self.auth_mock.assert_not_called()
+
+    def test_off_flags_do_not_block_and_secrets_cannot_override_env(self) -> None:
+        os.environ.update(AI_PROVIDER="claude_code", ESA_HOSTED_MODE="0", ESA_BIND_ALL="off")
+        self.assertTrue(resolve_llm_settings().available)
+        os.environ["ESA_BIND_ALL"] = "1"
+        secrets = {"AI_PROVIDER": "claude_code", "ESA_BIND_ALL": "0"}
+        with patch("ai.config._secret", side_effect=lambda name: secrets.get(name, "")):
+            self.assertFalse(resolve_llm_settings().available)
+        self.auth_mock.assert_called()
+
+    def test_model_name_is_validated(self) -> None:
+        os.environ["AI_PROVIDER"] = "claude_code"
+        for bad in ("sonnet&echo pwned", "-x", "opus|calc", "a b", "x" * 200):
+            os.environ["CLAUDE_CODE_MODEL"] = bad
+            with self.subTest(model=bad):
+                settings = resolve_llm_settings()
+                self.assertFalse(settings.available)
+                self.assertIn("CLAUDE_CODE_MODEL", settings.unavailable_reason)
+        for good in ("sonnet", "claude-sonnet-4-5", "claude-opus-4-1[1m]", "opus:latest"):
+            os.environ["CLAUDE_CODE_MODEL"] = good
+            with self.subTest(model=good):
+                self.assertTrue(resolve_llm_settings().available)
 
     def test_container_blocks(self) -> None:
         os.environ["AI_PROVIDER"] = "claude_code"
@@ -154,6 +179,29 @@ class ClaudeCodeSettingsTests(unittest.TestCase):
                     self.assertEqual(remote_browser_session(), remote)
         # Outside a Streamlit run (CLI scripts) there is no browser viewer.
         self.assertFalse(remote_browser_session())
+
+    def test_tunnel_or_proxy_on_this_pc_counts_as_remote(self) -> None:
+        from types import SimpleNamespace
+
+        import streamlit as st
+
+        from ai.config import remote_browser_session
+
+        cases = [
+            ({"host": "localhost:8501"}, False),
+            ({"host": "127.0.0.1:8501"}, False),
+            ({"host": "[::1]:8501"}, False),
+            ({}, False),
+            ({"host": "abc123.ngrok-free.app"}, True),
+            ({"host": "my-pc:8501"}, True),
+            ({"host": "localhost:8501", "x-forwarded-for": "203.0.113.9"}, True),
+            ({"host": "localhost:8501", "forwarded": "for=203.0.113.9"}, True),
+        ]
+        with patch("ai.config._session_state", return_value={}):
+            for headers, remote in cases:
+                ctx = SimpleNamespace(ip_address=None, headers=headers)
+                with self.subTest(headers=headers), patch.object(st, "context", ctx):
+                    self.assertEqual(remote_browser_session(), remote)
 
     def test_hosted_session_choice_still_blocked(self) -> None:
         os.environ["ESA_HOSTED_MODE"] = "1"
@@ -245,6 +293,13 @@ class ClaudeCodeRunTests(unittest.TestCase):
         claude_code.clear_status_cache()
         self.addCleanup(claude_code.clear_status_cache)
 
+    def test_command_refuses_shell_metacharacters_in_model(self) -> None:
+        with self.assertRaises(ValueError):
+            claude_code._command(CLI, "sonnet&echo pwned")
+        with patch("ai.claude_code._run") as run:
+            self.assertIsNone(claude_code.run_prompt(cli=CLI, system="s", user="u", model="a|b"))
+        run.assert_not_called()
+
     def test_command_is_tool_free_and_sessionless(self) -> None:
         cmd = claude_code._command(CLI, "sonnet")
         self.assertEqual(cmd[:2], [CLI, "-p"])
@@ -268,11 +323,28 @@ class ClaudeCodeRunTests(unittest.TestCase):
             "CLAUDE_CODE_SESSION_ID": "sess",
             "CLAUDE_CODE_MESSAGING_TOKEN": "msg",
             "CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH": "1",
+            "CLAUDE_AGENT_SDK_VERSION": "1",
+            "CLAUDE_EFFORT": "max",
+            "CLAUDE_CONFIG_DIR": "D:/claude-config",
             "CLAUDE_CODE_DISABLE_CLAUDE_MDS": "0",
+            # Gateways, cloud credentials and unrelated app secrets
+            "ANTHROPIC_CUSTOM_HEADERS": "x-proxy: 1",
+            "ANTHROPIC_BEDROCK_BASE_URL": "https://bedrock",
+            "AWS_BEARER_TOKEN_BEDROCK": "aws",
+            "CLAUDE_CODE_USE_SOMETHING_NEW": "1",
+            "OPENAI_API_KEY": "sk-openai",
+            "GEMINI_API_KEY": "g",
+            "ESA_API_KEY": "server",
+            "GITHUB_TOKEN": "ghp",
             "PATH": "x",
             "CLAUDE_CODE_GIT_BASH_PATH": "C:/Git/bin/bash.exe",
         }
-        kept = {"PATH", "CLAUDE_CODE_GIT_BASH_PATH", "CLAUDE_CODE_DISABLE_CLAUDE_MDS"}
+        kept = {
+            "PATH",
+            "CLAUDE_CODE_GIT_BASH_PATH",
+            "CLAUDE_CONFIG_DIR",
+            "CLAUDE_CODE_DISABLE_CLAUDE_MDS",
+        }
         with patch.dict(os.environ, injected):
             env = claude_code._child_env()
         for key in injected:

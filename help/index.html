@@ -756,14 +756,16 @@ ANTHROPIC_API_KEY = &quot;sk-ant-...&quot;
 <li>No tools, MCP servers, plugins, hooks or skills.</li>
 <li>Your personal `CLAUDE.md` and memory are not loaded.</li>
 <li>No session is saved.</li>
-<li>`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_CODE_USE_BEDROCK` / `_VERTEX` / `_FOUNDRY` are removed from the child environment. The call therefore uses your own `/login`, never a key or token the app could pass along. Session variables from a Claude Code window you launched the app from (`CLAUDECODE`, `CLAUDE_CODE_*` except `CLAUDE_CODE_GIT_BASH_PATH`) are dropped too.</li>
+<li>The child environment drops every `ANTHROPIC_*`, `AWS_*` and `CLAUDE*` variable (except `CLAUDE_CONFIG_DIR` and `CLAUDE_CODE_GIT_BASH_PATH`), and anything ending in `_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD` (e.g. `OPENAI_API_KEY`, `ESA_API_KEY`). The call therefore uses your own `/login`, never a key, token or gateway the app could pass along, and doesn&#x27;t inherit the session of a Claude Code window you launched the app from.</li>
+<li>`CLAUDE_CODE_MODEL` must be a plain alias or model id (`sonnet`, `opus`, `claude-sonnet-4-5`); anything with spaces or shell characters is refused.</li>
 </ul>
 <p>**Blocked on shared hosts.** The picker is hidden and `claude_code` refuses to run when any of these hold:</p>
 <ul>
-<li>`ESA_HOSTED_MODE`, `ESA_DISABLE_FOLDER_WORKFLOW` or `ESA_BIND_ALL` is set;</li>
-<li>`ESA_API_KEY` is set (the HTTP render server);</li>
+<li>`ESA_HOSTED_MODE`, `ESA_DISABLE_FOLDER_WORKFLOW` or `ESA_BIND_ALL` is set to anything but `0` / `false` / `no` / `off` (in the environment **or** secrets);</li>
+<li>`ESA_API_KEY` is present in the environment, even empty (the HTTP render server);</li>
 <li>the app runs in a container;</li>
 <li>the browser is not on the same PC, e.g. a colleague opens `http://&lt;your-pc&gt;:8501` over the LAN.</li>
+<li>the page is reached through a tunnel or proxy (ngrok, cloudflared, VS Code port forwarding): any `X-Forwarded-*` / `Forwarded` header, or a host name other than `localhost` / `127.0.0.1`, counts as remote.</li>
 </ul>
 <p>One person&#x27;s sign-in must never serve other users. Use `AI_PROVIDER=anthropic` with an API key there. A reverse proxy on the same machine looks local, so always set `ESA_HOSTED_MODE=1` on any shared server.</p>
 <h3>CLI without LLM</h3>

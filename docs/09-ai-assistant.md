@@ -104,7 +104,8 @@ How it runs: `claude -p --output-format json --no-session-persistence --safe-mod
 - No tools, MCP servers, plugins, hooks or skills.
 - Your personal `CLAUDE.md` and memory are not loaded.
 - No session is saved.
-- `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_CODE_USE_BEDROCK` / `_VERTEX` / `_FOUNDRY` are removed from the child environment. The call therefore uses your own `/login`, never a key or token the app could pass along. Session variables from a Claude Code window you launched the app from (`CLAUDECODE`, `CLAUDE_CODE_*` except `CLAUDE_CODE_GIT_BASH_PATH`) are dropped too.
+- The child environment drops every `ANTHROPIC_*`, `AWS_*` and `CLAUDE*` variable (except `CLAUDE_CONFIG_DIR` and `CLAUDE_CODE_GIT_BASH_PATH`), and anything ending in `_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD` (e.g. `OPENAI_API_KEY`, `ESA_API_KEY`). The call therefore uses your own `/login`, never a key, token or gateway the app could pass along, and doesn't inherit the session of a Claude Code window you launched the app from.
+- `CLAUDE_CODE_MODEL` must be a plain alias or model id (`sonnet`, `opus`, `claude-sonnet-4-5`); anything with spaces or shell characters is refused.
 
 | Setting (env or secrets) | Default | Purpose |
 |--------------------------|---------|---------|
@@ -115,10 +116,11 @@ How it runs: `claude -p --output-format json --no-session-persistence --safe-mod
 | `ESA_CLAUDE_CODE_TIMEOUT_SEC` | `180` | Per-call limit (10–900 s); the whole process tree is killed on timeout |
 
 **Blocked on shared hosts.** The picker is hidden and `claude_code` refuses to run when any of these hold:
-- `ESA_HOSTED_MODE`, `ESA_DISABLE_FOLDER_WORKFLOW` or `ESA_BIND_ALL` is set;
-- `ESA_API_KEY` is set (the HTTP render server);
+- `ESA_HOSTED_MODE`, `ESA_DISABLE_FOLDER_WORKFLOW` or `ESA_BIND_ALL` is set to anything but `0` / `false` / `no` / `off` (in the environment **or** secrets);
+- `ESA_API_KEY` is present in the environment, even empty (the HTTP render server);
 - the app runs in a container;
 - the browser is not on the same PC, e.g. a colleague opens `http://<your-pc>:8501` over the LAN.
+- the page is reached through a tunnel or proxy (ngrok, cloudflared, VS Code port forwarding): any `X-Forwarded-*` / `Forwarded` header, or a host name other than `localhost` / `127.0.0.1`, counts as remote.
 
 One person's sign-in must never serve other users. Use `AI_PROVIDER=anthropic` with an API key there. A reverse proxy on the same machine looks local, so always set `ESA_HOSTED_MODE=1` on any shared server.
 

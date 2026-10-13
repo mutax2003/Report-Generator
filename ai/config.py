@@ -59,6 +59,11 @@ PROVIDER_CHOICE_AUTO = "auto"
 SESSION_PROVIDER_KEY = "ai_provider_selected"
 SESSION_CONSUMER_ACK_KEY = "claude_code_ack_selected"
 _TRUTHY = ("1", "true", "yes")
+# Shared-host flags fail safe: anything but an explicit "off" value blocks claude_code.
+_FALSY = ("", "0", "false", "no", "off")
+_SHARED_HOST_FLAGS = ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW", "ESA_BIND_ALL")
+_LOCAL_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "::1"})
+_PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "forwarded", "x-real-ip")
 
 # AI_PROVIDER=ollama|groq|gemini|together|anthropic|claude_code|openai|azure|offline
 PROVIDER_PRESETS: dict[str, dict[str, str | bool]] = {
@@ -211,14 +216,41 @@ def remote_browser_session() -> bool:
         ip = st.context.ip_address
     except Exception:
         return False
-    if not isinstance(ip, str) or not ip:
-        return False
+    if isinstance(ip, str) and ip:
+        try:
+            addr = ipaddress.ip_address(ip.split("%")[0])
+        except ValueError:
+            return True
+        mapped = getattr(addr, "ipv4_mapped", None)
+        if not (mapped or addr).is_loopback:
+            return True
+    # A tunnel or reverse proxy on this PC (ngrok, cloudflared, VS Code port forwarding)
+    # connects from 127.0.0.1, so the socket address looks local. The headers don't.
+    return _proxied_or_foreign_host()
+
+
+def _proxied_or_foreign_host() -> bool:
     try:
-        addr = ipaddress.ip_address(ip.split("%")[0])
-    except ValueError:
-        return True
-    mapped = getattr(addr, "ipv4_mapped", None)
-    return not (mapped or addr).is_loopback
+        import streamlit as st
+
+        headers = st.context.headers
+    except Exception:
+        return False
+    if not hasattr(headers, "get"):
+        return False
+    for name in _PROXY_HEADERS:
+        value = headers.get(name)
+        if isinstance(value, str) and value.strip():
+            return True
+    host = headers.get("host")
+    if not isinstance(host, str) or not host.strip():
+        return False
+    host = host.strip().lower()
+    if host.startswith("["):
+        hostname = host[1:].split("]", 1)[0]
+    else:
+        hostname = host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+    return hostname not in _LOCAL_HOSTNAMES
 
 
 def _snap(snap: dict[str, str], name: str) -> str:
@@ -294,13 +326,15 @@ def _shared_host_snapshot(snap: dict[str, str]) -> bool:
     """Hosted mode, LAN binding, HTTP API key or a container: a shared server."""
     from security import folder_workflow_disabled
 
-    if folder_workflow_disabled() or os.environ.get("ESA_API_KEY", "").strip():
+    if folder_workflow_disabled() or "ESA_API_KEY" in os.environ:
         return True
     if claude_code.running_in_container():
         return True
+    # Either source turning a flag on wins: secrets can't switch off an env flag.
     return any(
-        _snap(snap, key).lower() in _TRUTHY
-        for key in ("ESA_HOSTED_MODE", "ESA_DISABLE_FOLDER_WORKFLOW", "ESA_BIND_ALL")
+        value.strip().lower() not in _FALSY
+        for key in _SHARED_HOST_FLAGS
+        for value in (_snap(snap, key), os.environ.get(key, ""))
     )
 
 
@@ -339,6 +373,14 @@ def _claude_code_settings(snap: dict[str, str]) -> LlmSettings:
                 "PC's browser — it is disabled on hosted / shared servers, containers and "
                 "for remote viewers, where one sign-in would serve everyone. Use "
                 "`AI_PROVIDER=anthropic` with an Anthropic API key there."
+            ),
+        )
+    if not claude_code.valid_model(base["model"]):
+        return LlmSettings(
+            **base,
+            unavailable_reason=(
+                "CLAUDE_CODE_MODEL must be a model alias or id such as `sonnet`, `opus` or "
+                "`claude-sonnet-4-5` (letters, digits, `.`, `-`, `_`, `:` only)."
             ),
         )
     cli = claude_code.find_cli(_snap(snap, "CLAUDE_CLI_PATH"))
