@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from table_link_notes import link_caveat, link_issue
+
 ECOVENTURE_CONSULTANT = "Ecoventure Inc."
 
 
@@ -59,10 +61,22 @@ def enrich_groundwater_context(ctx: dict[str, Any]) -> None:
             + ", ".join(unique_exc[:8])
             + ("..." if len(unique_exc) > 8 else "")
         )
-    else:
+    elif gw_lab:
         ctx["exceedance_summary"] = (
             "No groundwater analytical results exceeded applicable screening guidelines "
             "for the parameters evaluated."
+        )
+    else:
+        ctx["exceedance_summary"] = (
+            "No groundwater analytical results were provided for this site; "
+            "no conclusion about exceedances has been drawn."
+        )
+    issue = link_issue(ctx, "groundwater_results", "lab_results")
+    if issue:
+        # Rows were dropped by site linking: never assert absence of exceedances.
+        caveat = link_caveat(issue, "Groundwater analytical results")
+        ctx["exceedance_summary"] = (
+            f"{ctx['exceedance_summary'].rstrip('.')}; {caveat}" if unique_exc else caveat
         )
 
     well_ids = {_norm_well_id(r.get("well_id")) for r in wells if _norm_well_id(r.get("well_id"))}

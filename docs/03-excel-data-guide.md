@@ -30,7 +30,8 @@ Row 3+: (ignored by engine)
 - **Row 1** — Column headers (become Jinja keys after normalization).
 - **Row 2** — **Only row used** for the report (single-report mode).
 - **Row 3+** — Additional sites. Use **batch generation** in the app (*All N sites (batch zip)*) or `scripts/render_cli.py --all-rows`. Blank rows are skipped (max 100 rows, 50 reports per batch).
-- **Linking table sheets** — If `LabResults`, `DrillingWaste`, or `StorageTanks` include a `site_name`, `project_number`, `uwi`, `well_name`, or `project_id` column, only matching rows are merged for each report. Otherwise all table rows are shared across reports.
+- **Linking table sheets** — If `LabResults`, `DrillingWaste`, or `StorageTanks` include a `site_name`, `project_number`, `uwi`, `well_name`, or `project_id` column, only matching rows are merged for each report. Matching ignores case and extra spaces, and numeric IDs match as numbers (`0101` = `101` = `101.0`). In a multi-site workbook (2+ ProjectData rows) a site with no matching rows gets an empty table — never another site's rows — and rows with a blank link cell are left out. With a single ProjectData row, blank-link rows are kept and, if nothing matches, all rows are used and the narrative says they are labelled for a different site (no conclusion about exceedances until the QP confirms them). Every mismatch is listed in pre-flight and on the results page (**Table link check**), and the auto-generated exceedance/conclusion text then says the lab results could not be matched to this site instead of claiming no exceedances. If that column is absent or entirely blank, all table rows are shared across reports. An empty LabResults sheet gives "No laboratory analytical results were provided for this site" rather than a no-exceedance statement. Fully blank table rows are skipped.
+- **Cell values** — Text cells are kept as typed (`007`, `0.50`, `<0.005`); dates at midnight render as `YYYY-MM-DD`; whole numbers render without `.0`; blank cells render empty.
 
 Empty `ProjectData` (headers only) produces a pre-flight / render error.
 
@@ -198,7 +199,7 @@ python scripts\create_samples.py
 
 ## Formula injection mitigation
 
-Cell values starting with `=`, `+`, `-`, `@`, or tab are prefixed with `'` when converted to strings (reduces formula injection if Word tables are re-opened in Excel).
+Word output shows cell values exactly as typed (a negative number such as `-5` stays `-5`). When values are written back to spreadsheet/CSV outputs (AI draft apply into ProjectData, AI-built workbooks, OneStop CSV export), text starting with `=`, `+`, `-`, `@`, tab, or carriage return is prefixed with `'` so it cannot run as a formula; plain numeric text such as `-5` or `+1.2` is left unchanged.
 
 ## Limits
 

@@ -360,6 +360,8 @@ def run_preflight(
             result.project_row_count = int(ctx.get("_project_row_count", 0))
             project_rows, _ = engine._get_parsed_excel(runtime)
             result.project_row_labels = _labels_from_project_rows(project_rows)
+            # Every site, not just row 2: unmatched / partially linked table rows.
+            result.warnings.extend(engine.table_link_warnings(meta))
             result.coverage = engine.coverage(meta, context=ctx)
             cov = result.coverage
             if runtime.require_lab_sheet and cov and cov.lab_row_count == 0:

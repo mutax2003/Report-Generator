@@ -57,7 +57,7 @@ context = engine.build_context(meta={"prepared_by": "..."})
 docx, warnings, context, record = engine.render(meta=meta)
 ```
 
-Render uses `SandboxedEnvironment` + `StrictUndefined` for Jinja inside docxtpl.
+Render uses a per-render `report_jinja.LimitedSandboxedEnvironment` (`StrictUndefined`, `autoescape=True`) for Jinja inside docxtpl: Excel text is XML-escaped (`<0.005`, `&` survive), `RichText` still renders via `__html__`, and `range()`, loop iterations, calls, every result size, `**`, integers built by `*` / `+`, `lipsum()` and text made from containers are capped, with a 120 s wall-clock limit per render (see the `report_jinja.py` docstring). Build docs with `report_jinja.ReportDocxTemplate` so core properties are not double-escaped. Word context values come from `engine._cell_str` (no `'` formula prefix). `.xlsx` writers go through `ai.excel_builder.sheets_to_xlsx_bytes` (formula-looking text stored as text cells); `_excel_cell_str` (`'` prefix) is for CSV only.
 
 ### `security.py`
 
