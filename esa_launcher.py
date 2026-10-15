@@ -50,6 +50,10 @@ def streamlit_command(py: Path, root: Path) -> list[str]:
         cmd.extend(["--server.port", port])
     if os.environ.get("ESA_BIND_ALL", "").strip().lower() in ("1", "true", "yes"):
         cmd.extend(["--server.address", "0.0.0.0"])
+    else:
+        # Streamlit listens on every interface unless told otherwise; keep the
+        # desktop package local-only so the folder workflow is not on the LAN.
+        cmd.extend(["--server.address", "localhost"])
     return cmd
 
 
