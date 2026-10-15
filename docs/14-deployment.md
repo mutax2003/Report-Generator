@@ -35,6 +35,8 @@ Output: `dist\ESA-Report-Generator\`
 
 **Target PC:** Copy the whole `ESA-Report-Generator` folder. First run: `Install-Dependencies.ps1` only if `runtime\.venv` was not included in the zip.
 
+**Local only by default:** the launcher binds to `localhost`, so other PCs on the network cannot reach the app.
+
 **Internal server:** Set environment variable `ESA_BIND_ALL=1` before launching to listen on all interfaces (use with firewall + HTTPS proxy).
 
 ```powershell
