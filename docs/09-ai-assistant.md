@@ -104,7 +104,7 @@ How it runs: `claude -p --output-format json --no-session-persistence --safe-mod
 - No tools, MCP servers, plugins, hooks or skills.
 - Your personal `CLAUDE.md` and memory are not loaded.
 - No session is saved.
-- The child environment drops every `ANTHROPIC_*`, `AWS_*` and `CLAUDE*` variable (except `CLAUDE_CONFIG_DIR` and `CLAUDE_CODE_GIT_BASH_PATH`), and anything ending in `_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD` (e.g. `OPENAI_API_KEY`, `ESA_API_KEY`). The call therefore uses your own `/login`, never a key, token or gateway the app could pass along, and doesn't inherit the session of a Claude Code window you launched the app from.
+- The child environment drops every `ANTHROPIC_*`, `AWS_*` and `CLAUDE*` variable (except `CLAUDE_CONFIG_DIR` and `CLAUDE_CODE_GIT_BASH_PATH`), anything ending in `_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD` (e.g. `OPENAI_API_KEY`, `ESA_API_KEY`), and the Node knobs `NODE_OPTIONS`, `NODE_EXTRA_CA_CERTS` and `NODE_TLS_REJECT_UNAUTHORIZED` (proxy variables are kept). The call therefore uses your own `/login`, never a key, token or gateway the app could pass along, and doesn't inherit the session of a Claude Code window you launched the app from.
 - `CLAUDE_CODE_MODEL` must be a plain alias or model id (`sonnet`, `opus`, `claude-sonnet-4-5`); anything with spaces or shell characters is refused.
 
 | Setting (env or secrets) | Default | Purpose |

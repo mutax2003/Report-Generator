@@ -52,6 +52,12 @@ COMMERCIAL_PLANS = frozenset({"team", "enterprise"})
 # CLI has no use for (OPENAI_API_KEY, ESA_API_KEY, ...). The app never forwards credentials.
 _STRIPPED_ENV_PREFIXES = ("ANTHROPIC_", "AWS_", "CLAUDE")
 _STRIPPED_ENV_SUFFIXES = ("_KEY", "_TOKEN", "_SECRET", "_PASSWORD")
+# Claude Code is a Node app: these let the host environment preload code into it or
+# change which TLS certificates it trusts. Proxy variables are left alone so corporate
+# networks keep working.
+_STRIPPED_ENV_NAMES = frozenset(
+    {"NODE_OPTIONS", "NODE_EXTRA_CA_CERTS", "NODE_TLS_REJECT_UNAUTHORIZED"}
+)
 # Machine setup the CLI needs: where the user's own sign-in lives, and (Windows) Git Bash.
 _KEPT_CLAUDE_ENV = frozenset({"CLAUDE_CONFIG_DIR", "CLAUDE_CODE_GIT_BASH_PATH"})
 
@@ -161,7 +167,8 @@ def _child_env() -> dict[str, str]:
         if upper in _KEPT_CLAUDE_ENV:
             env[key] = value
         elif not (
-            upper.startswith(_STRIPPED_ENV_PREFIXES)
+            upper in _STRIPPED_ENV_NAMES
+            or upper.startswith(_STRIPPED_ENV_PREFIXES)
             or upper.endswith(_STRIPPED_ENV_SUFFIXES)
         ):
             env[key] = value

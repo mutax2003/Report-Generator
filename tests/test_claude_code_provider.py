@@ -336,11 +336,17 @@ class ClaudeCodeRunTests(unittest.TestCase):
             "GEMINI_API_KEY": "g",
             "ESA_API_KEY": "server",
             "GITHUB_TOKEN": "ghp",
+            # Node knobs that preload code into the CLI or change what it trusts
+            "NODE_OPTIONS": "--require C:/evil.js",
+            "NODE_EXTRA_CA_CERTS": "C:/evil-ca.pem",
+            "NODE_TLS_REJECT_UNAUTHORIZED": "0",
+            "HTTPS_PROXY": "http://proxy.corp:3128",
             "PATH": "x",
             "CLAUDE_CODE_GIT_BASH_PATH": "C:/Git/bin/bash.exe",
         }
         kept = {
             "PATH",
+            "HTTPS_PROXY",
             "CLAUDE_CODE_GIT_BASH_PATH",
             "CLAUDE_CONFIG_DIR",
             "CLAUDE_CODE_DISABLE_CLAUDE_MDS",
@@ -351,6 +357,7 @@ class ClaudeCodeRunTests(unittest.TestCase):
             if key not in kept:
                 self.assertNotIn(key, env)
         self.assertEqual(env["PATH"], "x")
+        self.assertEqual(env["HTTPS_PROXY"], "http://proxy.corp:3128")
         self.assertEqual(env["CLAUDE_CODE_GIT_BASH_PATH"], "C:/Git/bin/bash.exe")
         self.assertEqual(env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"], "1")
         self.assertEqual(env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"], "1")
