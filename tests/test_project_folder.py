@@ -256,6 +256,34 @@ class ProjectFolderTests(unittest.TestCase):
         self.assertEqual(results[0].label, "B")
         self.assertTrue(results[0].to_dict()["auto_generated_at_render"] is False)
 
+    def test_appendix_classifier_llm_fills_unmatched_names(self) -> None:
+        from unittest import mock
+
+        from ai.appendix_classifier import classify_appendix_pdfs
+
+        folder = self._make_folder()
+        scan = folder / "source" / "scan_0042.pdf"
+        scan.parent.mkdir(exist_ok=True)
+        scan.write_bytes(b"%PDF-1.4")
+        reply = {"items": [{"filename": "scan_0042.pdf", "label": "C", "confidence": "high"}]}
+        with mock.patch("ai.appendix_classifier.complete_json", return_value=reply) as llm:
+            results = classify_appendix_pdfs([scan], use_llm=True)
+        llm.assert_called_once()
+        self.assertEqual((results[0].label, results[0].source), ("C", "llm"))
+
+    def test_appendix_classifier_without_provider_falls_back(self) -> None:
+        from unittest import mock
+
+        from ai.appendix_classifier import classify_appendix_pdfs
+
+        folder = self._make_folder()
+        scan = folder / "source" / "scan_0042.pdf"
+        scan.parent.mkdir(exist_ok=True)
+        scan.write_bytes(b"%PDF-1.4")
+        with mock.patch("ai.client.chat_completion", return_value=None):
+            results = classify_appendix_pdfs([scan], use_llm=True)
+        self.assertEqual((results[0].label, results[0].source), ("B", "default"))
+
     def test_drilling_waste_classified_as_auto_generated_note(self) -> None:
         from ai.appendix_classifier import classify_appendix_pdfs
 

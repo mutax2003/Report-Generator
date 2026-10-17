@@ -14,6 +14,7 @@ from appendix_generator import phase1_profile_includes_appendices  # noqa: E402
 from automate.render import render_report_from_bytes  # noqa: E402
 from deliverable_pack import build_deliverable_zip_bytes  # noqa: E402
 from provenance import sha256_hex  # noqa: E402
+from report_profile import get_profile_default_phase, list_report_profiles  # noqa: E402
 
 
 def main() -> int:
@@ -38,7 +39,11 @@ def main() -> int:
     )
     parser.add_argument("--prepared-by", default="CLI Test")
     parser.add_argument("--date", default="2026-05-19")
-    parser.add_argument("--phase", default="Phase 2")
+    parser.add_argument(
+        "--phase",
+        default=None,
+        help="Report phase; defaults to the --report-type profile's phase (else Phase 2)",
+    )
     parser.add_argument(
         "--report-type",
         default="",
@@ -73,10 +78,22 @@ def main() -> int:
         print(f"Template not found: {args.template}", file=sys.stderr)
         return 1
 
+    known_profiles = [pid for pid, _label in list_report_profiles()]
+    if args.report_type and args.report_type not in known_profiles:
+        print(
+            f"Unknown --report-type {args.report_type!r}; choose one of: "
+            + ", ".join(known_profiles),
+            file=sys.stderr,
+        )
+        return 2
+    phase = args.phase
+    if phase is None:
+        # A Phase I profile rendered as "Phase 2" mis-names the file and drops qp_checklists/.
+        phase = get_profile_default_phase(args.report_type) if args.report_type else "Phase 2"
     meta = {
         "prepared_by": args.prepared_by,
         "date_of_issue": args.date,
-        "report_phase": args.phase,
+        "report_phase": phase,
     }
     if args.report_type:
         meta["report_type"] = args.report_type
@@ -93,7 +110,10 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
     if args.all_rows:
-        from deliverable_pack import build_batch_reports_zip
+        from deliverable_pack import (
+            build_batch_deliverable_packages_zip,
+            build_batch_reports_zip,
+        )
         from render_service import RenderRequest, render_batch_reports
 
         batch = render_batch_reports(
@@ -121,6 +141,10 @@ def main() -> int:
             )
         )
         print(f"Wrote batch zip ({len(batch)} reports): {zip_path}")
+        if args.package:
+            package_path = zip_path.with_name(zip_path.stem + "_package.zip")
+            package_path.write_bytes(build_batch_deliverable_packages_zip(batch, meta))
+            print(f"Package: {package_path}")
         for item in batch:
             for w in item.warnings[:3]:
                 print(f"  WARN [{item.filename}]: {w}")

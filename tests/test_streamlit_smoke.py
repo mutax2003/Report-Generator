@@ -165,6 +165,11 @@ class StreamlitSmokeTests(unittest.TestCase):
         self._assert_no_exceptions(at)
         self.assertEqual(at.session_state["project_folder_path"], folder)
         self.assertIsNotNone(at.session_state["project_folder_loaded"])
+        # Header strip names the folder's files instead of "not loaded".
+        strip = self._markdown_text(at)
+        self.assertNotIn("Excel — not loaded", strip)
+        self.assertNotIn("Template — not loaded", strip)
+        self.assertIn("project_data.xlsx", strip)
 
     @staticmethod
     def _high_ratio_zip(source: Path, member: str, pad: int = 4 * 1024 * 1024) -> bytes:

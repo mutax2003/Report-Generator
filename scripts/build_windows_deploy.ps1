@@ -113,7 +113,10 @@ if not exist "runtime\.venv\Scripts\python.exe" (
   pause
   exit /b 1
 )
-start "" "http://localhost:8501"
+set "ESA_OPEN_PORT=8501"
+if defined ESA_PORT set "ESA_OPEN_PORT=%ESA_PORT%"
+for /f "delims=0123456789" %%a in ("%ESA_OPEN_PORT%") do set "ESA_OPEN_PORT=8501"
+start "" "http://localhost:%ESA_OPEN_PORT%"
 if exist "ESA-Report-Generator.exe" (
   "ESA-Report-Generator.exe"
 ) else (

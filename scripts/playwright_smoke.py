@@ -43,7 +43,7 @@ def main() -> int:
             page.goto(URL, wait_until="networkidle", timeout=60_000)
             page.get_by_text("How do you want to generate your report?").wait_for(timeout=30_000)
             page.get_by_role("button", name="Use Excel + template workflow").click()
-            page.get_by_text("Excel + Word template").wait_for(timeout=30_000)
+            page.get_by_text("Excel + Word template").first.wait_for(timeout=30_000)
             page.get_by_role("button", name="Change").click()
             page.get_by_text("How do you want to generate your report?").wait_for(timeout=30_000)
             page.get_by_role("button", name="Use project folder workflow").click()

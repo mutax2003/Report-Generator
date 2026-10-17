@@ -86,6 +86,18 @@ class DwdaCalculationsTests(unittest.TestCase):
         self.assertFalse(result.metal_pass)
         self.assertTrue(result.phase2_required)
 
+    def test_summary_keeps_small_dst_totals_visible(self) -> None:
+        ctx = {
+            "_ecoventure_ingested": {
+                "dst_resistivity_sacks_total": 0.004,
+                "dst_chloride_sacks_total": 12.0,
+            },
+        }
+        result = evaluate_dwda_calculations(ctx)
+        self.assertIn("DST resistivity: 0.004 sacks", result.summary)
+        self.assertIn("DST chloride: 12 sacks", result.summary)
+        self.assertNotIn("0.00 sacks", result.summary)
+
 
 if __name__ == "__main__":
     unittest.main()

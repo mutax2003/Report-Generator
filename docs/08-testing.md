@@ -89,7 +89,7 @@ python scripts\create_samples.py
 python -m unittest discover -s tests -v
 ```
 
-Expected: **537 tests OK** (4 may skip; includes verify_tier/pre-commit, render-path batch parity, onboarding UX, AppTest sample load/welcome/next-steps, AI provider config, render-path parity, phase2 triggers, reclamation compliance, schema parity, compliance helpers, DWDA/Ecoventure calc + ingest, upload cache helpers, Streamlit AppTest smoke, folder picker, source PDF ingest, project folder, Phase I appendix generator, automate package smoke, Phase II/remediation verticals, SED 002 compliance, groundwater monitoring, phrase resolver, batch render, deliverable pack, smoke integration, production modules: audit trail, QP signature, auth/tenant/job queue/rate limit/observability, HTTP multipart parser).
+Expected: **547 tests OK** (4 may skip; includes verify_tier/pre-commit, render-path batch parity, onboarding UX, AppTest sample load/welcome/next-steps, AI provider config, render-path parity, phase2 triggers, reclamation compliance, schema parity, compliance helpers, DWDA/Ecoventure calc + ingest, upload cache helpers, Streamlit AppTest smoke, folder picker, source PDF ingest, project folder, Phase I appendix generator, automate package smoke, Phase II/remediation verticals, SED 002 compliance, groundwater monitoring, phrase resolver, batch render, deliverable pack, smoke integration, production modules: audit trail, QP signature, auth/tenant/job queue/rate limit/observability, HTTP multipart parser).
 
 Run `python scripts\count_tests.py` to verify the documented count matches `unittest discover`.
 
@@ -257,7 +257,7 @@ Unit tests include `tests/test_streamlit_smoke.py` (AppTest workflow + folder lo
 
 ### `windows-smoke` (windows-latest, on PRs/pushes)
 
-1. `.\scripts\build_windows_deploy.ps1 -SkipExe`
+1. `.\scripts\build_windows_deploy.ps1` (no `-BuildExe`, so no PyInstaller step)
 2. Assert `dist\ESA-Report-Generator\help\index.html` exists
 3. Bundled-venv `health_check.py` + `streamlit_smoke.py`
 

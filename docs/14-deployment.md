@@ -12,7 +12,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Open http://localhost:8501. Default config binds to localhost ([`.streamlit/config.toml`](../.streamlit/config.toml)).
+Open http://localhost:8501. `streamlit run` listens on every network interface unless you pass `--server.address localhost`. [`.streamlit/config.toml`](../.streamlit/config.toml) leaves the address unset so Streamlit Community Cloud share URLs keep working. The Windows package launcher binds to localhost unless `ESA_BIND_ALL=1`.
 
 ## Windows deployment package (executable / portable folder)
 
@@ -150,7 +150,7 @@ The Docker image and compose file include baseline production controls:
 | Require key on localhost | `ESA_REQUIRE_API_KEY=1` | Forces auth even when binding `127.0.0.1` |
 | Rate limiting | `ESA_RATE_LIMIT_MAX` | [`esa_rate_limit.py`](../esa_rate_limit.py) — auth first, then per-API-key render quota; separate per-IP failed-auth limiter (`ESA_AUTH_FAIL_MAX`) |
 
-The Docker [`docker-entrypoint.sh`](../docker-entrypoint.sh) briefly runs as root to **chown** the audit volume (`.esa_audit`) for the non-root `esa` user, then drops privileges.
+The image runs as the non-root `esa` user. [`docker-entrypoint.sh`](../docker-entrypoint.sh) only touches ownership when an operator starts the container with `--user root`: it then **chowns** the audit volume (`.esa_audit`) to `esa` and drops privileges. [`.dockerignore`](../.dockerignore) keeps secrets, `.venv`, client PDFs and render outputs out of the `COPY . .` layer.
 
 **Entra ID / VPN posture (confirmed):** Streamlit has no built-in SSO. Production deployments **must** use Application Proxy, OAuth2 reverse proxy, or VPN-only access — see options below. Do not publish port 8501 without authentication.
 

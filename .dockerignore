@@ -1,0 +1,61 @@
+# Keep the image to what the app needs. The Dockerfile uses `COPY . .`, so
+# anything not excluded here is baked into every image layer.
+
+# VCS, agents, editor state
+.git
+.github
+.claude
+.cursor
+.idea
+.vscode
+_review
+
+# Python / tool caches and local environments
+.venv
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+coverage.xml
+htmlcov
+*.log
+
+# Secrets: supply these at runtime (env vars, mounted secrets), never in the image
+.streamlit/secrets.toml
+.env
+.env.*
+
+# Local runtime state (mounted as volumes in docker-compose)
+.esa_audit
+.esa_tenants
+
+# Build outputs
+dist
+out
+
+# Client reference documents (confidential, matches .gitignore)
+samples/*.pdf
+samples/*[Dd]evon*.docx
+samples/00_*.docx
+samples/25*R*.docx
+samples/26*R*.docx
+samples/*-markup*.docx
+samples/*_Secure*.docx
+samples/~$*
+
+# Client template kept at the repo root (gitignored)
+22xxxxR*
+
+# Generated render outputs
+samples/*_rendered.docx
+samples/*_rendered_manifest.json
+samples/*_package.zip
+samples/rendered_output*
+samples/e2e_*
+samples/batch_cli.zip
+
+# Consultant test folders hold client files; the app falls back to samples/
+user_test/
+!user_test/README.txt

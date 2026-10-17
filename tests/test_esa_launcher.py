@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from esa_launcher import streamlit_command
+from esa_launcher import launcher_port, streamlit_command
 
 
 def _address(cmd: list[str]) -> str | None:
@@ -35,6 +35,16 @@ class StreamlitCommandBindTests(unittest.TestCase):
         for value in ("", "0", "false", "no"):
             with self.subTest(value=value):
                 self.assertEqual(_address(self._cmd({"ESA_BIND_ALL": value})), "localhost")
+
+
+class LauncherPortTests(unittest.TestCase):
+    def test_printed_port_matches_esa_port(self) -> None:
+        cases = {"": "8501", "8600": "8600", " 9000 ": "9000", "abc": "8501"}
+        for value, expected in cases.items():
+            with self.subTest(value=value), mock.patch.dict(os.environ, {"ESA_PORT": value}):
+                self.assertEqual(launcher_port(), expected)
+                cmd = streamlit_command(Path("python.exe"), Path("."))
+                self.assertEqual(cmd[cmd.index("--server.port") + 1], expected)
 
 
 if __name__ == "__main__":

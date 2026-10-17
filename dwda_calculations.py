@@ -267,10 +267,12 @@ def _build_summary(result: DwdaCalcResult) -> str:
     if result.salt_pass is not None:
         status = "pass" if result.salt_pass else "FAIL"
         parts.append(f"Salt: {status} ({result.salt_sacks_per_m3:.4f} sacks/m³)")
+    # _fmt keeps small totals visible (":.2f" printed 0.004 sacks as "0.00 sacks").
+    fmt = DwdaCalcResult._fmt
     if result.dst_resistivity_sacks_total is not None:
-        parts.append(f"DST resistivity: {result.dst_resistivity_sacks_total:.2f} sacks")
+        parts.append(f"DST resistivity: {fmt(result.dst_resistivity_sacks_total)} sacks")
     if result.dst_chloride_sacks_total is not None:
-        parts.append(f"DST chloride: {result.dst_chloride_sacks_total:.2f} sacks")
+        parts.append(f"DST chloride: {fmt(result.dst_chloride_sacks_total)} sacks")
     return "; ".join(parts) if parts else "No DWDA calculation inputs present."
 
 

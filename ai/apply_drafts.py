@@ -81,6 +81,42 @@ def _sanitize_field_map(fields: dict[str, Any]) -> dict[str, str]:
     return out
 
 
+_MD_HEADING = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
+_MD_BOLD = re.compile(r"(?<!\w)(\*\*|__)(?=\S)(.+?)(?<=\S)\1(?!\w)")
+
+
+def strip_narrative_markdown(text: str) -> str:
+    """Remove Markdown markup that Word would print literally.
+
+    Drafts come back from the LLM as Markdown. A heading line that ends like a sentence
+    is treated as prose. A leading title-style heading followed by body text is dropped
+    (the template already has its own section heading). Later ``##``-or-deeper headings
+    become plain lines; a later single ``#`` line is left alone because prose
+    such as "# of wells" starts that way. ``**bold**`` / ``__bold__`` markers are
+    unwrapped. Everything else, including ``[confirm]`` review markers and list dashes,
+    is kept as written.
+    """
+    lines = text.splitlines()
+    out: list[str] = []
+    leading = True
+    for idx, line in enumerate(lines):
+        if leading and not line.strip():
+            continue
+        heading = _MD_HEADING.match(line)
+        if heading and heading.group(2).rstrip().endswith((".", "!", "?", ";", ":")):
+            heading = None  # reads as a sentence ("# 3 wells were drilled."), not a title
+        if heading and leading:
+            leading = False
+            if any(rest.strip() for rest in lines[idx + 1 :]):
+                continue
+            line = heading.group(2)
+        elif heading and len(heading.group(1)) >= 2:
+            line = heading.group(2)
+        leading = False
+        out.append(_MD_BOLD.sub(r"\2", line))
+    return "\n".join(out).strip()
+
+
 def load_narratives_payload(path_or_data: Path | dict[str, Any] | str) -> dict[str, str]:
     """Map narrative section → text from narratives.json or in-memory payload."""
     data = _load_json_object(path_or_data)
@@ -89,7 +125,7 @@ def load_narratives_payload(path_or_data: Path | dict[str, Any] | str) -> dict[s
         if not isinstance(item, dict):
             continue
         section = str(item.get("section", "")).strip()
-        text = str(item.get("text", "")).strip()
+        text = strip_narrative_markdown(str(item.get("text", "")))
         field = NARRATIVE_SECTION_TO_FIELD.get(section, section)
         if field and text:
             raw[field] = text
@@ -122,6 +158,7 @@ def narratives_from_session_drafts(drafts: list[Any]) -> dict[str, str]:
             section = str(getattr(d, "section", "")).strip()
             text = str(getattr(d, "text", "")).strip()
         field = NARRATIVE_SECTION_TO_FIELD.get(section, section)
+        text = strip_narrative_markdown(text)
         if field and text:
             raw[field] = text
     return _sanitize_field_map(raw)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import sys
 import tempfile
 import unittest
@@ -44,9 +45,13 @@ class AgentFolderReportCliTests(unittest.TestCase):
 
         if not (PHASE2_FOLDER / "project_data.xlsx").is_file():
             self.skipTest("user_test/phase2_alberta not prepared")
-        code = run_mode(PHASE2_FOLDER, "inventory", use_llm=False)
-        self.assertEqual(code, 0)
-        self.assertTrue((PHASE2_FOLDER / "ai_drafts").is_dir())
+        # Work on a copy: inventory rewrites ai_drafts/, which is tracked in git.
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "phase2_alberta"
+            shutil.copytree(PHASE2_FOLDER, folder)
+            code = run_mode(folder, "inventory", use_llm=False)
+            self.assertEqual(code, 0)
+            self.assertTrue((folder / "ai_drafts" / "inventory.md").is_file())
 
     def test_llm_flag_parsing(self) -> None:
         from scripts.agent_folder_report import build_parser
