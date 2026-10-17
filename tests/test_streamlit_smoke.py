@@ -139,6 +139,8 @@ class StreamlitSmokeTests(unittest.TestCase):
                     pass
             joined = " ".join(str(x) for x in labels)
             self.assertNotIn("Open project folder", joined)
+            # Personal Claude sign-in must never be offered on a shared host.
+            self.assertNotIn("ai_provider_choice", [s.key for s in at.selectbox])
 
             at = self._click_load_alberta_sample(at)
             at.button(key="ux_welcome_dismiss").click().run()
@@ -151,6 +153,52 @@ class StreamlitSmokeTests(unittest.TestCase):
             self.assertIn("Your report is ready", self._markdown_text(at))
         finally:
             os.environ.pop("ESA_HOSTED_MODE", None)
+
+    def test_claude_subscription_provider_picker(self) -> None:
+        """Local PC: pick 'My Claude account' → Max privacy ack → LLM toggle turns on."""
+        from unittest.mock import patch
+
+        from ai import claude_code
+        from ai.claude_code import ClaudeCodeStatus
+
+        status = ClaudeCodeStatus(
+            cli_path="claude",
+            logged_in=True,
+            auth_method="claude.ai",
+            api_provider="firstParty",
+            subscription_type="max",
+        )
+        with patch("ai.claude_code.find_cli", return_value="claude"), patch(
+            "ai.claude_code.auth_status", return_value=status
+        ), patch("ai.claude_code.running_in_container", return_value=False):
+            at = self._upload_workflow_app(timeout=60)
+            picker = at.selectbox(key="ai_provider_choice")
+            self.assertEqual(picker.value, "auto")
+            picker.set_value(claude_code.PROVIDER_ID).run()
+            self._assert_no_exceptions(at)
+            self.assertFalse(self._session_get(at, "ai_use_llm"))
+            at.checkbox(key="claude_code_consumer_ack").check().run()
+            self._assert_no_exceptions(at)
+            self.assertTrue(self._session_get(at, "ai_use_llm"))
+            captions = " ".join(c.value or "" for c in at.caption)
+            self.assertIn("Claude Max", captions)
+            at.button(key="claude_code_recheck").click().run()
+            self._assert_no_exceptions(at)
+
+            # Back to the workflow picker (sidebar not rendered) and in again: the
+            # provider choice and privacy acknowledgement must survive.
+            at.button(key="change_workflow_mode").click().run()
+            self._assert_no_exceptions(at)
+            if self._session_get(at, "confirm_workflow_change"):
+                confirm = [b for b in at.button if "confirm" in (b.key or "")]
+                self.assertTrue(confirm, "expected a confirm button")
+                confirm[0].click().run()
+            self.assertIsNone(self._session_get(at, "workflow_mode"))
+            at.button(key="pick_workflow_upload").click().run()
+            self._assert_no_exceptions(at)
+            self.assertEqual(at.selectbox(key="ai_provider_choice").value, claude_code.PROVIDER_ID)
+            self.assertTrue(at.checkbox(key="claude_code_consumer_ack").value)
+            self.assertTrue(self._session_get(at, "ai_use_llm"))
 
     def test_folder_workflow_loads_test_folder(self) -> None:
         from streamlit.testing.v1 import AppTest

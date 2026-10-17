@@ -9,7 +9,16 @@ from typing import Any
 import streamlit as st
 
 from ai import ai_status_message
-from ai.config import ai_available, resolve_llm_settings
+from ai import claude_code
+from ai.config import (
+    PROVIDER_CHOICE_AUTO,
+    SESSION_CONSUMER_ACK_KEY,
+    SESSION_PROVIDER_KEY,
+    LlmSettings,
+    ai_available,
+    claude_code_blocked,
+    resolve_llm_settings,
+)
 from ai.consistency import check_consistency
 from ai.copilot import explain_preflight
 from ai.exceedance_notes import notes_for_lab_rows
@@ -201,6 +210,88 @@ def _build_context_from_excel(excel_bytes: bytes, meta: dict[str, str]) -> dict[
                 pass
 
 
+_PROVIDER_CHOICES = {
+    PROVIDER_CHOICE_AUTO: "From settings / secrets (auto)",
+    claude_code.PROVIDER_ID: "My Claude account (via Claude Code)",
+}
+
+
+def _reset_llm_toggle() -> None:
+    """Re-derive 'Use LLM' from the newly selected provider on the next run."""
+    st.session_state.pop("ai_use_llm", None)
+
+
+def _save_provider_choice() -> None:
+    st.session_state[SESSION_PROVIDER_KEY] = st.session_state.get("ai_provider_choice")
+    _reset_llm_toggle()
+
+
+def _save_consumer_ack() -> None:
+    st.session_state[SESSION_CONSUMER_ACK_KEY] = bool(
+        st.session_state.get("claude_code_consumer_ack")
+    )
+    _reset_llm_toggle()
+
+
+def _seed_widget(widget_key: str, saved_key: str, default: object) -> None:
+    """Streamlit drops widget state on runs that skip the widget — restore it."""
+    if widget_key not in st.session_state:
+        st.session_state[widget_key] = st.session_state.get(saved_key, default)
+
+
+def _render_provider_picker() -> None:
+    """Local PCs only: let a consultant use their own Claude Max / Team plan."""
+    from ui.workflow_mode import hosted_mode_enabled
+
+    if hosted_mode_enabled() or claude_code_blocked():
+        # Shared hosts / remote viewers must never drive one person's Claude sign-in.
+        for key in (
+            "ai_provider_choice",
+            SESSION_PROVIDER_KEY,
+            "claude_code_consumer_ack",
+            SESSION_CONSUMER_ACK_KEY,
+        ):
+            st.session_state.pop(key, None)
+        return
+    _seed_widget("ai_provider_choice", SESSION_PROVIDER_KEY, PROVIDER_CHOICE_AUTO)
+    if st.session_state["ai_provider_choice"] not in _PROVIDER_CHOICES:
+        st.session_state["ai_provider_choice"] = PROVIDER_CHOICE_AUTO
+    st.selectbox(
+        "AI provider",
+        options=list(_PROVIDER_CHOICES),
+        format_func=_PROVIDER_CHOICES.__getitem__,
+        key="ai_provider_choice",
+        on_change=_save_provider_choice,
+        help=(
+            "**My Claude account** runs Claude Code on this PC with your own Claude "
+            "Max / Team sign-in — the app never sees a password or token. "
+            "**Auto** uses the provider configured in secrets / environment."
+        ),
+    )
+
+
+def _render_claude_code_controls(settings: LlmSettings) -> None:
+    if settings.consumer_plan:
+        _seed_widget("claude_code_consumer_ack", SESSION_CONSUMER_ACK_KEY, False)
+        st.checkbox(
+            f"I've checked my {settings.account} privacy settings",
+            key="claude_code_consumer_ack",
+            on_change=_save_consumer_ack,
+            help=(
+                "Claude Pro / Max are consumer plans. Before sending client project data, "
+                "turn off **Help improve Claude** at claude.ai → Settings → Privacy (or use "
+                "a Claude Team / Enterprise seat, which falls under commercial terms)."
+            ),
+        )
+    if st.button("Re-check sign-in", key="claude_code_recheck"):
+        claude_code.clear_status_cache()
+        _reset_llm_toggle()
+        st.rerun()
+    error = claude_code.last_error()
+    if error:
+        st.caption(f"Last Claude Code error: {error}")
+
+
 def render_ai_settings_sidebar(*, folder_mode: bool = False) -> None:
     from ui.onboarding import is_simple_mode
 
@@ -208,15 +299,19 @@ def render_ai_settings_sidebar(*, folder_mode: bool = False) -> None:
     expanded = folder_mode and not simple
     label = "Advanced — AI options" if simple else "AI options"
     with st.sidebar.expander(label, expanded=expanded):
+        _render_provider_picker()
         settings = resolve_llm_settings()
         st.caption(ai_status_message(settings))
-        if settings.available:
+        if settings.provider == claude_code.PROVIDER_ID:
+            _render_claude_code_controls(settings)
+        elif settings.available:
             st.caption(f"Configured provider: **{settings.label}**")
         else:
             st.caption(
                 "Free options: **Ollama** (local) · **Gemini** / **Groq** (cloud free tier). "
                 "**Claude:** set `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` in secrets "
-                "(Console API key — not Claude Max login). "
+                "(Console API key), or — on a local PC — pick **My Claude account** to use your own "
+                "Claude Max / Team plan through Claude Code. "
                 "See [09-ai-assistant.md](docs/09-ai-assistant.md)."
             )
         st.session_state.setdefault("ai_use_llm", settings.available)
