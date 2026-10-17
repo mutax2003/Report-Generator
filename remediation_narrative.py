@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from table_link_notes import link_caveat, link_issue
+
 ECOVENTURE_CONSULTANT = "Ecoventure Inc."
 
 
@@ -48,6 +50,11 @@ def enrich_remediation_context(ctx: dict[str, Any]) -> None:
         )
     else:
         ctx["confirmatory_status"] = ""
+    issue = link_issue(ctx, "confirmatory_sampling")
+    if issue:
+        # Rows were dropped by site linking: never claim all results met objectives.
+        caveat = link_caveat(issue, "Confirmatory sampling results")
+        ctx["confirmatory_status"] = f"{ctx['confirmatory_status']}; {caveat}" if exc else caveat
 
 
 def build_remediation_executive_summary(ctx: dict[str, Any]) -> str:

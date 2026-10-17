@@ -109,8 +109,13 @@ class ApplyDraftsTests(unittest.TestCase):
         out = well_rows_to_xlsx_bytes(
             [{"Well ID": "=cmd", "Screen Top": "1", "Screen Bottom": "2"}]
         )
-        df = pd.read_excel(io.BytesIO(out), sheet_name=MONITORING_WELLS_SHEET)
-        self.assertEqual(str(df.iloc[0]["Well ID"]), "'=cmd")
+        import openpyxl
+
+        cell = openpyxl.load_workbook(io.BytesIO(out))[MONITORING_WELLS_SHEET]["A2"]
+        # Stored as a text cell (not a formula); no visible apostrophe in the value.
+        self.assertEqual(cell.value, "=cmd")
+        self.assertEqual(cell.data_type, "s")
+        self.assertTrue(cell.quotePrefix)
 
     def test_patch_neutralizes_formula_injection(self) -> None:
         excel = _xlsx_with_project(notes="")
@@ -118,8 +123,13 @@ class ApplyDraftsTests(unittest.TestCase):
             excel, {"notes": "=1+1"}, overwrite_filled=True
         )
         self.assertIn("notes", applied)
-        df = pd.read_excel(io.BytesIO(new_bytes), sheet_name=PROJECT_SHEET)
-        self.assertEqual(str(df.iloc[0]["notes"]), "'=1+1")
+        import openpyxl
+
+        ws = openpyxl.load_workbook(io.BytesIO(new_bytes))[PROJECT_SHEET]
+        col = [c.value for c in ws[1]].index("notes") + 1
+        cell = ws.cell(row=2, column=col)
+        self.assertEqual(cell.value, "=1+1")
+        self.assertEqual(cell.data_type, "s")
 
     def test_load_rejects_non_object_and_too_many_fields(self) -> None:
         with self.assertRaises(ValueError):

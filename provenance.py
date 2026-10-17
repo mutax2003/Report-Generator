@@ -88,7 +88,8 @@ def build_generation_record(
     return GenerationRecord(
         generated_at=datetime.now(timezone.utc).isoformat(),
         report_phase=str(meta.get("report_phase", "")),
-        report_type=str(meta.get("report_type", "")),
+        # Engine-resolved profile (set even when the sidebar left report_type blank).
+        report_type=str(ctx.get("_report_type") or meta.get("report_type", "")),
         prepared_by=str(meta.get("prepared_by", "")),
         template_version=str(meta.get("template_version", "")),
         template_source_format=template_source_format or "",

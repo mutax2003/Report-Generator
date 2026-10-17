@@ -74,6 +74,11 @@ Map SharePoint paths to local temp folders in the flow.
 - Do not expose port 8765 to the public internet.
 - Use a service account with least privilege on SharePoint libraries.
 - Validate file extensions server-side (already enforced in `security.py`).
+- Configure the HTTP action's retry policy for **429** (render quota per API key, or repeated failed
+  auth from the flow's IP) and **503** (all render slots busy); both send `Retry-After`. A wrong key
+  repeated `ESA_AUTH_FAIL_MAX` times in the window gets 429 until the window passes.
+- Uploads must finish within `ESA_HTTP_REQUEST_DEADLINE_SEC` (default 60 s, headers + body);
+  raise it on the server if flows push large files over slow links.
 
 ## Testing without Power Automate
 

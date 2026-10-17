@@ -190,6 +190,23 @@ class TestZipBomb(unittest.TestCase):
             _check_zip_member_metadata(info)
         self.assertIn("Encrypted", str(ctx.exception))
 
+    def test_rejects_declared_total_over_limit(self) -> None:
+        from unittest import mock
+
+        import security
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_STORED) as zf:
+            zf.writestr("word/document.xml", b"x" * 1_000)
+            for i in range(4):
+                zf.writestr(f"word/media/pad{i}.bin", b"\0" * 1_000)
+        data = buf.getvalue()
+        inspect_zip_archive(data, purpose="docx")
+        with mock.patch.object(security, "_zip_uncompressed_limit", return_value=4_000):
+            with self.assertRaises(SecurityError) as ctx:
+                inspect_zip_archive(data, purpose="docx")
+        self.assertIn("zip bomb", str(ctx.exception))
+
     def test_read_budget_enforced(self) -> None:
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_STORED) as zf:

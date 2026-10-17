@@ -36,6 +36,12 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
         ) from e
 
     reader = PdfReader(io.BytesIO(pdf_bytes))
+    # Owner-password-only PDFs open with an empty password; others need a clear error.
+    if reader.is_encrypted and reader.decrypt("") == 0:
+        raise SecurityError(
+            "PDF is password-protected. Remove the password (e.g. print or save it "
+            "as a new PDF) and try again."
+        )
     pages: list[str] = []
     for page in reader.pages[:50]:
         t = page.extract_text() or ""

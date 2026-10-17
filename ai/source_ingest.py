@@ -13,7 +13,7 @@ from ai.config import MAX_PDF_BYTES, openai_model
 from ai.lab_extract import extract_lab_from_pdf
 from ai.models import AiAudit
 from phase1_pdf_text import extract_pdf_text_local, parse_phase1_pdf_meta
-from project_folder import _read_pdf_bytes
+from project_folder import _read_pdf_bytes, atomic_write_bytes, ensure_under_project_root
 
 LAB_FILENAME = re.compile(r"coa|certificate|cert\.?of|anal(?:ytical)?|lab.?report", re.I)
 ESA_FILENAME = re.compile(r"phase\s*1|phase\s*i|\besa\b|environmental", re.I)
@@ -145,9 +145,14 @@ def ingest_source_pdfs(
     use_llm: bool = True,
     write_rag_snippets: bool = True,
     rag_dir: Path | None = None,
+    project_root: Path | None = None,
 ) -> tuple[list[Path], list[dict[str, str]], AiAudit]:
     """
     Process PDFs from source/; write ai_drafts artifacts.
+
+    Every write target is resolved (following symlinks / NTFS junctions) and must stay
+    under ``project_root`` (default: ``drafts_dir.parent``); escapes raise
+    ``FileNotFoundError`` via ``project_folder.ensure_under_project_root``.
 
     Returns (written paths, summary dicts for narrative context, audit).
     """
@@ -156,12 +161,23 @@ def ingest_source_pdfs(
     if not pdfs:
         return [], [], audit
 
-    drafts_dir.mkdir(parents=True, exist_ok=True)
+    write_root = (project_root or drafts_dir.parent).resolve()
+
+    def _write_text(path: Path, text: str, *, encoding: str = "utf-8") -> None:
+        # Resolve after symlink / junction traversal; refuse writes outside the project.
+        atomic_write_bytes(path, text.encode(encoding), root=write_root)
+
+    def _contained_dir(path: Path) -> Path:
+        ensure_under_project_root(write_root, path, allow_missing=True)
+        path.mkdir(parents=True, exist_ok=True)
+        return ensure_under_project_root(write_root, path)
+
+    _contained_dir(drafts_dir)
     extracts_dir = drafts_dir / "source_extracts"
-    extracts_dir.mkdir(exist_ok=True)
+    _contained_dir(extracts_dir)
     rag_ingested = (rag_dir / "ingested") if rag_dir else None
     if write_rag_snippets and rag_ingested is not None:
-        rag_ingested.mkdir(parents=True, exist_ok=True)
+        _contained_dir(rag_ingested)
 
     records: list[SourcePdfRecord] = []
     summaries_for_narrative: list[dict[str, str]] = []
@@ -230,7 +246,7 @@ def ingest_source_pdfs(
         record.warnings = warnings
 
         extract_path = extracts_dir / f"{pdf.stem}.txt"
-        extract_path.write_text(text or "(no extractable text)\n", encoding="utf-8")
+        _write_text(extract_path, text or "(no extractable text)\n", encoding="utf-8")
         record.extract_file = extract_path.name
 
         if route == "lab":
@@ -238,7 +254,8 @@ def ingest_source_pdfs(
                 lab_result = extract_lab_from_pdf(pdf_bytes, use_llm=use_llm)
                 record.lab_row_count = len(lab_result.rows)
                 lab_path = drafts_dir / f"lab_extract_{pdf.stem}.json"
-                lab_path.write_text(
+                _write_text(
+                    lab_path,
                     json.dumps(
                         {
                             "source_pdf": pdf.name,
@@ -277,7 +294,8 @@ def ingest_source_pdfs(
                 apec_row_count = len(apec_result.rows)
                 if apec_result.rows:
                     apec_path = drafts_dir / f"apec_extract_{pdf.stem}.json"
-                    apec_path.write_text(
+                    _write_text(
+                        apec_path,
                         json.dumps(
                             {
                                 "disclaimer": apec_result.disclaimer,
@@ -314,7 +332,8 @@ def ingest_source_pdfs(
 
         if write_rag_snippets and rag_ingested is not None and summary:
             snippet_path = rag_ingested / f"{pdf.stem}.txt"
-            snippet_path.write_text(
+            _write_text(
+                snippet_path,
                 f"Source PDF: {pdf.name}\n---\n{summary}\n", encoding="utf-8"
             )
 
@@ -334,7 +353,8 @@ def ingest_source_pdfs(
         )
 
     index_path = drafts_dir / "source_index.json"
-    index_path.write_text(
+    _write_text(
+        index_path,
         json.dumps(
             {
                 "disclaimer": "Source PDF index — review extracts before using in reports.",
@@ -348,7 +368,8 @@ def ingest_source_pdfs(
     written.append(index_path)
 
     summaries_path = drafts_dir / "source_summaries.json"
-    summaries_path.write_text(
+    _write_text(
+        summaries_path,
         json.dumps(
             {
                 "disclaimer": "AI summaries of source/ PDFs — QP review required.",
@@ -363,7 +384,8 @@ def ingest_source_pdfs(
     suggestions = _merge_excel_suggestions(index_entries)
     if suggestions:
         sugg_path = drafts_dir / "excel_field_suggestions.json"
-        sugg_path.write_text(
+        _write_text(
+            sugg_path,
             json.dumps(
                 {
                     "disclaimer": (
@@ -401,7 +423,8 @@ def ingest_source_pdfs(
         )
         merged = merge_apec_results([fake])
         cand_path = drafts_dir / "apecs_candidates.json"
-        cand_path.write_text(
+        _write_text(
+            cand_path,
             json.dumps(
                 {
                     "disclaimer": (

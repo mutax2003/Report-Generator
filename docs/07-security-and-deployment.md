@@ -26,14 +26,14 @@ The application accepts **untrusted uploads** (Excel and Word) from internal use
 - Magic bytes `PK\x03\x04` required.
 - Excel must contain spreadsheet-related parts.
 - Template must contain `word/document.xml`.
-- Max 5,000 ZIP members; decompressed total capped (120 MB read budget).
+- Max 5,000 ZIP members; decompressed total capped at 120 MB, checked against every member's declared size before any reader opens the file.
 - Rejects `..` and absolute paths in member names.
 - Rejects encrypted ZIP entries.
 - Compression ratio check (ratio > 80 flagged as bomb).
 
 ### Jinja2
 
-- **Main report:** `SandboxedEnvironment` with `StrictUndefined` during `doc.render`. Missing scalar tags warn and render empty — render does not crash.
+- **Main report:** `report_jinja.LimitedSandboxedEnvironment` (a `SandboxedEnvironment`) with `StrictUndefined` and `autoescape=True` during `doc.render`. Missing scalar tags warn and render empty — render does not crash. Autoescape XML-escapes Excel/sidebar text so a cell cannot inject WordprocessingML; resource limits cap cumulative `range()` items, total `{% for %}` iterations (nested and recursive), total calls (macros, `loop()`), the size of every expression/filter/method result (repetition, `+`, `~`, `%`, `str.format`, `center`, `replace`, `join`, ...; amplifying operations are pre-checked), `**`, integers built by `*` / `+`, `bytes`, `lipsum()`, text made from nested containers (estimated before `str()` runs), and rendered part size; a render stops after 120 s wall clock, and template recursion / numeric overflow is reported as a template error. Docx core properties (Title, Author) render with the same sandbox without autoescape — python-docx escapes them itself. Residual risk (see `report_jinja.py` docstring): one checked operation can run for a few seconds or transiently allocate up to about the size cap before the next check; templates come only from authenticated consultants.
 - **Auto-generated appendices (A/D/G):** same sandbox with lenient `Undefined` so sparse Excel rows do not abort appendix render; missing keys render blank (same consultant outcome as empty main-report tags).
 - Templates treated as trusted — sandbox blocks dangerous Python, not malicious template authors.
 
@@ -61,7 +61,7 @@ Rendered `.docx` re-validated as ZIP with `word/document.xml` before download.
 
 ### Formula injection
 
-Cell strings starting with `=+-@\t\r` get leading `'` in `_cell_str` (engine merge and AI draft apply into ProjectData).
+Formula injection only matters where values land in a spreadsheet. In `.xlsx` files written by AI draft apply and AI-built workbooks (`ai.excel_builder.sheets_to_xlsx_bytes`), text starting with `=` is stored as a text cell (string type + `quotePrefix`), so Excel never runs it and the value has no visible `'`. The OneStop CSV export uses `engine._excel_cell_str`, which prefixes `'` to strings starting with `=+-@\t\r` (except plain numeric text like `-5`). Word output (`_cell_str`) is not prefixed — negative numbers render as typed, and XML escaping is handled by Jinja autoescape.
 
 ### Project folder / AI drafts
 
@@ -75,13 +75,18 @@ Cell strings starting with `=+-@\t\r` get leading `'` in `_cell_str` (engine mer
 |----------|--------|
 | `ESA_VALIDATION_BYPASS=1` | Skip upload validation (tests only) |
 | `ESA_SKIP_VALIDATION=1` | Alias of `ESA_VALIDATION_BYPASS` (tests only) |
-| `ESA_HOSTED_MODE=1` / `ESA_DISABLE_FOLDER_WORKFLOW=1` | Disable local project-folder workflow on shared hosts (set as **env** so `resolve_project_folder` / agent CLI block; UI also reads Streamlit secrets) |
+| `ESA_HOSTED_MODE=1` / `ESA_DISABLE_FOLDER_WORKFLOW=1` | Truthy = `1`/`true`/`yes`/`on` (case-insensitive). Disable local project-folder workflow on shared hosts and refuse the validation bypass (set as **env** so `resolve_project_folder` / agent CLI block; inside the Streamlit process `st.secrets` is also honoured, including TOML booleans like `ESA_HOSTED_MODE = true`) |
 | `ESA_AUDIT_ENABLED=1` | Enable append-only audit trail |
 | `ESA_AUDIT_LOG` | Audit JSONL path (default `.esa_audit/audit.jsonl`) |
-| `ESA_API_KEY` | Required for non-localhost HTTP bind; validates `X-ESA-API-Key` |
+| `ESA_API_KEY` | Required for non-localhost HTTP bind; validates `X-ESA-API-Key`. Its presence (even empty) refuses the validation bypass; keys under 24 chars log a warning |
 | `ESA_REQUIRE_API_KEY=1` | Force API-key auth even on localhost |
 | `ESA_DEFAULT_ROLES` | Comma-separated roles for API key context (default `author`) |
-| `ESA_RATE_LIMIT_MAX` / `ESA_RATE_LIMIT_WINDOW_SEC` | HTTP sliding-window rate limit |
+| `ESA_RATE_LIMIT_MAX` / `ESA_RATE_LIMIT_WINDOW_SEC` | Per-API-key render quota, checked **after** auth (429 + `Retry-After`) |
+| `ESA_AUTH_FAIL_MAX` / `ESA_AUTH_FAIL_WINDOW_SEC` | Per-IP failed-auth limiter (default 10 / 60 s); over the cap → 429, connection closed |
+| `ESA_HTTP_SOCKET_TIMEOUT_SEC` | Per-read socket timeout for the threaded HTTP server (default 30) |
+| `ESA_HTTP_REQUEST_DEADLINE_SEC` | Overall read deadline per request (line + headers + body, default 60); trickling clients are dropped (slowloris guard). Raise it if callers upload large files over slow links |
+| `ESA_HTTP_MAX_CONNECTIONS` | Cap on open connections (default 32); over the cap → immediate 503 + close |
+| `ESA_HTTP_MAX_CONCURRENT_RENDERS` | Concurrent `/render` cap (default 4); slot taken before the body is read; busy → 503 + `Retry-After` (does not consume render quota) |
 | `ESA_DISABLE_RATE_LIMIT=1` | **Dev/tests only** — disables rate limiting (never set in production) |
 | `ESA_QP_SIGNING_SECRET` | HMAC secret for QP signature helpers (`qp_signature.py`) |
 | `ESA_RETENTION_POLICY` | Path to retention JSON (default `schemas/records_retention_policy.json`) |

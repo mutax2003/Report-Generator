@@ -28,6 +28,48 @@ class EsaTenantTests(unittest.TestCase):
             self.assertEqual(str(ctx.exception), "Path escapes tenant root.")
             self.assertNotIn(str(outside), str(ctx.exception))
 
+    def test_traversal_tenant_ids_rejected(self) -> None:
+        for tid in ("..", ".", "....", "../..", "..\\..", "_", "-", "/", ". ."):
+            with self.subTest(tenant_id=tid):
+                with self.assertRaises(TenantError):
+                    normalize_tenant_id(tid)
+
+    def test_path_ish_tenant_ids_stay_under_base(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "tenants"
+            for tid in ("../../etc", "a/../..", "x/..", "acme.com", "..a", "a" * 200):
+                with self.subTest(tenant_id=tid):
+                    path = tenant_subdir("jobs", tenant_id=tid, base=base)
+                    resolved = path.resolve()
+                    self.assertTrue(resolved.is_relative_to(base.resolve()))
+                    self.assertNotEqual(resolved.parent, base.resolve())
+                    self.assertRegex(path.parent.name, r"^[a-z0-9][a-z0-9_-]{0,63}$")
+
+    def test_traversal_category_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            for category in ("..", "../x", "", "a/b"):
+                with self.subTest(category=category):
+                    with self.assertRaises(TenantError):
+                        tenant_subdir(category, tenant_id="team-a", base=Path(tmp))
+
+    def test_windows_reserved_device_names_rejected(self) -> None:
+        reserved = ("nul", "NUL", "con", "prn", "aux", "com1", "Com9", "lpt1", "LPT9", " nul ")
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in reserved:
+                with self.subTest(tenant_id=name):
+                    with self.assertRaises(TenantError):
+                        normalize_tenant_id(name)
+                    with self.assertRaises(TenantError):
+                        tenant_subdir("jobs", tenant_id=name, base=Path(tmp), create=True)
+                with self.subTest(category=name):
+                    with self.assertRaises(TenantError):
+                        tenant_subdir(name, tenant_id="team-a", base=Path(tmp), create=True)
+            # Lookalikes that are not device names stay valid.
+            for ok in ("nul_x", "console", "com10", "lpt0", "auxiliary"):
+                with self.subTest(ok=ok):
+                    self.assertEqual(normalize_tenant_id(ok), ok)
+                    tenant_subdir(ok, tenant_id="team-a", base=Path(tmp), create=True)
+
 
 if __name__ == "__main__":
     unittest.main()
