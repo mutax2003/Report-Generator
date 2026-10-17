@@ -237,11 +237,15 @@ def _rate_limit_key(ctx: AuthContext | None, headers: dict[str, str], peer: str)
 
     Only called after successful auth; unauthenticated failures are throttled separately
     per IP by ``record_failed_auth`` so they never consume a valid client's quota.
+    With auth off (``ctx is None``) the key header was never checked, so a caller could
+    send a fresh value per request to get a fresh bucket; quota is per IP instead.
     """
+    if ctx is None:
+        return f"ip:{peer}"
     key_bucket = _api_key_rate_bucket(headers)
     if key_bucket:
         return key_bucket
-    if ctx is not None and ctx.user_id:
+    if ctx.user_id:
         return f"user:{ctx.user_id}"
     return f"ip:{peer}"
 

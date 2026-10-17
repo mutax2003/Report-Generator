@@ -60,7 +60,7 @@ python scripts\verify_tier.py --tier release
 |-----|------|------|
 | **quality** | ubuntu, Python 3.11 | ruff lint/format, mypy (production modules), **`build_help.py`**, coverage (`--fail-under=50`), `validation_evidence.py` |
 | **test** | matrix Python **3.11–3.13** | samples + **`build_help.py`** + unittest + streamlit_smoke; **full E2E chain on 3.11 only** |
-| **windows-smoke** | windows-latest (PRs / pushes) | `build_windows_deploy.ps1 -SkipExe` → asserts `help/index.html` in package → bundled-venv `health_check.py` + `streamlit_smoke.py` |
+| **windows-smoke** | windows-latest (PRs / pushes) | `build_windows_deploy.ps1` (no `-BuildExe`) → asserts `help/index.html` in package → bundled-venv `health_check.py` + `streamlit_smoke.py` |
 
 ## Local-only E2E (optional)
 
@@ -72,7 +72,7 @@ python scripts\playwright_smoke.py
 ## Conventions
 
 - Framework: **stdlib `unittest`** in `tests/` — not pytest unless the project migrates.
-- **Parity pins** (update with `scripts/count_tests.py` when adding/removing tests): **537 tests**, **4** may skip, **18** health checks. Always re-run `python scripts\count_tests.py` after suite changes.
+- **Parity pins** (update with `scripts/count_tests.py` when adding/removing tests): **547 tests**, **4** may skip, **18** health checks. Always re-run `python scripts\count_tests.py` after suite changes.
 - UX AppTest coverage includes `test_onboarding`, `test_appendix_helpers`, `test_streamlit_smoke`, `test_menubar`.
 - **Hosted / Cloud regression:** keep green
   - `tests/test_streamlit_smoke.py` → `test_hosted_golden_path_generate_deliverable_zip` (`ESA_HOSTED_MODE=1` → upload-only → Alberta sample → Generate → deliverable zip)

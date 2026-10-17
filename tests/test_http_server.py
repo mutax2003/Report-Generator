@@ -153,6 +153,15 @@ class HttpServerIntegrationTests(unittest.TestCase):
 
         self.assertEqual(_rate_limit_key(None, {}, "10.0.0.9"), "ip:10.0.0.9")
 
+    def test_rate_limit_key_ignores_unvalidated_api_key_header(self) -> None:
+        """Auth off: a made-up X-ESA-API-Key per request must not buy a fresh bucket."""
+        from automate.http_server import _rate_limit_key
+
+        for fake in ("a", "b", "c"):
+            self.assertEqual(
+                _rate_limit_key(None, {"X-ESA-API-Key": fake}, "10.0.0.9"), "ip:10.0.0.9"
+            )
+
     def test_render_rejects_missing_api_key_with_401(self) -> None:
         import json
         import os

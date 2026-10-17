@@ -31,6 +31,7 @@ samples/*_package.zip
 samples/*_rendered.docx
 samples/*_rendered_manifest.json
 samples/batch_cli.zip
+samples/rendered_output*.zip
 
 # Client reference PDFs (confidential)
 samples/*.pdf

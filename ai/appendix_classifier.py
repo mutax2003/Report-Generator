@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from ai.client import complete_text
+from ai.client import complete_json
 
 APPENDIX_LABELS = frozenset("ABCDEFGH")
 AUTO_GENERATED_APPENDIX_LABELS = frozenset({"A", "D", "G"})
@@ -72,24 +72,21 @@ def _llm_classify(paths: list[Path]) -> dict[str, AppendixClassification]:
     if not paths:
         return {}
     listing = [{"filename": p.name, "size_kb": p.stat().st_size // 1024} for p in paths]
-    raw = complete_text(
+    reply = complete_json(
         system=(
             "Classify each PDF into one appendix label A–H for Alberta Phase I ESA packages. "
             "A=QP declaration, B=ABADATA spill search, C=air photos, D=drilling waste checklist, "
             "E=survey plan, F=land title, G=waste calc tables, H=site sketch. "
-            "Return JSON array: [{\"filename\":\"...\",\"label\":\"B\",\"confidence\":0.9,\"rationale\":\"...\"}]"
+            "Return a JSON object: {\"items\": [{\"filename\":\"...\",\"label\":\"B\","
+            "\"confidence\":0.9,\"rationale\":\"...\"}]}"
         ),
         user=json.dumps(listing),
-        json_mode=True,
     )
-    if not raw:
+    if not reply:
         return {}
-    try:
-        rows = json.loads(raw)
-    except json.JSONDecodeError:
+    rows = reply.get("items") or reply.get("classifications") or []
+    if not isinstance(rows, list):
         return {}
-    if isinstance(rows, dict):
-        rows = rows.get("items") or rows.get("classifications") or []
     by_name: dict[str, AppendixClassification] = {}
     name_to_path = {p.name: p for p in paths}
     for row in rows:
@@ -99,10 +96,14 @@ def _llm_classify(paths: list[Path]) -> dict[str, AppendixClassification]:
         label = str(row.get("label", "B")).upper()[:1]
         if label not in APPENDIX_LABELS or fname not in name_to_path:
             continue
+        try:
+            confidence = float(row.get("confidence", 0.6))
+        except (TypeError, ValueError):
+            confidence = 0.6
         by_name[fname] = AppendixClassification(
             path=name_to_path[fname],
             label=label,
-            confidence=float(row.get("confidence", 0.6)),
+            confidence=confidence,
             source="llm",
             rationale=str(row.get("rationale", ""))[:200],
         )

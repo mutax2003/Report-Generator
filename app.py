@@ -26,7 +26,6 @@ from ui.helpers import (
     render_template_analysis,
     resolve_session_excel_file,
     resolve_session_template_file,
-    session_loaded_file_names,
     validated_excel_upload_bytes,
 )
 from ui.onboarding import (
@@ -209,7 +208,10 @@ def main() -> None:
 
     preflight = run_preflight_check(excel_bytes, template_bytes, meta_render)
 
-    ex_name, tpl_name = session_loaded_file_names()
+    # Name what will actually render: uploads, folder files and session samples all
+    # arrive as excel_file / template_file; a rejected file has no bytes.
+    ex_name = getattr(excel_file, "name", "") if has_excel else ""
+    tpl_name = getattr(template_file, "name", "") if has_template else ""
     profile_label = str(
         (meta_render or {}).get("report_type")
         or meta.get("report_type")

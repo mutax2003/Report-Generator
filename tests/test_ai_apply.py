@@ -77,6 +77,37 @@ class ApplyDraftsTests(unittest.TestCase):
         )
         self.assertEqual(from_session["site_description"], "Site text")
 
+    def test_narrative_markdown_is_stripped_before_apply(self) -> None:
+        text = "# Executive Summary\n\nThe site **[confirm]** is __clean__.\n## Findings\n- One"
+        expected = "The site [confirm] is clean.\nFindings\n- One"
+        fields = load_narratives_payload({"sections": [{"section": "executive_summary", "text": text}]})
+        self.assertEqual(fields["executive_summary"], expected)
+        from_session = narratives_from_session_drafts(
+            [NarrativeDraft(section="executive_summary", text=text)]
+        )
+        self.assertEqual(from_session["executive_summary"], expected)
+
+    def test_narrative_markdown_strip_leaves_plain_text_alone(self) -> None:
+        from ai.apply_drafts import strip_narrative_markdown
+
+        unchanged = [
+            "Depth 2**3 m; snake__case__name; # not a heading",
+            "# 3 wells were drilled.\nThe rest",
+            "Intro\n# of wells: 3",
+            "PHC F2 C10-C16 at 10**-6; [confirm] - list",
+        ]
+        for text in unchanged:
+            with self.subTest(text=text):
+                self.assertEqual(strip_narrative_markdown(text), text)
+        changed = {
+            "# Executive Summary": "Executive Summary",
+            "## Sites C#\nbody": "body",
+            "x\nx\n## Sites C# ##": "x\nx\nSites C#",
+        }
+        for text, expected in changed.items():
+            with self.subTest(text=text):
+                self.assertEqual(strip_narrative_markdown(text), expected)
+
     def test_appendix_manifest_labels(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             drafts = Path(tmp)

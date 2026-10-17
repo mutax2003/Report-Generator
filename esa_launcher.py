@@ -31,6 +31,12 @@ def find_python(root: Path) -> Path | None:
     return None
 
 
+def launcher_port() -> str:
+    """Port Streamlit will listen on: ESA_PORT when it is a number, else 8501."""
+    port = os.environ.get("ESA_PORT", "").strip()
+    return port if port.isdigit() else "8501"
+
+
 def streamlit_command(py: Path, root: Path) -> list[str]:
     streamlit_exe = py.parent / "streamlit.exe"
     if streamlit_exe.is_file():
@@ -45,9 +51,7 @@ def streamlit_command(py: Path, root: Path) -> list[str]:
         "--browser.gatherUsageStats",
         "false",
     ]
-    port = os.environ.get("ESA_PORT", "").strip()
-    if port.isdigit():
-        cmd.extend(["--server.port", port])
+    cmd.extend(["--server.port", launcher_port()])
     if os.environ.get("ESA_BIND_ALL", "").strip().lower() in ("1", "true", "yes"):
         cmd.extend(["--server.address", "0.0.0.0"])
     else:
@@ -76,7 +80,7 @@ def main() -> int:
 
     print("ESA Report Generator — starting Streamlit…")
     print(f"  Root: {root}")
-    print("  Open http://localhost:8501 in your browser.")
+    print(f"  Open http://localhost:{launcher_port()} in your browser.")
     print("  Press Ctrl+C to stop.\n")
     return subprocess.call(streamlit_command(py, root), cwd=str(root))
 
